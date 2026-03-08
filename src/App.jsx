@@ -1,8 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } from "recharts";
 
-const uid=()=>Math.random().toString(36).slice(2,9);
-
 // ─────────────────────────────────────────────────────────────────────────────
 // PARAMS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -17,7 +15,7 @@ function calcCEE(volume_m3, product) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// users
+// USERS
 // ─────────────────────────────────────────────────────────────────────────────
 const USERS = [
   { id:"u1", name:"Sophie Martin",  role:"trader",   initials:"SM" },
@@ -30,6 +28,146 @@ const USERS = [
 // ─────────────────────────────────────────────────────────────────────────────
 const MONTHS_LIST = ["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10","2026-11","2026-12"];
 
+const REAL_TRADES = [
+  // ── CEE Classique (CEE Classique sheet) ──
+  { id:"t01", ceeType:"CLASSIQUE", vendor:"Stock P5",                     dealType:"Fixed Price", period:"P6", volume:559.329645,       price:7310.155411,  month:"2026-01", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-01-02T09:00:00Z", ranking:"AAA", statut:"Attribué",              priced:true, emmyValidated:true },
+  { id:"t02", ceeType:"CLASSIQUE", vendor:"OAAN (Mandat 2026)",            dealType:"Fixed Price", period:"P6", volume:263.952,          price:8350,  month:"2026-01", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-01-05T09:00:00Z", ranking:"BBB", statut:"Attribué",              priced:true, emmyValidated:false },
+  { id:"t03", ceeType:"CLASSIQUE", vendor:"OAAN (Mandat 2026)",            dealType:"Fixed Price", period:"P6", volume:236.048,          price:8350,  month:"2026-02", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-02-03T09:00:00Z", ranking:"BBB", statut:"Attribué",              priced:true, emmyValidated:false },
+  { id:"t04", ceeType:"CLASSIQUE", vendor:"ACT (Mandat 2026)",             dealType:"Fixed Price", period:"P6", volume:333.19,           price:9000,  month:"2026-02", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-02-04T09:00:00Z", ranking:"AAA", statut:"Attribué",              priced:true, emmyValidated:false },
+  { id:"t05", ceeType:"CLASSIQUE", vendor:"ACT (Mandat 2026)",             dealType:"Fixed Price", period:"P6", volume:1416.81,          price:9000,  month:"2026-03", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-03-02T09:00:00Z", ranking:"AAA", statut:"Attribué",              priced:true, emmyValidated:false },
+  { id:"t06", ceeType:"CLASSIQUE", vendor:"ACT (Contrat de Regroupement)", dealType:"Fixed Price", period:"P6", volume:1000,             price:9200,  month:"2026-03", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-03-03T09:00:00Z", ranking:"AAA", statut:"Attribué",              priced:true, emmyValidated:false },
+  { id:"t07", ceeType:"CLASSIQUE", vendor:"OTC France",                    dealType:"Fixed Price", period:"P6", volume:440,              price:9100,  month:"2026-03", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-03-04T09:00:00Z", ranking:"AAA", statut:"Attribué",              priced:true, emmyValidated:false },
+  { id:"t08", ceeType:"CLASSIQUE", vendor:"ACT (Mandat 2026)",             dealType:"Fixed Price", period:"P6", volume:250,              price:8600,  month:"2026-03", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-03-04T10:00:00Z", ranking:null,  statut:"Attribué",              priced:true, emmyValidated:false },
+  { id:"t09", ceeType:"CLASSIQUE", vendor:"Eco-Environnement (Spot)",      dealType:"Fixed Price", period:"P6", volume:250,              price:8200,  month:"2026-03", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-03-05T09:00:00Z", ranking:"A+",  statut:"Pas encore contracté", priced:true, emmyValidated:false },
+  { id:"t10", ceeType:"CLASSIQUE", vendor:"Eco-Environnement (Délég.)",    dealType:"Floating",   period:"P6", volume:181.818181818182,  price:8234,  month:"2026-03", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:"A+",  statut:"Attribué",              priced:true, emmyValidated:false },
+  { id:"t11", ceeType:"CLASSIQUE", vendor:"Eco-Environnement (Délég.)",    dealType:"Floating",   period:"P6", volume:181.818181818182,  price:8234,  month:"2026-04", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:"A+",  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t12", ceeType:"CLASSIQUE", vendor:"Eco-Environnement (Délég.)",    dealType:"Floating",   period:"P6", volume:181.818181818182,  price:8234,  month:"2026-05", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:"A+",  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t13", ceeType:"CLASSIQUE", vendor:"Eco-Environnement (Délég.)",    dealType:"Floating",   period:"P6", volume:181.818181818182,  price:8234,  month:"2026-06", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:"A+",  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t14", ceeType:"CLASSIQUE", vendor:"Eco-Environnement (Délég.)",    dealType:"Floating",   period:"P6", volume:181.818181818182,  price:8234,  month:"2026-07", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:"A+",  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t15", ceeType:"CLASSIQUE", vendor:"Eco-Environnement (Délég.)",    dealType:"Floating",   period:"P6", volume:181.818181818182,  price:8234,  month:"2026-08", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:"A+",  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t16", ceeType:"CLASSIQUE", vendor:"Eco-Environnement (Délég.)",    dealType:"Floating",   period:"P6", volume:181.818181818182,  price:8234,  month:"2026-09", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:"A+",  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t17", ceeType:"CLASSIQUE", vendor:"Eco-Environnement (Délég.)",    dealType:"Floating",   period:"P6", volume:181.818181818182,  price:8234,  month:"2026-10", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:"A+",  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t18", ceeType:"CLASSIQUE", vendor:"Eco-Environnement (Délég.)",    dealType:"Floating",   period:"P6", volume:181.818181818182,  price:8234,  month:"2026-11", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:"A+",  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t19", ceeType:"CLASSIQUE", vendor:"Eco-Environnement (Délég.)",    dealType:"Floating",   period:"P6", volume:181.818181818182,  price:8234,  month:"2026-12", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:"A+",  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t20", ceeType:"CLASSIQUE", vendor:"OAAN (Mandat 2026 - Indexé)",   dealType:"Floating",   period:"P6", volume:83.3333333333333,  price:7984,  month:"2026-07", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:null,  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t21", ceeType:"CLASSIQUE", vendor:"OAAN (Mandat 2026 - Indexé)",   dealType:"Floating",   period:"P6", volume:83.3333333333333,  price:7984,  month:"2026-08", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:null,  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t22", ceeType:"CLASSIQUE", vendor:"OAAN (Mandat 2026 - Indexé)",   dealType:"Floating",   period:"P6", volume:83.3333333333333,  price:7984,  month:"2026-09", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:null,  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t23", ceeType:"CLASSIQUE", vendor:"OAAN (Mandat 2026 - Indexé)",   dealType:"Floating",   period:"P6", volume:83.3333333333333,  price:7984,  month:"2026-10", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:null,  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t24", ceeType:"CLASSIQUE", vendor:"OAAN (Mandat 2026 - Indexé)",   dealType:"Floating",   period:"P6", volume:83.3333333333333,  price:7984,  month:"2026-11", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:null,  statut:"Attribué",              priced:false, emmyValidated:false },
+  { id:"t25", ceeType:"CLASSIQUE", vendor:"OAAN (Mandat 2026 - Indexé)",   dealType:"Floating",   period:"P6", volume:83.3333333333333,  price:7984,  month:"2026-12", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-03-06T09:00:00Z", ranking:null,  statut:"Attribué",              priced:false, emmyValidated:false },
+  // ── CEE Précarité (CEE Preca Achetés sheet) ──
+  { id:"t30", ceeType:"PRECARITE", vendor:"Stock P5",                      dealType:"Fixed Price", period:"P6", volume:174.37509,         price:10248.985176, month:"2026-01", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-01-02T09:00:00Z", ranking:"AAA", statut:"Attribué",              priced:true, emmyValidated:false },
+  { id:"t31", ceeType:"PRECARITE", vendor:"ACT (Mandat 2026)",             dealType:"Fixed Price", period:"P6", volume:120,               price:14500, month:"2026-01", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-01-05T09:00:00Z", ranking:"AAA", statut:"Attribué",              priced:true, emmyValidated:false },
+  { id:"t32", ceeType:"PRECARITE", vendor:"ACT (Mandat 2026)",             dealType:"Fixed Price", period:"P6", volume:5.3,               price:14500, month:"2026-01", status:"APPROVED", createdBy:"u1", approvedBy:"u3", createdAt:"2026-01-06T09:00:00Z", ranking:null,  statut:"Attribué",              priced:true, emmyValidated:false },
+  { id:"t33", ceeType:"PRECARITE", vendor:"ACT (Mandat 2026)",             dealType:"Fixed Price", period:"P6", volume:74.7,              price:14500, month:"2026-02", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-02-03T09:00:00Z", ranking:null,  statut:"Attribué",              priced:true, emmyValidated:false },
+  { id:"t34", ceeType:"PRECARITE", vendor:"Eco-Environnement",             dealType:"Fixed Price", period:"P6", volume:100,               price:14500, month:"2026-02", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-02-05T09:00:00Z", ranking:null,  statut:"Pas encore contracté", priced:true, emmyValidated:false },
+  { id:"t35", ceeType:"PRECARITE", vendor:"Eco-Environnement",             dealType:"Fixed Price", period:"P6", volume:32.5,              price:14300, month:"2026-02", status:"APPROVED", createdBy:"u2", approvedBy:"u3", createdAt:"2026-02-06T09:00:00Z", ranking:null,  statut:"Pas encore contracté", priced:true, emmyValidated:false },
+  { id:"t36", ceeType:"PRECARITE", vendor:"Eco-Environnement",             dealType:"Fixed Price", period:"P6", volume:467.5,             price:14300, month:"2026-03", status:"APPROVED", createdBy:"u2", approvedBy:"u3",  createdAt:"2026-03-06T09:00:00Z", ranking:null,  statut:"Pas encore contracté", priced:true, emmyValidated:false },
+];
+
+// Real daily prices from Quotation C2E Market sheet
+const REAL_PRICES = [
+  { id:"p01",  date:"2026-01-02", classique:9.36, precarite:16.03, enteredBy:"u1", enteredAt:"2026-01-02T08:00:00Z" },
+  { id:"p02",  date:"2026-01-05", classique:9.15, precarite:16.03, enteredBy:"u1", enteredAt:"2026-01-05T08:00:00Z" },
+  { id:"p03",  date:"2026-01-06", classique:9.11, precarite:16.03, enteredBy:"u1", enteredAt:"2026-01-06T08:00:00Z" },
+  { id:"p04",  date:"2026-01-07", classique:9.11, precarite:16.03, enteredBy:"u1", enteredAt:"2026-01-07T08:00:00Z" },
+  { id:"p05",  date:"2026-01-08", classique:9.15, precarite:16.03, enteredBy:"u1", enteredAt:"2026-01-08T08:00:00Z" },
+  { id:"p06",  date:"2026-01-12", classique:9.10, precarite:16.03, enteredBy:"u1", enteredAt:"2026-01-12T08:00:00Z" },
+  { id:"p07",  date:"2026-01-13", classique:9.07, precarite:16.03, enteredBy:"u1", enteredAt:"2026-01-13T08:00:00Z" },
+  { id:"p08",  date:"2026-01-14", classique:9.02, precarite:16.15, enteredBy:"u1", enteredAt:"2026-01-14T08:00:00Z" },
+  { id:"p09",  date:"2026-01-21", classique:9.02, precarite:16.20, enteredBy:"u1", enteredAt:"2026-01-21T08:00:00Z" },
+  { id:"p10",  date:"2026-01-28", classique:9.02, precarite:16.39, enteredBy:"u1", enteredAt:"2026-01-28T08:00:00Z" },
+  { id:"p11",  date:"2026-01-30", classique:8.97, precarite:16.39, enteredBy:"u1", enteredAt:"2026-01-30T08:00:00Z" },
+  { id:"p12",  date:"2026-02-02", classique:9.02, precarite:16.39, enteredBy:"u2", enteredAt:"2026-02-02T08:00:00Z" },
+  { id:"p13",  date:"2026-02-04", classique:9.03, precarite:16.38, enteredBy:"u2", enteredAt:"2026-02-04T08:00:00Z" },
+  { id:"p14",  date:"2026-02-06", classique:8.91, precarite:16.38, enteredBy:"u2", enteredAt:"2026-02-06T08:00:00Z" },
+  { id:"p15",  date:"2026-02-09", classique:9.02, precarite:16.38, enteredBy:"u2", enteredAt:"2026-02-09T08:00:00Z" },
+  { id:"p16",  date:"2026-02-10", classique:8.96, precarite:16.38, enteredBy:"u2", enteredAt:"2026-02-10T08:00:00Z" },
+  { id:"p17",  date:"2026-02-11", classique:8.95, precarite:16.55, enteredBy:"u1", enteredAt:"2026-02-11T08:00:00Z" },
+  { id:"p18",  date:"2026-02-13", classique:8.95, precarite:16.55, enteredBy:"u1", enteredAt:"2026-02-13T08:00:00Z" },
+  { id:"p19",  date:"2026-03-06", classique:8.96, precarite:16.44, enteredBy:"u1", enteredAt:"2026-03-06T08:00:00Z" },
+];
+
+const SEED_CURVE = {
+  SPOT:    { classique:8.96,  precarite:16.44 },
+  "S1-26": { classique:8.96,  precarite:16.05 },
+  "S2-26": { classique:8.93,  precarite:15.81 },
+  "S1-27": { classique:8.95,  precarite:15.85 },
+  "S2-27": { classique:8.93,  precarite:15.08 },
+  "S1-28": { classique:8.95,  precarite:15.04 },
+  "S2-28": { classique:8.94,  precarite:14.64 },
+};
+const TENORS = ["SPOT","S1-26","S2-26","S1-27","S2-27","S1-28","S2-28"];
+
+// Real obligations — GWhc taken EXACTLY from Obligation CEE sheet
+// Jan: priced CL=823.2816, PR=299.6745 (incl. negative adjustment rows)
+// Feb: priced CL=569.2397, PR=207.2033
+// Mar: priced CL=549.7037, PR=200.0922 | unpriced CL=356.1979, PR=129.656
+// Apr-Dec: all unpriced (obl_priced=0 → PnL=0, MtM=0)
+const REAL_OBLIGATIONS = [
+  // ── Jan 2026 — all priced (total: CL=823.2816, PR=299.6745) ──
+  { id:"o01", month:"2026-01", product:"CARBURANT", volume_m3: 45308.873, priceCl:9100, pricePr:16000, priced:true,  client:"Spot",        clGwhc: 395.0028, prGwhc: 143.7810 },
+  { id:"o02", month:"2026-01", product:"FOD",       volume_m3: 25463.256, priceCl:9100, pricePr:16000, priced:true,  client:"Spot",        clGwhc: 238.9234, prGwhc:  86.9681 },
+  { id:"o03", month:"2026-01", product:"CARBURANT", volume_m3:  -500,     priceCl:9100, pricePr:16000, priced:true,  client:"Spot",        clGwhc:  -4.3590, prGwhc:  -1.5867 },
+  { id:"o04", month:"2026-01", product:"FOD",       volume_m3:  -500,     priceCl:9100, pricePr:16000, priced:true,  client:"Spot",        clGwhc:  -4.6915, prGwhc:  -1.7077 },
+  { id:"o05", month:"2026-01", product:"CARBURANT", volume_m3: 22758.2,   priceCl:8600, pricePr:15150, priced:true,  client:"Certas",      clGwhc: 198.4060, prGwhc:  72.2198 },
+  // ── Feb 2026 — all priced (total: CL=569.2397, PR=207.2033) ──
+  { id:"o06", month:"2026-02", product:"CARBURANT", volume_m3: 18764,     priceCl:9100, pricePr:16000, priced:true,  client:"Spot",        clGwhc: 163.5846, prGwhc:  59.5448 },
+  { id:"o07", month:"2026-02", product:"FOD",       volume_m3:  5301,     priceCl:9100, pricePr:16000, priced:true,  client:"Spot",        clGwhc:  49.7396, prGwhc:  18.1052 },
+  { id:"o08", month:"2026-02", product:"CARBURANT", volume_m3: 14905,     priceCl:9000, pricePr:15000, priced:true,  client:"Spot",        clGwhc: 129.9418, prGwhc:  47.2988 },
+  { id:"o09", month:"2026-02", product:"FOD",       volume_m3:  2207,     priceCl:9000, pricePr:15000, priced:true,  client:"Spot",        clGwhc:  20.7084, prGwhc:   7.5379 },
+  { id:"o10", month:"2026-02", product:"CARBURANT", volume_m3: 23545,     priceCl:8775, pricePr:16070, priced:true,  client:"Certas",      clGwhc: 205.2653, prGwhc:  74.7166 },
+  // ── Mar 2026 — priced: CL=549.7037, PR=200.0922 | unpriced: CL=356.1979, PR=129.656 ──
+  { id:"o11", month:"2026-03", product:"CARBURANT", volume_m3: 17143,     priceCl:9000, pricePr:15000, priced:true,  client:"Spot",        clGwhc: 149.4527, prGwhc:  54.4008 },
+  { id:"o12", month:"2026-03", product:"FOD",       volume_m3:  3695,     priceCl:9000, pricePr:15000, priced:true,  client:"Spot",        clGwhc:  34.6704, prGwhc:  12.6200 },
+  { id:"o13", month:"2026-03", product:"CARBURANT", volume_m3: 28690.333, priceCl:9000, pricePr:15000, priced:false, client:"Spot",        clGwhc: 250.1223, prGwhc:  91.0445 },
+  { id:"o14", month:"2026-03", product:"FOD",       volume_m3: 11305,     priceCl:9000, pricePr:15000, priced:false, client:"Spot",        clGwhc: 106.0756, prGwhc:  38.6115 },
+  { id:"o15", month:"2026-03", product:"CARBURANT", volume_m3: 25269,     priceCl:8921, pricePr:14900, priced:true,  client:"Certas",      clGwhc: 220.2951, prGwhc:  80.1874 },
+  { id:"o16", month:"2026-03", product:"CARBURANT", volume_m3: 16665,     priceCl:8921, pricePr:14900, priced:true,  client:"Certas Lyon", clGwhc: 145.2855, prGwhc:  52.8839 },
+  // ── Apr–Jun (unpriced: CL=935.2111, PR=340.4168 per month) ──
+  { id:"o_2026-04_s1", month:"2026-04", product:"CARBURANT", volume_m3:45833.333, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:399.575, prGwhc:145.4453 },
+  { id:"o_2026-04_s2", month:"2026-04", product:"FOD", volume_m3:15000, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:140.746, prGwhc:51.2315 },
+  { id:"o_2026-04_c1", month:"2026-04", product:"CARBURANT", volume_m3:27000, priceCl:8984, pricePr:16030, priced:false, client:"Certas", clGwhc:235.386, prGwhc:85.6805 },
+  { id:"o_2026-04_c2", month:"2026-04", product:"CARBURANT", volume_m3:18295.953, priceCl:8984, pricePr:16030, priced:false, client:"Certas Lyon", clGwhc:159.5041, prGwhc:58.0595 },
+  { id:"o_2026-05_s1", month:"2026-05", product:"CARBURANT", volume_m3:45833.333, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:399.575, prGwhc:145.4453 },
+  { id:"o_2026-05_s2", month:"2026-05", product:"FOD", volume_m3:15000, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:140.746, prGwhc:51.2315 },
+  { id:"o_2026-05_c1", month:"2026-05", product:"CARBURANT", volume_m3:27000, priceCl:8984, pricePr:16030, priced:false, client:"Certas", clGwhc:235.386, prGwhc:85.6805 },
+  { id:"o_2026-05_c2", month:"2026-05", product:"CARBURANT", volume_m3:18295.953, priceCl:8984, pricePr:16030, priced:false, client:"Certas Lyon", clGwhc:159.5041, prGwhc:58.0595 },
+  { id:"o_2026-06_s1", month:"2026-06", product:"CARBURANT", volume_m3:45833.333, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:399.575, prGwhc:145.4453 },
+  { id:"o_2026-06_s2", month:"2026-06", product:"FOD", volume_m3:15000, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:140.746, prGwhc:51.2315 },
+  { id:"o_2026-06_c1", month:"2026-06", product:"CARBURANT", volume_m3:27000, priceCl:8984, pricePr:16030, priced:false, client:"Certas", clGwhc:235.386, prGwhc:85.6805 },
+  { id:"o_2026-06_c2", month:"2026-06", product:"CARBURANT", volume_m3:18295.953, priceCl:8984, pricePr:16030, priced:false, client:"Certas Lyon", clGwhc:159.5041, prGwhc:58.0595 },
+  // ── Jul–Sep (unpriced: CL=935.2111, PR=340.4168) ──
+  { id:"o_2026-07_s1", month:"2026-07", product:"CARBURANT", volume_m3:45833.333, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:399.575, prGwhc:145.4453 },
+  { id:"o_2026-07_s2", month:"2026-07", product:"FOD", volume_m3:15000, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:140.746, prGwhc:51.2315 },
+  { id:"o_2026-07_c1", month:"2026-07", product:"CARBURANT", volume_m3:27000, priceCl:8984, pricePr:16030, priced:false, client:"Certas", clGwhc:235.386, prGwhc:85.6805 },
+  { id:"o_2026-07_c2", month:"2026-07", product:"CARBURANT", volume_m3:18295.953, priceCl:8984, pricePr:16030, priced:false, client:"Certas Lyon", clGwhc:159.5041, prGwhc:58.0595 },
+  { id:"o_2026-08_s1", month:"2026-08", product:"CARBURANT", volume_m3:45833.333, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:399.575, prGwhc:145.4453 },
+  { id:"o_2026-08_s2", month:"2026-08", product:"FOD", volume_m3:15000, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:140.746, prGwhc:51.2315 },
+  { id:"o_2026-08_c1", month:"2026-08", product:"CARBURANT", volume_m3:27000, priceCl:8984, pricePr:16030, priced:false, client:"Certas", clGwhc:235.386, prGwhc:85.6805 },
+  { id:"o_2026-08_c2", month:"2026-08", product:"CARBURANT", volume_m3:18295.953, priceCl:8984, pricePr:16030, priced:false, client:"Certas Lyon", clGwhc:159.5041, prGwhc:58.0595 },
+  { id:"o_2026-09_s1", month:"2026-09", product:"CARBURANT", volume_m3:45833.333, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:399.575, prGwhc:145.4453 },
+  { id:"o_2026-09_s2", month:"2026-09", product:"FOD", volume_m3:15000, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:140.746, prGwhc:51.2315 },
+  { id:"o_2026-09_c1", month:"2026-09", product:"CARBURANT", volume_m3:27000, priceCl:8984, pricePr:16030, priced:false, client:"Certas", clGwhc:235.386, prGwhc:85.6805 },
+  { id:"o_2026-09_c2", month:"2026-09", product:"CARBURANT", volume_m3:18295.953, priceCl:8984, pricePr:16030, priced:false, client:"Certas Lyon", clGwhc:159.5041, prGwhc:58.0595 },
+  // ── Oct–Dec (unpriced: CL=775.707, PR=282.3573, no Certas Lyon) ──
+  { id:"o_2026-10_s1", month:"2026-10", product:"CARBURANT", volume_m3:45833.333, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:399.575, prGwhc:145.4453 },
+  { id:"o_2026-10_s2", month:"2026-10", product:"FOD", volume_m3:15000, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:140.746, prGwhc:51.2315 },
+  { id:"o_2026-10_c1", month:"2026-10", product:"CARBURANT", volume_m3:27000, priceCl:8984, pricePr:16030, priced:false, client:"Certas", clGwhc:235.386, prGwhc:85.6805 },
+  { id:"o_2026-11_s1", month:"2026-11", product:"CARBURANT", volume_m3:45833.333, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:399.575, prGwhc:145.4453 },
+  { id:"o_2026-11_s2", month:"2026-11", product:"FOD", volume_m3:15000, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:140.746, prGwhc:51.2315 },
+  { id:"o_2026-11_c1", month:"2026-11", product:"CARBURANT", volume_m3:27000, priceCl:8984, pricePr:16030, priced:false, client:"Certas", clGwhc:235.386, prGwhc:85.6805 },
+  { id:"o_2026-12_s1", month:"2026-12", product:"CARBURANT", volume_m3:45833.333, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:399.575, prGwhc:145.4453 },
+  { id:"o_2026-12_s2", month:"2026-12", product:"FOD", volume_m3:15000, priceCl:9000, pricePr:15000, priced:false, client:"Spot", clGwhc:140.746, prGwhc:51.2315 },
+  { id:"o_2026-12_c1", month:"2026-12", product:"CARBURANT", volume_m3:27000, priceCl:8984, pricePr:16030, priced:false, client:"Certas", clGwhc:235.386, prGwhc:85.6805 },
+];
+
+const REAL_AUDIT = [
+  { id:"a01", ts:"2026-01-02T09:00:00Z", user:"u1", action:"TRADE_CREATED",  entity:"t01", detail:"Import initial — Stock P5 Classique 559.33 GWhc @ 7 310 €/MWhc" },
+  { id:"a02", ts:"2026-01-02T09:01:00Z", user:"u3", action:"TRADE_APPROVED", entity:"t01", detail:"Auto-approuvé (import)" },
+  { id:"a03", ts:"2026-01-02T09:01:00Z", user:"u1", action:"TRADE_CREATED",  entity:"t30", detail:"Import initial — Stock P5 Précarité 174.375 GWhc @ 10 249 €/MWhc" },
+  { id:"a04", ts:"2026-03-06T08:00:00Z", user:"u1", action:"PRICE_ADDED",    entity:"p19", detail:"Prix du jour 2026-03-06 : CL 8.96 — PR 16.44 €/MWhc" },
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -213,7 +351,7 @@ function Reporting({ trades, obligations, prices, curve }) {
           <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"22px 26px" }}>
             <p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"4px" }}>Rapport de Gestion CEE — P6</p>
             <h2 style={{ ...CG,fontSize:"28px",fontWeight:700,color:"#e8dfc8",marginBottom:"2px" }}>Tableau de Bord Exécutif</h2>
-            <p style={{ ...S,fontSize:"10px",color:"#4a4438" }}>Au {prices.slice(-1)[0]?.date ?? "2026-03-06"} · Période de référence: 2026 (P6)</p>
+            <p style={{ ...S,fontSize:"10px",color:"#4a4438" }}>Au {REAL_PRICES.slice(-1)[0]?.date ?? "2026-03-06"} · Période de référence: 2026 (P6)</p>
           </div>
 
           {/* Top KPIs */}
@@ -911,7 +1049,7 @@ function PricesTab({ prices, currentUser, onAdd }) {
         <table style={{ width:"100%",borderCollapse:"collapse" }}>
           <thead><tr>{["Date","Classique (€/MWhc)","Précarité (€/MWhc)","Saisi par","Horodatage"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
           <tbody>
-            {sorted.map((p,i)=>{const user=users.find(u=>u.id===p.enteredBy);const bg=i===0?"#1a1815":"#161410";return(
+            {sorted.map((p,i)=>{const user=USERS.find(u=>u.id===p.enteredBy);const bg=i===0?"#1a1815":"#161410";return(
               <tr key={p.id} style={{ borderBottom:"1px solid #1a1815",background:bg }}>
                 <td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"10px 14px",fontWeight:500 }}>{p.date}{i===0&&<span style={{ marginLeft:"8px",fontSize:"9px",color:"#b8973a" }}>DERNIER</span>}</td>
                 <td style={{ ...S,fontSize:"13px",color:"#5bc2e7",padding:"10px 14px" }}>{N(p.classique)}</td>
@@ -930,7 +1068,7 @@ function PricesTab({ prices, currentUser, onAdd }) {
 
 function AuditLog({ audit }) {
   const AC={TRADE_CREATED:"blue",TRADE_APPROVED:"green",TRADE_REJECTED:"red",PRICE_ADDED:"amber",OBLIG_ADDED:"sky",CURVE_UPDATED:"purple"};
-  const handleExport=()=>{const rows=[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a=>`"${a.ts}","${users.find(u=>u.id===a.user)?.name??a.user}","${a.action}","${a.entity}","${a.detail}"`);const blob=new Blob(["Timestamp,User,Action,Entity,Detail\n"+rows.join("\n")],{type:"text/csv"});const url=URL.createObjectURL(blob);const l=document.createElement("a");l.href=url;l.download="cee_audit.csv";l.click();URL.revokeObjectURL(url);};
+  const handleExport=()=>{const rows=[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a=>`"${a.ts}","${USERS.find(u=>u.id===a.user)?.name??a.user}","${a.action}","${a.entity}","${a.detail}"`);const blob=new Blob(["Timestamp,User,Action,Entity,Detail\n"+rows.join("\n")],{type:"text/csv"});const url=URL.createObjectURL(blob);const l=document.createElement("a");l.href=url;l.download="cee_audit.csv";l.click();URL.revokeObjectURL(url);};
   return(
     <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
       <div style={{ display:"flex",justifyContent:"flex-end" }}><GhostBtn onClick={handleExport}>↓ Exporter CSV</GhostBtn></div>
@@ -938,7 +1076,7 @@ function AuditLog({ audit }) {
         <table style={{ width:"100%",borderCollapse:"collapse" }}>
           <thead><tr>{["Horodatage","Utilisateur","Action","Entité","Détail"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
           <tbody>
-            {[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a=>{const user=users.find(u=>u.id===a.user);const bg="#161410";return(
+            {[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a=>{const user=USERS.find(u=>u.id===a.user);const bg="#161410";return(
               <tr key={a.id} style={{ borderBottom:"1px solid #1a1815",background:bg }}>
                 <td style={{ ...S,fontSize:"10px",color:"#4a4438",padding:"9px 14px",whiteSpace:"nowrap" }}>{new Date(a.ts).toLocaleString("fr-FR")}</td>
                 <td style={{ padding:"9px 14px" }}><div style={{ display:"flex",alignItems:"center",gap:"6px" }}><span style={{ ...S,width:"22px",height:"22px",borderRadius:"50%",background:"#252219",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",color:"#b8973a",fontWeight:600 }}>{user?.initials??""}</span><span style={{ ...S,fontSize:"10px",color:"#6b6350" }}>{user?.name??a.user}</span></div></td>
@@ -957,61 +1095,36 @@ function AuditLog({ audit }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // ROOT
 // ─────────────────────────────────────────────────────────────────────────────
-export default
-  // ── Guard: show loading/error before rendering ──
-  if(loading) return (
-    <div style={{ background:"#0e0d0b",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center" }}>
-      <div style={{ textAlign:"center" }}>
-        <div style={{ fontFamily:"Cormorant Garamond, serif",fontSize:"28px",color:"#b8973a",marginBottom:"12px" }}>CEE Platform</div>
-        <div style={{ fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#4a4438" }}>Chargement des données…</div>
-      </div>
-    </div>
-  );
-  if(error) return (
-    <div style={{ background:"#0e0d0b",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center" }}>
-      <div style={{ textAlign:"center" }}>
-        <div style={{ fontFamily:"Cormorant Garamond, serif",fontSize:"28px",color:"#c96b6b",marginBottom:"12px" }}>Erreur de chargement</div>
-        <div style={{ fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#8a7d62",marginBottom:"16px" }}>{error}</div>
-        <div style={{ fontFamily:"IBM Plex Mono, monospace",fontSize:"10px",color:"#4a4438" }}>Vérifiez que public/data.json est accessible</div>
-      </div>
-    </div>
-  );
-  if(!currentUser) return null;
- function App() {
-  const [currentUser,setCurrentUser]=useState(null);
-  const [trades,setTrades]          =useState([]);
-  const [prices,setPrices]          =useState([]);
-  const [curve,setCurve]            =useState({});
-  const [obligations,setObligations]=useState([]);
-  const [audit,setAudit]            =useState([]);
-  const [users,setUsers]            =useState([]);
+export default function App() {
+  const [currentUser,setCurrentUser]=useState(USERS[0]);
+  const [trades,setTrades]          =useState(REAL_TRADES);
+  const [prices,setPrices]          =useState(REAL_PRICES);
+  const [curve,setCurve]            =useState(SEED_CURVE);
+  const [obligations,setObligations]=useState(REAL_OBLIGATIONS);
+  const [audit,setAudit]            =useState(REAL_AUDIT);
   const [tab,setTab]                =useState("dashboard");
-  const [loading,setLoading]        =useState(true);
-  const [error,setError]            =useState(null);
 
+  // Load updates from data.json if available (Phase 1 shared data)
   useEffect(()=>{
     fetch("./data.json")
-      .then(r=>{ if(!r.ok) throw new Error("data.json not found ("+r.status+")"); return r.json(); })
-      .then(d=>{
-        setTrades(d.trades||[]);
-        setPrices(d.prices||[]);
-        setCurve(d.curve||{});
-        setObligations(d.obligations||[]);
-        setAudit(d.audit||[]);
-        setUsers(d.users||[]);
-        setCurrentUser(d.users?.[0]||null);
-        setLoading(false);
-      })
-      .catch(e=>{ setError(e.message); setLoading(false); });
+      .then(r=>r.ok?r.json():null)
+      .then(d=>{ if(!d) return;
+        if(d.trades?.length)      setTrades(d.trades);
+        if(d.prices?.length)      setPrices(d.prices);
+        if(d.curve)               setCurve(d.curve);
+        if(d.obligations?.length) setObligations(d.obligations);
+        if(d.audit?.length)       setAudit(d.audit);
+        if(d.users?.length)       setCurrentUser(d.users[0]);
+      }).catch(()=>{});
   },[]);
 
   const addAudit=useCallback(e=>setAudit(a=>[...a,{...e,id:"a"+uid(),ts:new Date().toISOString()}]),[]);
-  const handleAddTrade=useCallback(t=>{setTrades(ts=>[...ts,t]);addAudit({user:currentUser?.id,action:"TRADE_CREATED",entity:t.id,detail:`BUY ${N(t.volume,3)} GWhc ${t.ceeType} @ ${N(t.price,0)} €/MWhc — ${t.vendor}`});},[currentUser,addAudit]);
-  const handleApproveTrade=useCallback((id,aid)=>{setTrades(ts=>ts.map(t=>t.id===id?{...t,status:"APPROVED",approvedBy:aid}:t));addAudit({user:aid,action:"TRADE_APPROVED",entity:id,detail:`Trade ${id} approuvé par ${users.find(u=>u.id===aid)?.name}`});},[addAudit]);
-  const handleRejectTrade=useCallback(id=>{setTrades(ts=>ts.map(t=>t.id===id?{...t,status:"REJECTED"}:t));addAudit({user:currentUser?.id,action:"TRADE_REJECTED",entity:id,detail:`Trade ${id} rejeté`});},[currentUser,addAudit]);
-  const handleAddPrice=useCallback(p=>{setPrices(ps=>[...ps,p]);addAudit({user:currentUser?.id,action:"PRICE_ADDED",entity:p.id,detail:`Prix ${p.date}: CL ${p.classique} — PR ${p.precarite} €/MWhc`});},[currentUser,addAudit]);
-  const handleUpdateCurve=useCallback((tenor,px)=>{setCurve(c=>({...c,[tenor]:px}));addAudit({user:currentUser?.id,action:"CURVE_UPDATED",entity:tenor,detail:`Courbe ${tenor} mise à jour`});},[currentUser,addAudit]);
-  const handleAddObligation=useCallback(o=>{setObligations(os=>[...os,o]);addAudit({user:currentUser?.id,action:"OBLIG_ADDED",entity:o.id,detail:`Oblig ${ML(o.month)} — ${o.client} — ${PARAMS[o.product].label} ${N(o.volume_m3,0)} m³`});},[currentUser,addAudit]);
+  const handleAddTrade=useCallback(t=>{setTrades(ts=>[...ts,t]);addAudit({user:currentUser.id,action:"TRADE_CREATED",entity:t.id,detail:`BUY ${N(t.volume,3)} GWhc ${t.ceeType} @ ${N(t.price,0)} €/MWhc — ${t.vendor}`});},[currentUser,addAudit]);
+  const handleApproveTrade=useCallback((id,aid)=>{setTrades(ts=>ts.map(t=>t.id===id?{...t,status:"APPROVED",approvedBy:aid}:t));addAudit({user:aid,action:"TRADE_APPROVED",entity:id,detail:`Trade ${id} approuvé par ${USERS.find(u=>u.id===aid)?.name}`});},[addAudit]);
+  const handleRejectTrade=useCallback(id=>{setTrades(ts=>ts.map(t=>t.id===id?{...t,status:"REJECTED"}:t));addAudit({user:currentUser.id,action:"TRADE_REJECTED",entity:id,detail:`Trade ${id} rejeté`});},[currentUser,addAudit]);
+  const handleAddPrice=useCallback(p=>{setPrices(ps=>[...ps,p]);addAudit({user:currentUser.id,action:"PRICE_ADDED",entity:p.id,detail:`Prix ${p.date}: CL ${p.classique} — PR ${p.precarite} €/MWhc`});},[currentUser,addAudit]);
+  const handleUpdateCurve=useCallback((tenor,px)=>{setCurve(c=>({...c,[tenor]:px}));addAudit({user:currentUser.id,action:"CURVE_UPDATED",entity:tenor,detail:`Courbe ${tenor} mise à jour`});},[currentUser,addAudit]);
+  const handleAddObligation=useCallback(o=>{setObligations(os=>[...os,o]);addAudit({user:currentUser.id,action:"OBLIG_ADDED",entity:o.id,detail:`Oblig ${ML(o.month)} — ${o.client} — ${PARAMS[o.product].label} ${N(o.volume_m3,0)} m³`});},[currentUser,addAudit]);
 
   const pending=trades.filter(t=>t.status==="PENDING").length;
 
@@ -1037,7 +1150,7 @@ export default
           </div>
           <div style={{ display:"flex",alignItems:"center",gap:"10px" }}>
             <div style={{ display:"flex",gap:"4px" }}>
-              {users.map(u=><button key={u.id} onClick={()=>setCurrentUser(u)} title={`${u.name} — ${u.role}`} style={{ width:"30px",height:"30px",borderRadius:"50%",border:currentUser.id===u.id?"2px solid #b8973a":"1px solid #2e2b24",background:currentUser.id===u.id?"#252219":"#1a1815",color:currentUser.id===u.id?"#b8973a":"#4a4438",...S,fontSize:"9px",fontWeight:600,cursor:"pointer" }}>{u.initials}</button>)}
+              {USERS.map(u=><button key={u.id} onClick={()=>setCurrentUser(u)} title={`${u.name} — ${u.role}`} style={{ width:"30px",height:"30px",borderRadius:"50%",border:currentUser.id===u.id?"2px solid #b8973a":"1px solid #2e2b24",background:currentUser.id===u.id?"#252219":"#1a1815",color:currentUser.id===u.id?"#b8973a":"#4a4438",...S,fontSize:"9px",fontWeight:600,cursor:"pointer" }}>{u.initials}</button>)}
             </div>
             <div><p style={{ ...S,fontSize:"11px",color:"#e8dfc8" }}>{currentUser.name}</p><p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.08em" }}>{currentUser.role}</p></div>
           </div>
@@ -1057,3 +1170,5 @@ export default
     </div>
   );
 }
+
+export default App;
