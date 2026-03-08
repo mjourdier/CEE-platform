@@ -955,7 +955,27 @@ function AuditLog({ audit }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // ROOT
 // ─────────────────────────────────────────────────────────────────────────────
-export default function App() {
+export default
+  // ── Guard: show loading/error before rendering ──
+  if(loading) return (
+    <div style={{ background:"#0e0d0b",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ fontFamily:"Cormorant Garamond, serif",fontSize:"28px",color:"#b8973a",marginBottom:"12px" }}>CEE Platform</div>
+        <div style={{ fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#4a4438" }}>Chargement des données…</div>
+      </div>
+    </div>
+  );
+  if(error) return (
+    <div style={{ background:"#0e0d0b",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ fontFamily:"Cormorant Garamond, serif",fontSize:"28px",color:"#c96b6b",marginBottom:"12px" }}>Erreur de chargement</div>
+        <div style={{ fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#8a7d62",marginBottom:"16px" }}>{error}</div>
+        <div style={{ fontFamily:"IBM Plex Mono, monospace",fontSize:"10px",color:"#4a4438" }}>Vérifiez que public/data.json est accessible</div>
+      </div>
+    </div>
+  );
+  if(!currentUser) return null;
+ function App() {
   const [currentUser,setCurrentUser]=useState(null);
   const [trades,setTrades]          =useState([]);
   const [prices,setPrices]          =useState([]);
@@ -983,24 +1003,7 @@ export default function App() {
       .catch(e=>{ setError(e.message); setLoading(false); });
   },[]);
 
-  if(loading) return (
-    <div style={{ background:"#0e0d0b",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center" }}>
-      <div style={{ textAlign:"center" }}>
-        <div style={{ fontFamily:"Cormorant Garamond, serif",fontSize:"28px",color:"#b8973a",marginBottom:"12px" }}>CEE Platform</div>
-        <div style={{ fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#4a4438" }}>Chargement des données…</div>
-      </div>
-    </div>
-  );
-  if(error) return (
-    <div style={{ background:"#0e0d0b",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center" }}>
-      <div style={{ textAlign:"center" }}>
-        <div style={{ fontFamily:"Cormorant Garamond, serif",fontSize:"28px",color:"#c96b6b",marginBottom:"12px" }}>Erreur de chargement</div>
-        <div style={{ fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#8a7d62",marginBottom:"16px" }}>{error}</div>
-        <div style={{ fontFamily:"IBM Plex Mono, monospace",fontSize:"10px",color:"#4a4438" }}>Vérifiez que public/data.json est accessible</div>
-      </div>
-    </div>
-  );
-  if(!currentUser) return null;
+  // early returns moved below hooks
 
   
   const addAudit=useCallback(e=>setAudit(a=>[...a,{...e,id:"a"+uid(),ts:new Date().toISOString()}]),[]);
