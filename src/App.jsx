@@ -1,6 +1,8 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } from "recharts";
 
+const uid=()=>Math.random().toString(36).slice(2,9);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PARAMS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1003,16 +1005,13 @@ export default
       .catch(e=>{ setError(e.message); setLoading(false); });
   },[]);
 
-  // early returns moved below hooks
-
-  
   const addAudit=useCallback(e=>setAudit(a=>[...a,{...e,id:"a"+uid(),ts:new Date().toISOString()}]),[]);
-  const handleAddTrade=useCallback(t=>{setTrades(ts=>[...ts,t]);addAudit({user:currentUser.id,action:"TRADE_CREATED",entity:t.id,detail:`BUY ${N(t.volume,3)} GWhc ${t.ceeType} @ ${N(t.price,0)} €/MWhc — ${t.vendor}`});},[currentUser,addAudit]);
+  const handleAddTrade=useCallback(t=>{setTrades(ts=>[...ts,t]);addAudit({user:currentUser?.id,action:"TRADE_CREATED",entity:t.id,detail:`BUY ${N(t.volume,3)} GWhc ${t.ceeType} @ ${N(t.price,0)} €/MWhc — ${t.vendor}`});},[currentUser,addAudit]);
   const handleApproveTrade=useCallback((id,aid)=>{setTrades(ts=>ts.map(t=>t.id===id?{...t,status:"APPROVED",approvedBy:aid}:t));addAudit({user:aid,action:"TRADE_APPROVED",entity:id,detail:`Trade ${id} approuvé par ${users.find(u=>u.id===aid)?.name}`});},[addAudit]);
-  const handleRejectTrade=useCallback(id=>{setTrades(ts=>ts.map(t=>t.id===id?{...t,status:"REJECTED"}:t));addAudit({user:currentUser.id,action:"TRADE_REJECTED",entity:id,detail:`Trade ${id} rejeté`});},[currentUser,addAudit]);
-  const handleAddPrice=useCallback(p=>{setPrices(ps=>[...ps,p]);addAudit({user:currentUser.id,action:"PRICE_ADDED",entity:p.id,detail:`Prix ${p.date}: CL ${p.classique} — PR ${p.precarite} €/MWhc`});},[currentUser,addAudit]);
-  const handleUpdateCurve=useCallback((tenor,px)=>{setCurve(c=>({...c,[tenor]:px}));addAudit({user:currentUser.id,action:"CURVE_UPDATED",entity:tenor,detail:`Courbe ${tenor} mise à jour`});},[currentUser,addAudit]);
-  const handleAddObligation=useCallback(o=>{setObligations(os=>[...os,o]);addAudit({user:currentUser.id,action:"OBLIG_ADDED",entity:o.id,detail:`Oblig ${ML(o.month)} — ${o.client} — ${PARAMS[o.product].label} ${N(o.volume_m3,0)} m³`});},[currentUser,addAudit]);
+  const handleRejectTrade=useCallback(id=>{setTrades(ts=>ts.map(t=>t.id===id?{...t,status:"REJECTED"}:t));addAudit({user:currentUser?.id,action:"TRADE_REJECTED",entity:id,detail:`Trade ${id} rejeté`});},[currentUser,addAudit]);
+  const handleAddPrice=useCallback(p=>{setPrices(ps=>[...ps,p]);addAudit({user:currentUser?.id,action:"PRICE_ADDED",entity:p.id,detail:`Prix ${p.date}: CL ${p.classique} — PR ${p.precarite} €/MWhc`});},[currentUser,addAudit]);
+  const handleUpdateCurve=useCallback((tenor,px)=>{setCurve(c=>({...c,[tenor]:px}));addAudit({user:currentUser?.id,action:"CURVE_UPDATED",entity:tenor,detail:`Courbe ${tenor} mise à jour`});},[currentUser,addAudit]);
+  const handleAddObligation=useCallback(o=>{setObligations(os=>[...os,o]);addAudit({user:currentUser?.id,action:"OBLIG_ADDED",entity:o.id,detail:`Oblig ${ML(o.month)} — ${o.client} — ${PARAMS[o.product].label} ${N(o.volume_m3,0)} m³`});},[currentUser,addAudit]);
 
   const pending=trades.filter(t=>t.status==="PENDING").length;
 
