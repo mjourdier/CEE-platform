@@ -1,13 +1,21 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } from "recharts";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PARAMS
+// SUPABASE CLIENT — remplacez par vos clés (Supabase > Settings > API)
 // ─────────────────────────────────────────────────────────────────────────────
+const SUPABASE_URL  = "https://wrpkjlwpxopfzaoerzva.supabase.co";
+const SUPABASE_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndycGtqbHdweG9wZnphb2VyenZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MDkwNDksImV4cCI6MjA5MTk4NTA0OX0.YBK0zboO9CEiV8_BsL71o4gBMwSEHe4eqZxGBibWfUs";
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
 const PARAMS = {
   CARBURANT: { label:"Carburant (Road Fuel)", kwhc_per_m3:8718,  coeff_precarite:0.364, coeff_correctif:0.847 },
   FOD:       { label:"FOD (Fuel Oil Dom.)",   kwhc_per_m3:11078, coeff_precarite:0.364, coeff_correctif:0.847 },
 };
+
+const MONTHS_LIST = ["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06","2026-07","2026-08","2026-09","2026-10","2026-11","2026-12"];
+
 function calcCEE(volume_m3, product) {
   const p = PARAMS[product];
   const base = volume_m3 * p.kwhc_per_m3 / 1e6 * p.coeff_correctif;
@@ -1096,6 +1104,930 @@ function AuditLog({ audit }) {
 // ROOT
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [trades,       setTrades]       = useState([]);
+  const [prices,       setPrices]       = useState([]);
+  const [curve,        setCurve]        = useState({});
+  const [obligations,  setObligations]  = useState([]);
+  const [audit,        setAudit]        = useState([]);
+  const [users,        setUsers]        = useState([]);
+  const [tab,          setTab]          = useState("dashboard");
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(null);
+
+  // ── Load all data from Supabase ──
+  useEffect(() => {
+    async function loadAll() {
+      try {
+        const [
+          { data: usersData,  error: e1 },
+          { data: tradesData, error: e2 },
+          { data: oblData,    error: e3 },
+          { data: pricesData, error: e4 },
+          { data: curveData,  error: e5 },
+          { data: auditData,  error: e6 },
+        ] = await Promise.all([
+          supabase.from("users").select("*"),
+          supabase.from("trades").select("*").order("created_at"),
+          supabase.from("obligations").select("*").order("month"),
+          supabase.from("market_prices").select("*").order("date"),
+          supabase.from("forward_curve").select("*"),
+          supabase.from("audit_log").select("*").order("ts", { ascending: false }).limit(200),
+        ]);
+
+        const err = e1||e2||e3||e4||e5||e6;
+        if (err) throw new Error(err.message);
+
+        // Normalize field names (snake_case DB → camelCase app)
+        const normTrades = (tradesData||[]).map(t => ({
+          id: t.id, ceeType: t.cee_type, vendor: t.vendor, dealType: t.deal_type,
+          period: t.period, volume: +t.volume, price: +t.price, month: t.month,
+          status: t.status, priced: t.priced, statut: t.statut, ranking: t.ranking,
+          emmyValidated: t.emmy_validated, createdBy: t.created_by,
+          approvedBy: t.approved_by, createdAt: t.created_at,
+        }));
+
+        const normObl = (oblData||[]).map(o => ({
+          id: o.id, month: o.month, product: o.product, volume_m3: +o.volume_m3,
+          priceCl: +o.price_cl, pricePr: +o.price_pr, priced: o.priced,
+          client: o.client, clGwhc: +o.cl_gwhc, prGwhc: +o.pr_gwhc,
+        }));
+
+        const normPrices = (pricesData||[]).map(p => ({
+          id: p.id, date: p.date, classique: +p.classique, precarite: +p.precarite,
+          enteredBy: p.entered_by, enteredAt: p.entered_at,
+        }));
+
+        const normCurve = {};
+        (curveData||[]).forEach(c => { normCurve[c.tenor] = { classique: +c.classique, precarite: +c.precarite }; });
+
+        const normAudit = (auditData||[]).map(a => ({
+          id: a.id, ts: a.ts, user: a.user_id, action: a.action,
+          entity: a.entity, detail: a.detail,
+        }));
+
+        setUsers(usersData||[]);
+        setCurrentUser((usersData||[])[0] || null);
+        setTrades(normTrades);
+        setObligations(normObl);
+        setPrices(normPrices);
+        setCurve(normCurve);
+        setAudit(normAudit);
+        setLoading(false);
+      } catch(e) {
+        setError(e.message);
+        setLoading(false);
+      }
+    }
+    loadAll();
+  }, []);
+
+  // ── Persist helpers ──
+  const persist = useCallback(async (table, row) => {
+    const { error } = await supabase.from(table).upsert(row);
+    if (error) console.error("Supabase error:", error.message);
+  }, []);
+
+  const addAuditLog = useCallback(async (entry) => {
+    const row = { id: "a"+uid(), ts: new Date().toISOString(), user_id: currentUser?.id,
+                  action: entry.action, entity: entry.entity, detail: entry.detail };
+    setAudit(a => [row, ...a]);
+    await persist("audit_log", row);
+  }, [currentUser, persist]);
+
+  const handleAddTrade = useCallback(async (t) => {
+    setTrades(ts => [...ts, t]);
+    await persist("trades", {
+      id: t.id, cee_type: t.ceeType, vendor: t.vendor, deal_type: t.dealType,
+      period: t.period, volume: t.volume, price: t.price, month: t.month,
+      status: t.status, priced: t.priced, statut: t.statut, ranking: t.ranking,
+      emmy_validated: t.emmyValidated, created_by: t.createdBy,
+      approved_by: t.approvedBy, created_at: t.createdAt,
+    });
+    await addAuditLog({ action:"TRADE_CREATED", entity:t.id, detail:`BUY ${N(t.volume,3)} GWhc ${t.ceeType} @ ${N(t.price,0)} €/GWhc — ${t.vendor}` });
+  }, [persist, addAuditLog]);
+
+  const handleApproveTrade = useCallback(async (id, aid) => {
+    setTrades(ts => ts.map(t => t.id===id ? {...t, status:"APPROVED", approvedBy:aid} : t));
+    await supabase.from("trades").update({ status:"APPROVED", approved_by:aid }).eq("id", id);
+    await addAuditLog({ action:"TRADE_APPROVED", entity:id, detail:`Approuvé par ${aid}` });
+  }, [addAuditLog]);
+
+  const handleRejectTrade = useCallback(async (id) => {
+    setTrades(ts => ts.map(t => t.id===id ? {...t, status:"REJECTED"} : t));
+    await supabase.from("trades").update({ status:"REJECTED" }).eq("id", id);
+    await addAuditLog({ action:"TRADE_REJECTED", entity:id, detail:"Rejeté" });
+  }, [addAuditLog]);
+
+  const handleAddPrice = useCallback(async (p) => {
+    setPrices(ps => [...ps, p]);
+    await persist("market_prices", {
+      id: p.id, date: p.date, classique: p.classique,
+      precarite: p.precarite, entered_by: p.enteredBy, entered_at: p.enteredAt,
+    });
+    await addAuditLog({ action:"PRICE_ADDED", entity:p.id, detail:`${p.date}: CL ${p.classique} / PR ${p.precarite} €/MWhc` });
+  }, [persist, addAuditLog]);
+
+  const handleUpdateCurve = useCallback(async (tenor, px) => {
+    setCurve(c => ({...c, [tenor]: px}));
+    await supabase.from("forward_curve").update({ classique: px.classique, precarite: px.precarite, updated_by: currentUser?.id, updated_at: new Date().toISOString() }).eq("tenor", tenor);
+    await addAuditLog({ action:"CURVE_UPDATED", entity:tenor, detail:`${tenor}: CL ${px.classique} / PR ${px.precarite}` });
+  }, [currentUser, addAuditLog]);
+
+  const handleAddObligation = useCallback(async (o) => {
+    setObligations(os => [...os, o]);
+    await persist("obligations", {
+      id: o.id, month: o.month, product: o.product, volume_m3: o.volume_m3,
+      price_cl: o.priceCl, price_pr: o.pricePr, priced: o.priced,
+      client: o.client, cl_gwhc: o.clGwhc, pr_gwhc: o.prGwhc,
+    });
+    await addAuditLog({ action:"OBLIGATION_ADDED", entity:o.id, detail:`${o.month} ${o.product} ${o.volume_m3}m³` });
+  }, [persist, addAuditLog]);
+
+  const handleSwitchUser = useCallback((uid) => {
+    const u = users.find(u => u.id === uid);
+    if (u) setCurrentUser(u);
+  }, [users]);
+
+  if (loading) return (
+    <div style={{ background:"#0e0d0b",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ fontFamily:"Cormorant Garamond, serif",fontSize:"32px",color:"#b8973a",marginBottom:"16px" }}>CEE Platform</div>
+        <div style={{ fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#4a4438" }}>Connexion à la base de données…</div>
+      </div>
+    </div>
+  );
+  if (error) return (
+    <div style={{ background:"#0e0d0b",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center" }}>
+      <div style={{ textAlign:"center",maxWidth:"500px" }}>
+        <div style={{ fontFamily:"Cormorant Garamond, serif",fontSize:"28px",color:"#c96b6b",marginBottom:"12px" }}>Erreur de connexion</div>
+        <div style={{ fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#8a7d62",marginBottom:"8px" }}>{error}</div>
+        <div style={{ fontFamily:"IBM Plex Mono, monospace",fontSize:"10px",color:"#4a4438" }}>Vérifiez SUPABASE_URL et SUPABASE_KEY dans App.jsx</div>
+      </div>
+    </div>
+  );
+  if (!currentUser) return null;
+
+  return (
+    <div style={{ display:"flex",flexDirection:"column",gap:"16px" }}>
+      {/* Report selector */}
+      <div style={{ display:"flex",gap:"8px",flexWrap:"wrap" }}>
+        {REPORTS.map(r=>(
+          <button key={r.id} onClick={()=>setReport(r.id)} style={{ ...S,fontSize:"10px",padding:"7px 14px",borderRadius:"2px",border:"1px solid",cursor:"pointer",letterSpacing:"0.08em",textTransform:"uppercase",background:report===r.id?"#b8973a":"transparent",color:report===r.id?"#0e0d0b":"#4a4438",borderColor:report===r.id?"#b8973a":"#2e2b24" }}>{r.label}</button>
+        ))}
+      </div>
+
+      {/* ── EXECUTIVE SUMMARY ── */}
+      {report==="executive" && (
+        <div style={{ display:"flex",flexDirection:"column",gap:"20px" }}>
+          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"22px 26px" }}>
+            <p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"4px" }}>Rapport de Gestion CEE — P6</p>
+            <h2 style={{ ...CG,fontSize:"28px",fontWeight:700,color:"#e8dfc8",marginBottom:"2px" }}>Tableau de Bord Exécutif</h2>
+            <p style={{ ...S,fontSize:"10px",color:"#4a4438" }}>Au {REAL_PRICES.slice(-1)[0]?.date ?? "2026-03-06"} · Période de référence: 2026 (P6)</p>
+          </div>
+
+          {/* Top KPIs */}
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px" }}>
+            <KPI large label="PnL Total Estimé"       value={fM(monthlyData.reduce((s,d)=>s+(d.pnl+d.mtm)*1000,0))} color={monthlyData.reduce((s,d)=>s+d.pnl+d.mtm,0)>=0?"emerald":"rose"} sub="Réalisé + MtM"/>
+            <KPI large label="Stock Acheté Total"      value={N(totalBought,0)+" GWhc"} color="sky" sub={`CL: ${N(sumVol(trades,'CLASSIQUE'),0)} · PR: ${N(sumVol(trades,'PRECARITE'),0)}`}/>
+            <KPI large label="Couverture Obligation"   value={N(covPct,1)+"%"} color={covPct>=100?"emerald":covPct>=70?"amber":"rose"} sub={`${N(totalOblP,0)} GWhc pricés`}/>
+            <KPI large label="À Couvrir (Forward)"     value={N(totalUnpriced,0)+" GWhc"} color="rose" sub="Obligation non pricée restante"/>
+          </div>
+
+          {/* Coverage Donut + Waterfall */}
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 2fr",gap:"16px" }}>
+            <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+              <SectionTitle>Couverture Globale 2026</SectionTitle>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={[{name:"Couvert",value:Math.round(totalBought)},{name:"Non pricé",value:Math.round(totalUnpriced)},{name:"Découvert",value:Math.max(0,Math.round(totalOblP-totalBought))}]} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
+                    <Cell fill="#6db87a"/><Cell fill="#c96b6b"/><Cell fill="#d4a843"/>
+                  </Pie>
+                  <Tooltip content={<ChartTip/>}/>
+                  <Legend iconSize={8} iconType="circle" wrapperStyle={{ ...S,fontSize:"10px",color:"#6b6350" }}/>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+              <SectionTitle>Position Nette Mensuelle (GWhc) — Pricés</SectionTitle>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={monthlyData} barSize={18}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
+                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={40}/>
+                  <Tooltip content={<ChartTip/>}/>
+                  <ReferenceLine y={0} stroke="#2e2b24"/>
+                  <Bar dataKey="netPos" name="Position nette" fill="#5bc2e7" radius={[1,1,0,0]}/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* PnL Bar + Cum line */}
+          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+            <SectionTitle>PnL Mensuel Réalisé (k€) + Cumulé</SectionTitle>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={cumPnlData} barSize={20}>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
+                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
+                <YAxis yAxisId="left"  tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={44}/>
+                <YAxis yAxisId="right" orientation="right" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={44}/>
+                <Tooltip content={<ChartTip/>}/>
+                <ReferenceLine yAxisId="left" y={0} stroke="#2e2b24"/>
+                <Bar yAxisId="left" dataKey="pnl" name="PnL mensuel (k€)" fill="#6db87a" radius={[1,1,0,0]}/>
+                <Line yAxisId="right" type="monotone" dataKey="cumPnl" name="Cumulé (k€)" stroke="#b8973a" strokeWidth={2} dot={false}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Vendor breakdown */}
+          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+            <SectionTitle>Achats par Vendeur (GWhc)</SectionTitle>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={vendorData} layout="vertical" barSize={14}>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" horizontal={false}/>
+                <XAxis type="number" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
+                <YAxis type="category" dataKey="name" tick={{ ...S,fontSize:9,fill:"#8a7d62" }} axisLine={false} tickLine={false} width={170}/>
+                <Tooltip content={<ChartTip/>}/>
+                <Bar dataKey="vol" name="Volume (GWhc)" fill="#b8973a" radius={[0,1,1,0]}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* ── POSITION & COUVERTURE ── */}
+      {report==="position" && (
+        <div style={{ display:"flex",flexDirection:"column",gap:"20px" }}>
+          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+            <SectionTitle>Obligation vs Achats par Mois (GWhc)</SectionTitle>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={monthlyData} barGap={2} barCategoryGap="20%">
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
+                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={44}/>
+                <Tooltip content={<ChartTip/>}/>
+                <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#6b6350" }}/>
+                <Bar dataKey="oblClP" name="Oblig. CL Pricée" fill="#1a3848" radius={[1,1,0,0]} stackId="obl"/>
+                <Bar dataKey="oblPrP" name="Oblig. PR Pricée" fill="#2e2410" radius={[1,1,0,0]} stackId="obl"/>
+                <Bar dataKey="bCl"    name="Acheté CL"        fill="#5bc2e7" radius={[1,1,0,0]} stackId="buy" fillOpacity={0.85}/>
+                <Bar dataKey="bPr"    name="Acheté PR"        fill="#d4a843" radius={[1,1,0,0]} stackId="buy" fillOpacity={0.85}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+            <SectionTitle>% Couverture par Mois</SectionTitle>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
+                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={40} unit="%"/>
+                <Tooltip content={<ChartTip/>}/>
+                <ReferenceLine y={100} stroke="#6db87a" strokeDasharray="4 2" label={{ value:"100%",fill:"#6db87a",fontSize:9,...S }}/>
+                <Area type="monotone" dataKey="covPct" name="Couverture %" stroke="#5bc2e7" fill="#5bc2e711" strokeWidth={2}/>
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+            <SectionTitle>Obligation Non Pricée (Forward) — GWhc à couvrir</SectionTitle>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={monthlyData.map(d=>({ ...d, unpriced:d.oblCl+d.oblPr-d.oblClP-d.oblPrP }))}>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
+                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={44}/>
+                <Tooltip content={<ChartTip/>}/>
+                <Bar dataKey="unpriced" name="Non pricé (GWhc)" fill="#c96b6b" radius={[1,1,0,0]}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* ── PNL & MTM ── */}
+      {report==="pnl" && (
+        <div style={{ display:"flex",flexDirection:"column",gap:"20px" }}>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px" }}>
+            <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+              <SectionTitle>PnL Réalisé Mensuel (k€)</SectionTitle>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={monthlyData} barGap={3}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
+                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={44}/>
+                  <Tooltip content={<ChartTip/>}/>
+                  <ReferenceLine y={0} stroke="#2e2b24"/>
+                  <Bar dataKey="pnlCl" name="PnL Classique (k€)" fill="#5bc2e7" radius={[1,1,0,0]}/>
+                  <Bar dataKey="pnlPr" name="PnL Précarité (k€)" fill="#d4a843" radius={[1,1,0,0]}/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+              <SectionTitle>MtM Open Position Mensuel (k€)</SectionTitle>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={monthlyData}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
+                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={44}/>
+                  <Tooltip content={<ChartTip/>}/>
+                  <ReferenceLine y={0} stroke="#2e2b24"/>
+                  <Bar dataKey="mtm" name="MtM (k€)" fill="#b8973a" radius={[1,1,0,0]}/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+            <SectionTitle>PnL Cumulé YTD (k€)</SectionTitle>
+            <ResponsiveContainer width="100%" height={220}>
+              <AreaChart data={cumPnlData}>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
+                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={50}/>
+                <Tooltip content={<ChartTip/>}/>
+                <ReferenceLine y={0} stroke="#2e2b24"/>
+                <Area type="monotone" dataKey="cumPnl" name="PnL cumulé (k€)" stroke="#6db87a" fill="#6db87a22" strokeWidth={2}/>
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* ── PRIX MARCHÉ ── */}
+      {report==="market" && (
+        <div style={{ display:"flex",flexDirection:"column",gap:"20px" }}>
+          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+            <SectionTitle>Historique Prix C2E Market — Classique vs Précarité (€/MWhc)</SectionTitle>
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={priceHistory}>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
+                <XAxis dataKey="date" tick={{ ...S,fontSize:8,fill:"#4a4438" }} axisLine={false} tickLine={false} interval={3}/>
+                <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={40} domain={["auto","auto"]}/>
+                <Tooltip content={<ChartTip/>}/>
+                <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#6b6350" }}/>
+                <Line type="monotone" dataKey="cl" name="Classique (€/MWhc)" stroke="#5bc2e7" strokeWidth={2} dot={false}/>
+                <Line type="monotone" dataKey="pr" name="Précarité (€/MWhc)" stroke="#d4a843" strokeWidth={2} dot={false}/>
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+            <SectionTitle>Courbe Forward (€/MWhc)</SectionTitle>
+            <ResponsiveContainer width="100%" height={200}>
+              <LineChart data={TENORS.map(t=>({ tenor:t, cl:curve[t]?.classique, pr:curve[t]?.precarite }))}>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
+                <XAxis dataKey="tenor" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={40} domain={["auto","auto"]}/>
+                <Tooltip content={<ChartTip/>}/>
+                <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#6b6350" }}/>
+                <Line type="monotone" dataKey="cl" name="Classique" stroke="#5bc2e7" strokeWidth={2} dot={{ fill:"#5bc2e7",r:3 }}/>
+                <Line type="monotone" dataKey="pr" name="Précarité" stroke="#d4a843" strokeWidth={2} dot={{ fill:"#d4a843",r:3 }}/>
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POSITION VIEW
+// ─────────────────────────────────────────────────────────────────────────────
+function PositionView({ trades, obligations, curve, prices }) {
+  const [view, setView] = useState("position");
+  // latestSpot in €/GWhc (trade prices are €/GWhc; market prices are €/MWhc → ×1000)
+  const latestSpot = useMemo(()=>{
+    if(!prices.length) return { classique:(curve.SPOT?.classique??8.96)*1000, precarite:(curve.SPOT?.precarite??16.44)*1000 };
+    const p=[...prices].sort((a,b)=>b.date.localeCompare(a.date))[0];
+    return { classique:p.classique*1000, precarite:p.precarite*1000 };
+  },[prices,curve]);
+
+  const rows = useMemo(()=>MONTHS_LIST.map(month=>{
+    // Obligation volumes (priced = obligat. avec prix fixé; total = priced + non pricé)
+    const oblClP = oblMonth(obligations,month,"CLASSIQUE",true);
+    const oblPrP = oblMonth(obligations,month,"PRECARITE",true);
+    const oblClT = oblMonth(obligations,month,"CLASSIQUE");
+    const oblPrT = oblMonth(obligations,month,"PRECARITE");
+    // Achats PRICÉS (trade.priced===true) vs totaux
+    const bClP = sumVol(trades,"CLASSIQUE",month,true);
+    const bPrP = sumVol(trades,"PRECARITE",month,true);
+    const bCl  = sumVol(trades,"CLASSIQUE",month);      // tous (pour affichage total)
+    const bPr  = sumVol(trades,"PRECARITE",month);
+    // Prix moyens PRICÉS seulement pour PnL et MtM
+    const aClP = wAvg(trades,"CLASSIQUE",month,true);
+    const aPrP = wAvg(trades,"PRECARITE",month,true);
+    // Prix moyens totaux (pour info)
+    const aCl  = wAvg(trades,"CLASSIQUE",month);
+    const aPr  = wAvg(trades,"PRECARITE",month);
+    // Prix de vente moyen (avgSell des obligations pricées)
+    const sCl = avgSellMonth(obligations,month,"CLASSIQUE");
+    const sPr = avgSellMonth(obligations,month,"PRECARITE");
+    // Position nette PRICÉE
+    const netCl = bClP - oblClP;
+    const netPr = bPrP - oblPrP;
+    // Couverture sur base pricée
+    const covPct = (oblClP+oblPrP)>0 ? (bClP+bPrP)/(oblClP+oblPrP)*100 : 0;
+    // PnL = (avgSell - avgBuyPricé) × min(achetéPricé, oblPricée)
+    const matchCl = Math.min(bClP, oblClP);
+    const matchPr = Math.min(bPrP, oblPrP);
+    const pnlCl = (oblClP>0.001 && aClP>0 && sCl>0) ? (sCl - aClP) * matchCl : 0;
+    const pnlPr = (oblPrP>0.001 && aPrP>0 && sPr>0) ? (sPr - aPrP) * matchPr : 0;
+    // MtM = (spot - avgBuyPricé) × position ouverte PRICÉE (achetéPricé > oblPricée)
+    const openCl = (oblClP>0.001 && netCl>0) ? netCl : 0;
+    const openPr = (oblPrP>0.001 && netPr>0) ? netPr : 0;
+    const mtmCl = openCl>0 ? openCl * (latestSpot.classique*1000 - aClP) : 0;
+    const mtmPr = openPr>0 ? openPr * (latestSpot.precarite*1000  - aPrP) : 0;
+    // Non pricés
+    const oblClU = oblClT - oblClP;
+    const oblPrU = oblPrT - oblPrP;
+    // Achats non pricés = achats totaux sur mois non pricés (trade.priced===false)
+    const bClU = bCl - bClP;
+    const bPrU = bPr - bPrP;
+    return { month, oblClP, oblPrP, oblClT, oblPrT,
+             bCl, bPr, bClP, bPrP, bClU, bPrU,
+             aCl, aPr, aClP, aPrP, sCl, sPr,
+             netCl, netPr, covPct, pnlCl, pnlPr, mtmCl, mtmPr,
+             oblClU, oblPrU,
+             unpricedBoughtCl:bClU, unpricedBoughtPr:bPrU };
+  }),[trades,obligations,latestSpot]);
+
+  const tot = useMemo(()=>({ oblCl:rows.reduce((s,r)=>s+r.oblClP,0), oblPr:rows.reduce((s,r)=>s+r.oblPrP,0), bCl:rows.reduce((s,r)=>s+r.bCl,0), bPr:rows.reduce((s,r)=>s+r.bPr,0), pnlCl:rows.reduce((s,r)=>s+r.pnlCl,0), pnlPr:rows.reduce((s,r)=>s+r.pnlPr,0), mtmCl:rows.reduce((s,r)=>s+r.mtmCl,0), mtmPr:rows.reduce((s,r)=>s+r.mtmPr,0), oblClU:rows.reduce((s,r)=>s+r.oblClU,0), oblPrU:rows.reduce((s,r)=>s+r.oblPrU,0) }),[rows]);
+
+  const VIEWS=[{id:"position",label:"Position & Couverture"},{id:"pnl",label:"PnL Réalisé & MtM"},{id:"unpriced",label:"Oblig. Non Pricées"}];
+
+  const pc=(v,color)=>v!=null?(<span style={{ ...S,fontSize:"12px",color:v>0?CHART_COLORS.green:v<0?CHART_COLORS.red:"#4a4438",fontWeight:v!==0?600:400 }}>{v>0?"+":""}{N(v,2)}</span>):"—";
+  const pk=(v)=>v!=null?(<span style={{ ...S,fontSize:"12px",color:v>0?CHART_COLORS.green:v<0?CHART_COLORS.red:"#4a4438",fontWeight:v!==0?600:400 }}>{fK(v)}</span>):"—";
+
+  return (
+    <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
+      <div style={{ display:"flex",gap:"14px",borderBottom:"1px solid #1e1c18" }}>
+        {VIEWS.map(v=><button key={v.id} onClick={()=>setView(v.id)} style={{ ...S,background:"none",border:"none",fontSize:"10px",letterSpacing:"0.1em",textTransform:"uppercase",padding:"10px 0",cursor:"pointer",whiteSpace:"nowrap",color:view===v.id?"#b8973a":"#4a4438",borderBottom:view===v.id?"1px solid #b8973a":"1px solid transparent" }}>{v.label}</button>)}
+      </div>
+      <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px" }}>
+        {view==="position" && <><KPI label="Oblig. CL Pricée" value={N(tot.oblCl,0)+" GWhc"} color="sky"/><KPI label="Acheté CL" value={N(tot.bCl,0)+" GWhc"} color="sky"/><KPI label="Oblig. PR Pricée" value={N(tot.oblPr,0)+" GWhc"} color="amber"/><KPI label="Acheté PR" value={N(tot.bPr,0)+" GWhc"} color="amber"/></>}
+        {view==="pnl"      && <><KPI label="PnL Réalisé CL" value={fK(tot.pnlCl)} color={tot.pnlCl>=0?"emerald":"rose"}/><KPI label="PnL Réalisé PR" value={fK(tot.pnlPr)} color={tot.pnlPr>=0?"emerald":"rose"}/><KPI label="MtM CL" value={fK(tot.mtmCl)} color={tot.mtmCl>=0?"emerald":"rose"}/><KPI label="MtM PR" value={fK(tot.mtmPr)} color={tot.mtmPr>=0?"emerald":"rose"}/></>}
+        {view==="unpriced" && <><KPI label="Non Pricée CL" value={N(tot.oblClU,0)+" GWhc"} color="rose"/><KPI label="Non Pricée PR" value={N(tot.oblPrU,0)+" GWhc"} color="rose"/><KPI label="Total Non Pricé" value={N(tot.oblClU+tot.oblPrU,0)+" GWhc"} color="amber"/><KPI label="Valeur Spot Estimée" value={fM(tot.oblClU*latestSpot.classique*1000 + tot.oblPrU*latestSpot.precarite*1000)} color="gray"/></>}
+      </div>
+      <div style={{ overflowX:"auto",border:"1px solid #1e1c18",borderRadius:"2px" }}>
+        <table style={{ width:"100%",borderCollapse:"collapse",minWidth:"900px" }}>
+          <thead><tr>
+            <TH>Mois</TH>
+            {view==="position"&&<><TH>Oblig. CL (GWhc)</TH><TH>Oblig. PR (GWhc)</TH><TH>Acheté CL</TH><TH>Acheté PR</TH><TH>Net CL</TH><TH>Net PR</TH><TH>% Couvert</TH><TH>Avg Achat CL</TH><TH>Avg Vente CL</TH></>}
+            {view==="pnl"&&<><TH>Avg Achat CL</TH><TH>Avg Vente CL</TH><TH>PnL CL</TH><TH>Avg Achat PR</TH><TH>Avg Vente PR</TH><TH>PnL PR</TH><TH>MtM CL</TH><TH>MtM PR</TH><TH>Net PnL+MtM</TH></>}
+            {view==="unpriced"&&<><TH>Oblig. CL Totale</TH><TH>Non Pricée CL</TH><TH>Oblig. PR Totale</TH><TH>Non Pricée PR</TH><TH>Total Non Pricé</TH><TH>Acheté (non pricé) CL</TH><TH>Position Forward CL</TH><TH>Val. Spot Estimée</TH></>}
+          </tr></thead>
+          <tbody>
+            {rows.map((r,i)=>{
+              const bg=i%2===0?"#161410":"#141210";
+              const isForecast=r.month>"2026-03";
+              return (
+                <tr key={r.month} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#1a1815"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
+                  <td style={{ ...CG,fontSize:"15px",color:"#e8dfc8",padding:"9px 14px",fontWeight:600,whiteSpace:"nowrap" }}>
+                    {ML(r.month)}{isForecast&&<span style={{ ...S,fontSize:"8px",color:"#2e2b24",marginLeft:"6px" }}>FCST</span>}
+                  </td>
+                  {view==="position"&&<>
+                    <td style={{ ...S,fontSize:"12px",color:"#5bc2e7",padding:"9px 14px" }}>{N(r.oblClP,2)}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#d4a843",padding:"9px 14px" }}>{N(r.oblPrP,2)}</td>
+                    <td style={{ ...S,fontSize:"12px",color:r.bCl>0?"#e8dfc8":"#3d3830",padding:"9px 14px" }}>{N(r.bCl,2)}</td>
+                    <td style={{ ...S,fontSize:"12px",color:r.bPr>0?"#e8dfc8":"#3d3830",padding:"9px 14px" }}>{N(r.bPr,2)}</td>
+                    <td style={{ padding:"9px 14px" }}>{pc(r.netCl)}</td>
+                    <td style={{ padding:"9px 14px" }}>{pc(r.netPr)}</td>
+                    <td style={{ padding:"9px 14px",minWidth:"120px" }}>{(r.oblClP+r.oblPrP)>0?<CovBar pct={r.covPct}/>:<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#6b6350",padding:"9px 14px" }}>{r.aCl>0?N(r.aCl/1000,2):"—"}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#6b6350",padding:"9px 14px" }}>{r.sCl>0?N(r.sCl/1000,2):"—"}</td>
+                  </>}
+                  {view==="pnl"&&<>
+                    <td style={{ ...S,fontSize:"12px",color:"#6b6350",padding:"9px 14px" }}>{r.aCl>0?N(r.aCl/1000,2):"—"}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#6b6350",padding:"9px 14px" }}>{r.sCl>0?N(r.sCl/1000,2):"—"}</td>
+                    <td style={{ padding:"9px 14px" }}>{r.pnlCl!==0?pk(r.pnlCl):<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#6b6350",padding:"9px 14px" }}>{r.aPr>0?N(r.aPr/1000,2):"—"}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#6b6350",padding:"9px 14px" }}>{r.sPr>0?N(r.sPr/1000,2):"—"}</td>
+                    <td style={{ padding:"9px 14px" }}>{r.pnlPr!==0?pk(r.pnlPr):<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
+                    <td style={{ padding:"9px 14px" }}>{r.mtmCl!==0?pk(r.mtmCl):<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
+                    <td style={{ padding:"9px 14px" }}>{r.mtmPr!==0?pk(r.mtmPr):<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
+                    <td style={{ padding:"9px 14px" }}>{pk(r.pnlCl+r.pnlPr+r.mtmCl+r.mtmPr)}</td>
+                  </>}
+                  {view==="unpriced"&&<>
+                    <td style={{ ...S,fontSize:"12px",color:"#5bc2e7",padding:"9px 14px" }}>{N(r.oblClT,2)}</td>
+                    <td style={{ padding:"9px 14px" }}>{r.oblClU>0.01?<span style={{ ...S,fontSize:"12px",color:"#c96b6b",fontWeight:600 }}>{N(r.oblClU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#d4a843",padding:"9px 14px" }}>{N(r.oblPrT,2)}</td>
+                    <td style={{ padding:"9px 14px" }}>{r.oblPrU>0.01?<span style={{ ...S,fontSize:"12px",color:"#c96b6b",fontWeight:600 }}>{N(r.oblPrU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
+                    <td style={{ padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?<span style={{ ...S,fontSize:"12px",color:"#c96b6b",fontWeight:600 }}>{N(r.oblClU+r.oblPrU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
+                    <td style={{ ...S,fontSize:"12px",color:r.unpricedBoughtCl>0?"#e8dfc8":"#3d3830",padding:"9px 14px" }}>{r.unpricedBoughtCl>0.01?N(r.unpricedBoughtCl,2):"—"}</td>
+                    <td style={{ padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?pc(r.unpricedBoughtCl+r.unpricedBoughtPr - r.oblClU - r.oblPrU):<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#8a7d62",padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?fK(r.oblClU*latestSpot.classique*1000 + r.oblPrU*latestSpot.precarite*1000):"—"}</td>
+                  </>}
+                </tr>
+              );
+            })}
+            <tr style={{ background:"#1e1c18",borderTop:"1px solid #2e2b24" }}>
+              <td style={{ ...S,fontSize:"10px",color:"#b8973a",padding:"10px 14px",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em" }}>Total 2026</td>
+              {view==="position"&&<><td style={{ ...S,fontSize:"12px",color:"#5bc2e7",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblCl,0)}</td><td style={{ ...S,fontSize:"12px",color:"#d4a843",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblPr,0)}</td><td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"10px 14px",fontWeight:700 }}>{N(tot.bCl,0)}</td><td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"10px 14px",fontWeight:700 }}>{N(tot.bPr,0)}</td><td colSpan={5}/></>}
+              {view==="pnl"&&<><td colSpan={2}/><td style={{ padding:"10px 14px" }}>{pk(tot.pnlCl)}</td><td colSpan={2}/><td style={{ padding:"10px 14px" }}>{pk(tot.pnlPr)}</td><td style={{ padding:"10px 14px" }}>{pk(tot.mtmCl)}</td><td style={{ padding:"10px 14px" }}>{pk(tot.mtmPr)}</td><td style={{ padding:"10px 14px" }}>{pk(tot.pnlCl+tot.pnlPr+tot.mtmCl+tot.mtmPr)}</td></>}
+              {view==="unpriced"&&<><td/><td style={{ ...S,fontSize:"12px",color:"#c96b6b",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblClU,0)}</td><td/><td style={{ ...S,fontSize:"12px",color:"#c96b6b",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblPrU,0)}</td><td style={{ ...S,fontSize:"13px",color:"#c96b6b",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblClU+tot.oblPrU,0)}</td><td colSpan={3}/></>}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BLOTTER
+// ─────────────────────────────────────────────────────────────────────────────
+function Blotter({ trades, currentUser, onAdd, onApprove, onReject }) {
+  const [filter, setFilter] = useState("ALL");
+  const [showModal, setShowModal] = useState(false);
+  const blank = { ceeType:"CLASSIQUE", vendor:"", dealType:"Fixed Price", period:"P6", volume:"", price:"", month:"", ranking:"", statut:"Attribué" };
+  const [form, setForm] = useState(blank);
+  const filtered = useMemo(()=>{
+    let l=[...trades].sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
+    if(filter==="PENDING")   l=l.filter(t=>t.status==="PENDING");
+    if(filter==="APPROVED")  l=l.filter(t=>t.status==="APPROVED");
+    if(filter==="CLASSIQUE") l=l.filter(t=>t.ceeType==="CLASSIQUE");
+    if(filter==="PRECARITE") l=l.filter(t=>t.ceeType==="PRECARITE");
+    return l;
+  },[trades,filter]);
+  const handleSubmit=()=>{
+    if(!form.vendor||!form.volume||!form.price||!form.month) return;
+    onAdd({...form,id:"t"+uid(),volume:parseFloat(form.volume),price:parseFloat(form.price),status:"PENDING",createdBy:currentUser.id,approvedBy:null,createdAt:new Date().toISOString(),emmyValidated:false});
+    setShowModal(false); setForm(blank);
+  };
+  const SB=s=>s==="APPROVED"?<Badge color="green">Approuvé</Badge>:s==="PENDING"?<Badge color="amber">En attente</Badge>:<Badge color="red">Rejeté</Badge>;
+  return (
+    <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
+      <div style={{ display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:"10px" }}>
+        <div style={{ display:"flex",flexWrap:"wrap",gap:"5px" }}>
+          {["ALL","PENDING","APPROVED","CLASSIQUE","PRECARITE"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{ ...S,fontSize:"10px",padding:"5px 10px",borderRadius:"2px",border:"1px solid",cursor:"pointer",letterSpacing:"0.08em",textTransform:"uppercase",background:filter===f?"#b8973a":"transparent",color:filter===f?"#0e0d0b":"#4a4438",borderColor:filter===f?"#b8973a":"#2e2b24" }}>{f}</button>)}
+        </div>
+        <GoldBtn onClick={()=>setShowModal(true)}>+ Nouvel Achat</GoldBtn>
+      </div>
+      <div style={{ overflowX:"auto",border:"1px solid #1e1c18",borderRadius:"2px" }}>
+        <table style={{ width:"100%",borderCollapse:"collapse" }}>
+          <thead><tr>{["Type","Vendeur","Deal Type","Période","Volume (GWhc)","Prix (€/GWhc)","Mois","Pricé","Statut Contrat","Ranking","EMMY","Approbation","Actions"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+          <tbody>
+            {filtered.map(t=>{
+              const can=currentUser.role==="approver"&&t.status==="PENDING"&&t.createdBy!==currentUser.id;
+              const bg="#161410";
+              return(
+                <tr key={t.id} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#1a1815"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
+                  <td style={{ padding:"9px 14px" }}><Badge color={t.ceeType==="CLASSIQUE"?"sky":"amber"}>{t.ceeType}</Badge></td>
+                  <td style={{ ...CG,fontSize:"14px",color:"#e8dfc8",padding:"9px 14px",maxWidth:"180px" }}>{t.vendor}</td>
+                  <td style={{ ...S,fontSize:"10px",color:"#6b6350",padding:"9px 14px" }}>{t.dealType}</td>
+                  <td style={{ ...S,fontSize:"10px",color:"#4a4438",padding:"9px 14px" }}>{t.period}</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"9px 14px" }}>{N(t.volume,3)}</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"9px 14px" }}>{N(t.price,0)}</td>
+                  <td style={{ ...S,fontSize:"11px",color:"#6b6350",padding:"9px 14px",whiteSpace:"nowrap" }}>{ML(t.month)}</td>
+                  <td style={{ padding:"9px 14px" }}><Badge color={t.priced===true?"emerald":"gray"}>{t.priced===true?"✓ Oui":"Non"}</Badge></td>
+                  <td style={{ padding:"9px 14px" }}><Badge color={t.statut==="Attribué"?"green":"amber"}>{t.statut}</Badge></td>
+                  <td style={{ ...S,fontSize:"10px",color:"#b8973a",padding:"9px 14px" }}>{t.ranking||"—"}</td>
+                  <td style={{ padding:"9px 14px" }}><Badge color={t.emmyValidated?"green":"gray"}>{t.emmyValidated?"✓ EMMY":"En attente"}</Badge></td>
+                  <td style={{ padding:"9px 14px" }}>{SB(t.status)}</td>
+                  <td style={{ padding:"9px 14px" }}>
+                    {can&&<div style={{ display:"flex",gap:"5px" }}><button onClick={()=>onApprove(t.id,currentUser.id)} style={{ ...S,fontSize:"10px",padding:"4px 8px",background:"#0f2e1a",color:"#6db87a",border:"1px solid #1d4a2a",borderRadius:"2px",cursor:"pointer" }}>✓ OK</button><button onClick={()=>onReject(t.id)} style={{ ...S,fontSize:"10px",padding:"4px 8px",background:"#2e1010",color:"#c96b6b",border:"1px solid #4a1c1c",borderRadius:"2px",cursor:"pointer" }}>✗</button></div>}
+                    {t.status==="PENDING"&&!can&&<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>Attente approbateur</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {showModal&&(
+        <Modal title="Nouvel Achat CEE" onClose={()=>setShowModal(false)} wide>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"13px" }}>
+            <FS label="Type CEE" value={form.ceeType} onChange={e=>setForm(f=>({...f,ceeType:e.target.value}))}><option value="CLASSIQUE">Classique</option><option value="PRECARITE">Précarité</option></FS>
+            <FI label="Vendeur" placeholder="ACT (Mandat 2026)…" value={form.vendor} onChange={e=>setForm(f=>({...f,vendor:e.target.value}))}/>
+            <FS label="Deal Type" value={form.dealType} onChange={e=>setForm(f=>({...f,dealType:e.target.value}))}><option value="Fixed Price">Fixed Price</option><option value="Floating">Floating</option></FS>
+            <FS label="Période" value={form.period} onChange={e=>setForm(f=>({...f,period:e.target.value}))}><option value="P6">P6</option><option value="P5">P5</option></FS>
+            <FI label="Volume (GWhc)" type="number" step="0.001" placeholder="0.000" value={form.volume} onChange={e=>setForm(f=>({...f,volume:e.target.value}))}/>
+            <FI label="Prix (€/MWhc)" type="number" step="1" placeholder="9000" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))}/>
+            <FI label="Mois" type="month" value={form.month} onChange={e=>setForm(f=>({...f,month:e.target.value}))}/>
+            <FS label="Statut" value={form.statut} onChange={e=>setForm(f=>({...f,statut:e.target.value}))}><option value="Attribué">Attribué</option><option value="Pas encore contracté">Pas encore contracté</option><option value="Contrat signé">Contrat signé</option></FS>
+            <FS label="Ranking" value={form.ranking} onChange={e=>setForm(f=>({...f,ranking:e.target.value}))}><option value="">—</option>{["AAA","AA","A+","BBB","BB","B+"].map(r=><option key={r}>{r}</option>)}</FS>
+          </div>
+          <div style={{ display:"flex",justifyContent:"flex-end",gap:"10px",marginTop:"16px" }}><GhostBtn onClick={()=>setShowModal(false)}>Annuler</GhostBtn><GoldBtn onClick={handleSubmit}>Soumettre</GoldBtn></div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OBLIGATION TAB
+// ─────────────────────────────────────────────────────────────────────────────
+const CLIENTS=["Spot","Certas","Certas Lyon","Autre"];
+function ObligationTab({ obligations, onAdd, onDelete }) {
+  const [showModal,setShowModal]=useState(false);
+  const [filterClient,setFilterClient]=useState("ALL");
+  const [filterMonth,setFilterMonth]=useState("ALL");
+  const blank={month:"",product:"CARBURANT",volume_m3:"",priceCl:"9000",pricePr:"15000",priced:false,client:"Spot"};
+  const [form,setForm]=useState(blank);
+  const months=useMemo(()=>["ALL",...new Set(obligations.map(o=>o.month))].sort(),[obligations]);
+  const clients=useMemo(()=>["ALL",...new Set(obligations.map(o=>o.client))]     ,[obligations]);
+  const filtered=useMemo(()=>{
+    let l=obligations;
+    if(filterClient!=="ALL") l=l.filter(o=>o.client===filterClient);
+    if(filterMonth !=="ALL") l=l.filter(o=>o.month===filterMonth);
+    return [...l].sort((a,b)=>a.month.localeCompare(b.month)||a.client.localeCompare(b.client));
+  },[obligations,filterClient,filterMonth]);
+  const handleAdd=()=>{
+    if(!form.month||!form.volume_m3) return;
+    const cee=calcCEE(parseFloat(form.volume_m3),form.product);
+    onAdd({...form,id:"o"+uid(),volume_m3:parseFloat(form.volume_m3),priceCl:parseFloat(form.priceCl),pricePr:parseFloat(form.pricePr),clGwhc:cee.classique,prGwhc:cee.precarite});
+    setShowModal(false); setForm(blank);
+  };
+  const cc=c=>({Spot:"sky",Certas:"gold","Certas Lyon":"teal",Autre:"gray"}[c]||"gray");
+  return (
+    <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
+      <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"12px 18px",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"14px" }}>
+        {[["Carburant kWhc/m³","8 718"],["FOD kWhc/m³","11 078"],["Coeff. Précarité","0.364"],["Coeff. Correctif","0.847"]].map(([k,v])=><div key={k}><p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.1em" }}>{k}</p><p style={{ ...S,fontSize:"14px",color:"#b8973a",marginTop:"3px" }}>{v}</p></div>)}
+      </div>
+      <div style={{ display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:"10px" }}>
+        <div style={{ display:"flex",gap:"5px",flexWrap:"wrap" }}>
+          {clients.map(c=><button key={c} onClick={()=>setFilterClient(c)} style={{ ...S,fontSize:"10px",padding:"5px 10px",borderRadius:"2px",border:"1px solid",cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.08em",background:filterClient===c?"#b8973a":"transparent",color:filterClient===c?"#0e0d0b":"#4a4438",borderColor:filterClient===c?"#b8973a":"#2e2b24" }}>{c}</button>)}
+          <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{ ...S,background:"#1a1815",border:"1px solid #2e2b24",color:"#8a7d62",borderRadius:"2px",padding:"5px 8px",fontSize:"10px",outline:"none" }}>
+            {months.map(m=><option key={m} value={m}>{m==="ALL"?"Tous les mois":ML(m)}</option>)}
+          </select>
+        </div>
+        <GoldBtn onClick={()=>setShowModal(true)}>+ Ajouter Obligation</GoldBtn>
+      </div>
+      <div style={{ overflowX:"auto",border:"1px solid #1e1c18",borderRadius:"2px" }}>
+        <table style={{ width:"100%",borderCollapse:"collapse" }}>
+          <thead><tr>{["Mois","Client","Produit","Volume m³","CEE CL (GWhc)","CEE PR (GWhc)","Prix CL","Prix PR","Pricé",""].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+          <tbody>
+            {filtered.map((o,i)=>{
+              const bg=i%2===0?"#161410":"#141210";
+              return(
+                <tr key={o.id} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#1a1815"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
+                  <td style={{ ...CG,fontSize:"14px",color:"#e8dfc8",padding:"9px 14px" }}>{ML(o.month)}</td>
+                  <td style={{ padding:"9px 14px" }}><Badge color={cc(o.client)}>{o.client}</Badge></td>
+                  <td style={{ padding:"9px 14px" }}><Badge color={o.product==="CARBURANT"?"sky":"purple"}>{PARAMS[o.product].label}</Badge></td>
+                  <td style={{ ...S,fontSize:"12px",color:"#8a7d62",padding:"9px 14px" }}>{N(o.volume_m3,0)}</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#5bc2e7",padding:"9px 14px" }}>{N(o.clGwhc,3)}</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#d4a843",padding:"9px 14px" }}>{N(o.prGwhc,3)}</td>
+                  <td style={{ ...S,fontSize:"11px",color:"#6b6350",padding:"9px 14px" }}>{N(o.priceCl/1000,2)}</td>
+                  <td style={{ ...S,fontSize:"11px",color:"#6b6350",padding:"9px 14px" }}>{N(o.pricePr/1000,2)}</td>
+                  <td style={{ padding:"9px 14px" }}><Badge color={o.priced?"green":"red"}>{o.priced?"Pricé":"Non pricé"}</Badge></td>
+                  <td style={{ padding:"9px 14px" }}><button onClick={()=>onDelete(o.id)} style={{ ...S,fontSize:"9px",color:"#3d3830",background:"none",border:"none",cursor:"pointer" }}>✕</button></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {showModal&&(
+        <Modal title="Ajouter Obligation" onClose={()=>setShowModal(false)} wide>
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"13px" }}>
+            <FI label="Mois" type="month" value={form.month} onChange={e=>setForm(f=>({...f,month:e.target.value}))}/>
+            <FS label="Client" value={form.client} onChange={e=>setForm(f=>({...f,client:e.target.value}))}>{CLIENTS.map(c=><option key={c}>{c}</option>)}</FS>
+            <FS label="Produit" value={form.product} onChange={e=>setForm(f=>({...f,product:e.target.value}))}>
+              <option value="CARBURANT">Carburant (Road Fuel) — 8 718 kWhc/m³</option>
+              <option value="FOD">FOD (Domestic Fuel) — 11 078 kWhc/m³</option>
+            </FS>
+            <FI label="Volume (m³)" type="number" placeholder="45000" value={form.volume_m3} onChange={e=>setForm(f=>({...f,volume_m3:e.target.value}))}/>
+            <FI label="Prix CEE Classique (€/MWhc)" type="number" placeholder="9.00" value={form.priceCl} onChange={e=>setForm(f=>({...f,priceCl:e.target.value}))}/>
+            <FI label="Prix CEE Précarité (€/MWhc)" type="number" placeholder="15.00" value={form.pricePr} onChange={e=>setForm(f=>({...f,pricePr:e.target.value}))}/>
+            <div style={{ display:"flex",alignItems:"center",gap:"10px",paddingTop:"18px" }}><input type="checkbox" id="pr" checked={form.priced} onChange={e=>setForm(f=>({...f,priced:e.target.checked}))} style={{ accentColor:"#b8973a" }}/><label htmlFor="pr" style={{ ...S,fontSize:"11px",color:"#8a7d62",cursor:"pointer" }}>Pricé</label></div>
+          </div>
+          <div style={{ display:"flex",justifyContent:"flex-end",gap:"10px",marginTop:"16px" }}><GhostBtn onClick={()=>setShowModal(false)}>Annuler</GhostBtn><GoldBtn onClick={handleAdd}>Ajouter</GoldBtn></div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DASHBOARD
+// ─────────────────────────────────────────────────────────────────────────────
+function Dashboard({ trades, obligations, prices, curve }) {
+  const latest=useMemo(()=>{
+    if(!prices.length) return { classique:curve.SPOT?.classique??8.96, precarite:curve.SPOT?.precarite??16.44, date:"(courbe)" };
+    const p=[...prices].sort((a,b)=>b.date.localeCompare(a.date))[0];
+    return { classique:p.classique, precarite:p.precarite, date:p.date };
+  },[prices,curve]);
+  const spotCl=latest.classique, spotPr=latest.precarite;
+
+  // ── Obligations ──
+  // Pricées = obligation avec prix confirmé (Jan-Mar)
+  // Non pricées = obligation sans prix (Mar partiel + Avr-Déc)
+  const totalOblClP=MONTHS_LIST.reduce((s,m)=>s+oblMonth(obligations,m,"CLASSIQUE",true),0);
+  const totalOblPrP=MONTHS_LIST.reduce((s,m)=>s+oblMonth(obligations,m,"PRECARITE",true),0);
+  const totalOblP=totalOblClP+totalOblPrP;
+  const totalOblClU=MONTHS_LIST.reduce((s,m)=>s+oblMonth(obligations,m,"CLASSIQUE")-oblMonth(obligations,m,"CLASSIQUE",true),0);
+  const totalOblPrU=MONTHS_LIST.reduce((s,m)=>s+oblMonth(obligations,m,"PRECARITE")-oblMonth(obligations,m,"PRECARITE",true),0);
+
+  // ── Achats PRICÉS (trade.priced===true) vs NON PRICÉS ──
+  const bClP=sumVol(trades,"CLASSIQUE",null,true),  bPrP=sumVol(trades,"PRECARITE",null,true);
+  const bClU=sumVol(trades,"CLASSIQUE",null,false)-bClP, bPrU=sumVol(trades,"PRECARITE",null,false)-bPrP;
+  const aClP=wAvg(trades,"CLASSIQUE",null,true),    aPrP=wAvg(trades,"PRECARITE",null,true);
+  const aClU=wAvg(trades,"CLASSIQUE")>0?
+    (sumVol(trades,"CLASSIQUE")*wAvg(trades,"CLASSIQUE")-bClP*aClP)/(bClU||1):0;
+
+  // Totaux globaux (pour affichage info)
+  const bCl=sumVol(trades,"CLASSIQUE"), bPr=sumVol(trades,"PRECARITE");
+  const aCl=wAvg(trades,"CLASSIQUE"),   aPr=wAvg(trades,"PRECARITE");
+
+  // ── Position nette PRICÉE (vraie exposition couverte) ──
+  const netClP=bClP-totalOblClP, netPrP=bPrP-totalOblPrP;
+  // ── Position nette NON PRICÉE (forward exposure SHORT) ──
+  const netClU=bClU-totalOblClU, netPrU=bPrU-totalOblPrU;
+
+  // ── Couverture sur mois pricés ──
+  const covClP=totalOblClP>0?bClP/totalOblClP*100:0;
+  const covPrP=totalOblPrP>0?bPrP/totalOblPrP*100:0;
+  const covP=totalOblP>0?(bClP+bPrP)/totalOblP*100:0;
+
+  // ── MtM = (spot - avgBuyPricé) × position ouverte PRICÉE seulement ──
+  // Excel: open = boughtPricé - oblPricé, par mois; seul Mar a une position ouverte
+  const {mtmCl,mtmPr} = useMemo(()=>MONTHS_LIST.reduce((acc,month)=>{
+    const oblClP=oblMonth(obligations,month,"CLASSIQUE",true);
+    const oblPrP=oblMonth(obligations,month,"PRECARITE",true);
+    if(oblClP<0.001&&oblPrP<0.001) return acc;
+    const mBClP=sumVol(trades,"CLASSIQUE",month,true);
+    const mBPrP=sumVol(trades,"PRECARITE",month,true);
+    const mAClP=wAvg(trades,"CLASSIQUE",month,true);
+    const mAPrP=wAvg(trades,"PRECARITE",month,true);
+    const openCl=(mBClP>oblClP)?mBClP-oblClP:0;
+    const openPr=(mBPrP>oblPrP)?mBPrP-oblPrP:0;
+    return {
+      mtmCl: acc.mtmCl+(openCl>0?openCl*(spotCl*1000-mAClP):0),
+      mtmPr: acc.mtmPr+(openPr>0?openPr*(spotPr*1000-mAPrP):0),
+    };
+  },{mtmCl:0,mtmPr:0}),[trades,obligations,spotCl,spotPr]);
+
+  // ── PnL réalisé YTD (mois pricés) ──
+  const {pnlClYTD,pnlPrYTD} = useMemo(()=>MONTHS_LIST.reduce((acc,month)=>{
+    const oblClP=oblMonth(obligations,month,"CLASSIQUE",true);
+    const oblPrP=oblMonth(obligations,month,"PRECARITE",true);
+    if(oblClP<0.001&&oblPrP<0.001) return acc;
+    const mBClP=sumVol(trades,"CLASSIQUE",month,true); const mBPrP=sumVol(trades,"PRECARITE",month,true);
+    const mAClP=wAvg(trades,"CLASSIQUE",month,true);   const mAPrP=wAvg(trades,"PRECARITE",month,true);
+    const mSCl=avgSellMonth(obligations,month,"CLASSIQUE");
+    const mSPr=avgSellMonth(obligations,month,"PRECARITE");
+    const matchCl=Math.min(mBClP,oblClP); const matchPr=Math.min(mBPrP,oblPrP);
+    return {
+      pnlClYTD: acc.pnlClYTD+(oblClP>0.001&&mAClP>0&&mSCl>0?(mSCl-mAClP)*matchCl:0),
+      pnlPrYTD: acc.pnlPrYTD+(oblPrP>0.001&&mAPrP>0&&mSPr>0?(mSPr-mAPrP)*matchPr:0),
+    };
+  },{pnlClYTD:0,pnlPrYTD:0}),[trades,obligations]);
+
+  const pending=trades.filter(t=>t.status==="PENDING").length;
+
+  return (
+    <div style={{ display:"flex",flexDirection:"column",gap:"22px" }}>
+      {pending>0&&<div style={{ background:"#2e2000",border:"1px solid #5a4000",borderRadius:"2px",padding:"10px 16px",display:"flex",alignItems:"center",gap:"8px" }}><span style={{ color:"#f0b429",fontSize:"12px" }}>⚠</span><span style={{ ...S,fontSize:"11px",color:"#f0b429" }}>{pending} trade{pending>1?"s":""} en attente d'approbation (4-yeux)</span></div>}
+
+      {/* ── PnL / MtM / Spot ── */}
+      <div>
+        <p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"10px" }}>Résumé PnL & Marché — 06/03/2026</p>
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:"10px" }}>
+          <KPI label="Spot Classique"   value={`${N(spotCl)} €/MWhc`} color="sky"   sub="Prix spot C2E"/>
+          <KPI label="Spot Précarité"   value={`${N(spotPr)} €/MWhc`} color="amber" sub="Prix spot C2E"/>
+          <KPI label="PnL Réalisé YTD"  value={fM(pnlClYTD+pnlPrYTD)} color={(pnlClYTD+pnlPrYTD)>=0?"emerald":"rose"} sub={`CL: ${fK(pnlClYTD)} · PR: ${fK(pnlPrYTD)}`}/>
+          <KPI label="MtM Pos. Ouverte" value={fK(mtmCl+mtmPr)} color={(mtmCl+mtmPr)>=0?"emerald":"rose"} sub={`CL: ${fK(mtmCl)} · PR: ${fK(mtmPr)}`}/>
+          <KPI label="Net PnL+MtM YTD"  value={fM(pnlClYTD+pnlPrYTD+mtmCl+mtmPr)} color={(pnlClYTD+pnlPrYTD+mtmCl+mtmPr)>=0?"emerald":"rose"} sub="Réalisé + MtM"/>
+          <KPI label="En attente"       value={pending>0?`⚠ ${pending}`:"✓ 0"} color={pending>0?"amber":"emerald"} sub="Trades 4-yeux"/>
+        </div>
+      </div>
+
+      {/* ── Position PRICÉE (Jan-Mar) ── */}
+      <div>
+        <p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"8px" }}>Position PRICÉE — Achats confirmés vs Obligation avec prix fixé (Jan–Mar)</p>
+        <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",overflow:"hidden",marginBottom:"16px" }}>
+          <table style={{ width:"100%",borderCollapse:"collapse" }}>
+            <thead><tr>{["Type","Oblig. Pricée","Acheté Pricé","Position Nette","Avg Buy","Couverture"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {[["CEE Classique",totalOblClP,bClP,netClP,aClP,"sky"],
+                ["CEE Précarité",totalOblPrP,bPrP,netPrP,aPrP,"amber"],
+                ["TOTAL",totalOblP,bClP+bPrP,netClP+netPrP,(bClP*aClP+bPrP*aPrP)/((bClP+bPrP)||1),"neutral"]].map(([label,obl,bought,net,avg])=>(
+                <tr key={label} style={{ borderBottom:"1px solid #1a1815" }}>
+                  <td style={{ ...CG,fontSize:"14px",color:"#e8dfc8",padding:"10px 16px" }}>{label}</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#8a7d62",padding:"10px 16px" }}>{N(obl,1)} GWh</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"10px 16px" }}>{N(bought,1)} GWh</td>
+                  <td style={{ ...S,fontSize:"12px",padding:"10px 16px",color:net>=0?"#6db87a":"#c96b6b",fontWeight:600 }}>{net>=0?"+":""}{N(net,1)} GWh</td>
+                  <td style={{ ...S,fontSize:"11px",color:"#8a7d62",padding:"10px 16px" }}>{avg>0?N(avg/1000,2)+" €/MWhc":"—"}</td>
+                  <td style={{ padding:"10px 16px",minWidth:"140px" }}><CovBar pct={obl>0?bought/obl*100:0}/></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* ── Position NON PRICÉE ── */}
+        <p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"8px" }}>Position NON PRICÉE — Exposition Forward (Mar partiel + Avr–Déc, obligation sans prix fixé)</p>
+        <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",overflow:"hidden" }}>
+          <table style={{ width:"100%",borderCollapse:"collapse" }}>
+            <thead><tr>{["Type","Oblig. Non Pricée","Acheté Non Pricé","Position Nette","Statut"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+            <tbody>
+              {[["CEE Classique",totalOblClU,bClU,netClU],
+                ["CEE Précarité",totalOblPrU,bPrU,netPrU],
+                ["TOTAL",totalOblClU+totalOblPrU,bClU+bPrU,netClU+netPrU]].map(([label,obl,bought,net])=>(
+                <tr key={label} style={{ borderBottom:"1px solid #1a1815" }}>
+                  <td style={{ ...CG,fontSize:"14px",color:"#e8dfc8",padding:"10px 16px" }}>{label}</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#8a7d62",padding:"10px 16px" }}>{N(obl,1)} GWh</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"10px 16px" }}>{N(bought,1)} GWh</td>
+                  <td style={{ ...S,fontSize:"12px",padding:"10px 16px",color:net>=0?"#6db87a":"#c96b6b",fontWeight:600 }}>{net>=0?"+":""}{N(net,1)} GWh</td>
+                  <td style={{ ...S,fontSize:"11px",padding:"10px 16px",color:net<0?"#c96b6b":"#6db87a" }}>{net<0?"⚠ SHORT — oblig. non couvertes":"✓ Long / équilibré"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CURVE + PRICES (compact versions)
+// ─────────────────────────────────────────────────────────────────────────────
+function CurveTab({ curve, onUpdate, trades }) {
+  const [editing,setEditing]=useState(null); const [draft,setDraft]=useState({classique:"",precarite:""});
+  const mtm=tenor=>{const fp=curve[tenor];if(!fp)return null;const cl=trades.filter(t=>t.status==="APPROVED"&&t.ceeType==="CLASSIQUE");const pr=trades.filter(t=>t.status==="APPROVED"&&t.ceeType==="PRECARITE");const vCl=cl.reduce((s,t)=>s+t.volume,0),vPr=pr.reduce((s,t)=>s+t.volume,0);const aCl=vCl>0?cl.reduce((s,t)=>s+t.price*t.volume,0)/vCl:0;const aPr=vPr>0?pr.reduce((s,t)=>s+t.price*t.volume,0)/vPr:0;const mCl=(fp.classique-aCl/1000)*vCl,mPr=(fp.precarite-aPr/1000)*vPr;return{mCl,mPr,tot:mCl+mPr};};
+  return(
+    <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
+      <div style={{ overflowX:"auto",border:"1px solid #1e1c18",borderRadius:"2px" }}>
+        <table style={{ width:"100%",borderCollapse:"collapse" }}>
+          <thead><tr>{["Tenor","CL (€/MWhc)","PR (€/MWhc)","MtM CL","MtM PR","MtM Total",""].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+          <tbody>
+            {TENORS.map(t=>{const fp=curve[t],m=mtm(t),isE=editing===t,bg="#161410";return(
+              <tr key={t} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#1a1815"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
+                <td style={{ padding:"9px 14px" }}><Badge color={t==="SPOT"?"gold":"gray"}>{t}</Badge></td>
+                {isE?<><td style={{ padding:"7px 14px" }}><input value={draft.classique} onChange={e=>setDraft(d=>({...d,classique:e.target.value}))} style={{ ...S,background:"#1a1815",border:"1px solid #b8973a",color:"#e8dfc8",borderRadius:"2px",padding:"5px 8px",fontSize:"12px",width:"80px",outline:"none" }}/></td><td style={{ padding:"7px 14px" }}><input value={draft.precarite} onChange={e=>setDraft(d=>({...d,precarite:e.target.value}))} style={{ ...S,background:"#1a1815",border:"1px solid #b8973a",color:"#e8dfc8",borderRadius:"2px",padding:"5px 8px",fontSize:"12px",width:"80px",outline:"none" }}/></td></>:<><td style={{ ...S,fontSize:"13px",color:"#5bc2e7",padding:"9px 14px",fontWeight:500 }}>{fp?N(fp.classique):"—"}</td><td style={{ ...S,fontSize:"13px",color:"#d4a843",padding:"9px 14px",fontWeight:500 }}>{fp?N(fp.precarite):"—"}</td></>}
+                <td style={{ ...S,fontSize:"12px",padding:"9px 14px",color:m&&m.mCl>=0?"#6db87a":"#c96b6b" }}>{m?fK(m.mCl):"—"}</td>
+                <td style={{ ...S,fontSize:"12px",padding:"9px 14px",color:m&&m.mPr>=0?"#6db87a":"#c96b6b" }}>{m?fK(m.mPr):"—"}</td>
+                <td style={{ ...S,fontSize:"13px",padding:"9px 14px",fontWeight:700,color:m&&m.tot>=0?"#6db87a":"#c96b6b" }}>{m?fK(m.tot):"—"}</td>
+                <td style={{ padding:"9px 14px" }}>{isE?<button onClick={()=>{onUpdate(t,{classique:parseFloat(draft.classique),precarite:parseFloat(draft.precarite)});setEditing(null);}} style={{ ...S,fontSize:"10px",padding:"4px 10px",background:"#b8973a",color:"#0e0d0b",border:"none",borderRadius:"2px",cursor:"pointer" }}>✓</button>:<button onClick={()=>{setEditing(t);setDraft({classique:String(fp?.classique??""),precarite:String(fp?.precarite??"")});}} style={{ ...S,fontSize:"10px",padding:"4px 10px",background:"transparent",color:"#4a4438",border:"1px solid #2e2b24",borderRadius:"2px",cursor:"pointer" }}>Modifier</button>}</td>
+              </tr>
+            );})}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PricesTab({ prices, currentUser, onAdd }) {
+  const [showModal,setShowModal]=useState(false);
+  const [form,setForm]=useState({date:"",classique:"",precarite:""});
+  const handleAdd=()=>{if(!form.date||!form.classique||!form.precarite)return;onAdd({id:"p"+uid(),date:form.date,classique:parseFloat(form.classique),precarite:parseFloat(form.precarite),enteredBy:currentUser.id,enteredAt:new Date().toISOString()});setShowModal(false);setForm({date:"",classique:"",precarite:""});};
+  const sorted=[...prices].sort((a,b)=>b.date.localeCompare(a.date));
+  return(
+    <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
+      <div style={{ display:"flex",justifyContent:"flex-end" }}><GoldBtn onClick={()=>setShowModal(true)}>+ Ajouter Prix</GoldBtn></div>
+      <div style={{ border:"1px solid #1e1c18",borderRadius:"2px",overflow:"hidden" }}>
+        <table style={{ width:"100%",borderCollapse:"collapse" }}>
+          <thead><tr>{["Date","Classique (€/MWhc)","Précarité (€/MWhc)","Saisi par","Horodatage"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+          <tbody>
+            {sorted.map((p,i)=>{const user=USERS.find(u=>u.id===p.enteredBy);const bg=i===0?"#1a1815":"#161410";return(
+              <tr key={p.id} style={{ borderBottom:"1px solid #1a1815",background:bg }}>
+                <td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"10px 14px",fontWeight:500 }}>{p.date}{i===0&&<span style={{ marginLeft:"8px",fontSize:"9px",color:"#b8973a" }}>DERNIER</span>}</td>
+                <td style={{ ...S,fontSize:"13px",color:"#5bc2e7",padding:"10px 14px" }}>{N(p.classique)}</td>
+                <td style={{ ...S,fontSize:"13px",color:"#d4a843",padding:"10px 14px" }}>{N(p.precarite)}</td>
+                <td style={{ ...S,fontSize:"11px",color:"#6b6350",padding:"10px 14px" }}>{user?.name??p.enteredBy}</td>
+                <td style={{ ...S,fontSize:"10px",color:"#3d3830",padding:"10px 14px" }}>{new Date(p.enteredAt).toLocaleString("fr-FR")}</td>
+              </tr>
+            );})}
+          </tbody>
+        </table>
+      </div>
+      {showModal&&(<Modal title="Ajouter Prix Marché" onClose={()=>setShowModal(false)}><div style={{ display:"flex",flexDirection:"column",gap:"13px" }}><FI label="Date" type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))}/><FI label="Classique (€/MWhc)" type="number" step="0.01" placeholder="8.96" value={form.classique} onChange={e=>setForm(f=>({...f,classique:e.target.value}))}/><FI label="Précarité (€/MWhc)" type="number" step="0.01" placeholder="16.44" value={form.precarite} onChange={e=>setForm(f=>({...f,precarite:e.target.value}))}/></div><div style={{ display:"flex",justifyContent:"flex-end",gap:"10px",marginTop:"16px" }}><GhostBtn onClick={()=>setShowModal(false)}>Annuler</GhostBtn><GoldBtn onClick={handleAdd}>Sauvegarder</GoldBtn></div></Modal>)}
+    </div>
+  );
+}
+
+function AuditLog({ audit }) {
+  const AC={TRADE_CREATED:"blue",TRADE_APPROVED:"green",TRADE_REJECTED:"red",PRICE_ADDED:"amber",OBLIG_ADDED:"sky",CURVE_UPDATED:"purple"};
+  const handleExport=()=>{const rows=[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a=>`"${a.ts}","${USERS.find(u=>u.id===a.user)?.name??a.user}","${a.action}","${a.entity}","${a.detail}"`);const blob=new Blob(["Timestamp,User,Action,Entity,Detail\n"+rows.join("\n")],{type:"text/csv"});const url=URL.createObjectURL(blob);const l=document.createElement("a");l.href=url;l.download="cee_audit.csv";l.click();URL.revokeObjectURL(url);};
+  return(
+    <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
+      <div style={{ display:"flex",justifyContent:"flex-end" }}><GhostBtn onClick={handleExport}>↓ Exporter CSV</GhostBtn></div>
+      <div style={{ border:"1px solid #1e1c18",borderRadius:"2px",overflow:"hidden" }}>
+        <table style={{ width:"100%",borderCollapse:"collapse" }}>
+          <thead><tr>{["Horodatage","Utilisateur","Action","Entité","Détail"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+          <tbody>
+            {[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a=>{const user=USERS.find(u=>u.id===a.user);const bg="#161410";return(
+              <tr key={a.id} style={{ borderBottom:"1px solid #1a1815",background:bg }}>
+                <td style={{ ...S,fontSize:"10px",color:"#4a4438",padding:"9px 14px",whiteSpace:"nowrap" }}>{new Date(a.ts).toLocaleString("fr-FR")}</td>
+                <td style={{ padding:"9px 14px" }}><div style={{ display:"flex",alignItems:"center",gap:"6px" }}><span style={{ ...S,width:"22px",height:"22px",borderRadius:"50%",background:"#252219",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",color:"#b8973a",fontWeight:600 }}>{user?.initials??""}</span><span style={{ ...S,fontSize:"10px",color:"#6b6350" }}>{user?.name??a.user}</span></div></td>
+                <td style={{ padding:"9px 14px" }}><Badge color={AC[a.action]||"gray"}>{a.action.replace(/_/g," ")}</Badge></td>
+                <td style={{ ...S,fontSize:"10px",color:"#3d3830",padding:"9px 14px" }}>{a.entity}</td>
+                <td style={{ ...S,fontSize:"10px",color:"#6b6350",padding:"9px 14px" }}>{a.detail}</td>
+              </tr>
+            );})}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ROOT
+// ─────────────────────────────────────────────────────────────────────────────
+export default function App() {
   const [currentUser,setCurrentUser]=useState(USERS[0]);
   const [trades,setTrades]          =useState(REAL_TRADES);
   const [prices,setPrices]          =useState(REAL_PRICES);
@@ -1103,20 +2035,6 @@ export default function App() {
   const [obligations,setObligations]=useState(REAL_OBLIGATIONS);
   const [audit,setAudit]            =useState(REAL_AUDIT);
   const [tab,setTab]                =useState("dashboard");
-
-  // Load updates from data.json if available (Phase 1 shared data)
-  useEffect(()=>{
-    fetch("./data.json")
-      .then(r=>r.ok?r.json():null)
-      .then(d=>{ if(!d) return;
-        if(d.trades?.length)      setTrades(d.trades);
-        if(d.prices?.length)      setPrices(d.prices);
-        if(d.curve)               setCurve(d.curve);
-        if(d.obligations?.length) setObligations(d.obligations);
-        if(d.audit?.length)       setAudit(d.audit);
-        if(d.users?.length)       setCurrentUser(d.users[0]);
-      }).catch(()=>{});
-  },[]);
 
   const addAudit=useCallback(e=>setAudit(a=>[...a,{...e,id:"a"+uid(),ts:new Date().toISOString()}]),[]);
   const handleAddTrade=useCallback(t=>{setTrades(ts=>[...ts,t]);addAudit({user:currentUser.id,action:"TRADE_CREATED",entity:t.id,detail:`BUY ${N(t.volume,3)} GWhc ${t.ceeType} @ ${N(t.price,0)} €/MWhc — ${t.vendor}`});},[currentUser,addAudit]);
