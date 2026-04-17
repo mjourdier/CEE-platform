@@ -14,6 +14,20 @@ const PARAMS = {
   CARBURANT: { label:"Carburant (Road Fuel)", kwhc_per_m3:8718,  coeff_precarite:0.364, coeff_correctif:0.847 },
   FOD:       { label:"FOD (Fuel Oil Dom.)",   kwhc_per_m3:11078, coeff_precarite:0.364, coeff_correctif:0.847 },
 };
+
+const MONTHS_LIST = ["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06",
+                     "2026-07","2026-08","2026-09","2026-10","2026-11","2026-12"];
+
+const SEED_CURVE = {
+  SPOT:    { classique:8.96,  precarite:16.44 },
+  "S1-26": { classique:8.96,  precarite:16.05 },
+  "S2-26": { classique:8.93,  precarite:15.81 },
+  "S1-27": { classique:8.95,  precarite:15.85 },
+  "S2-27": { classique:8.93,  precarite:15.08 },
+  "S1-28": { classique:8.95,  precarite:15.04 },
+  "S2-28": { classique:8.93,  precarite:14.98 },
+};
+
 function calcCEE(volume_m3, product) {
   const p = PARAMS[product];
   const base = volume_m3 * p.kwhc_per_m3 / 1e6 * p.coeff_correctif;
