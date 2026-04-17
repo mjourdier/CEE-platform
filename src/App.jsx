@@ -84,9 +84,9 @@ function avgSellMonth(obligations,month,ceeType){
 // ─────────────────────────────────────────────────────────────────────────────
 // ATOMS
 // ─────────────────────────────────────────────────────────────────────────────
-const S  = { fontFamily:"'IBM Plex Mono',monospace" };
-const CG = { fontFamily:"'Cormorant Garamond',serif" };
-const CHART_COLORS = { classique:"#5bc2e7", precarite:"#d4a843", green:"#6db87a", red:"#c96b6b", gold:"#b8973a", bg:"#161410", grid:"#1e1c18" };
+const S  = { fontFamily:"Inter, sans-serif" };
+const CG = { fontFamily:"Inter, sans-serif", fontWeight:600 };
+const CHART_COLORS = { classique:"#2563eb", precarite:"#d4a843", green:"#34d399", red:"#f87171", gold:"#38bdf8", bg:"#111827", grid:"#1e2d45" };
 
 function Badge({ children, color }) {
   const m={green:"#0f2e1a;#6db87a;#1d4a2a",red:"#2e1010;#c96b6b;#4a1c1c",amber:"#2e2410;#d4a843;#4a3a18",blue:"#101e2e;#6aace8;#1a3050",sky:"#0e2030;#5bc2e7;#1a3848",gray:"#1e1c18;#6b6350;#2e2b24",purple:"#1e1028;#b07ee8;#3a2050",gold:"#2a2010;#b8973a;#3a3020",teal:"#0e2820;#5bd4b4;#1a4838"}[color]||"#1e1c18;#6b6350;#2e2b24";
@@ -94,46 +94,46 @@ function Badge({ children, color }) {
   return <span style={{ display:"inline-flex",alignItems:"center",padding:"2px 7px",borderRadius:"2px",fontSize:"10px",fontWeight:600,border:`1px solid ${bc}`,background:bg,color:fg,...S,letterSpacing:"0.06em" }}>{children}</span>;
 }
 function KPI({ label, value, sub, color, large }) {
-  const c={emerald:"#6db87a",rose:"#c96b6b",sky:"#5bc2e7",amber:"#d4a843",gold:"#b8973a",gray:"#3a3428"}[color]||"#3a3428";
+  const c={emerald:"#34d399",rose:"#f87171",sky:"#2563eb",amber:"#d4a843",gold:"#38bdf8",gray:"#3a3428"}[color]||"#3a3428";
   return (
-    <div style={{ background:"#161410",border:"1px solid #252219",borderLeft:`2px solid ${c}`,borderRadius:"2px",padding:large?"20px 22px":"15px 18px" }}>
-      <p style={{ ...S,fontSize:"9px",color:"#4a4438",letterSpacing:"0.14em",textTransform:"uppercase",marginBottom:"5px" }}>{label}</p>
-      <p style={{ ...S,fontSize:large?"26px":"20px",fontWeight:500,color:"#e8dfc8" }}>{value}</p>
-      {sub&&<p style={{ ...S,fontSize:"10px",color:"#4a4438",marginTop:"3px" }}>{sub}</p>}
+    <div style={{ background:"#111827",border:"1px solid #252219",borderLeft:`2px solid ${c}`,borderRadius:"2px",padding:large?"20px 22px":"15px 18px" }}>
+      <p style={{ ...S,fontSize:"9px",color:"#3a5070",letterSpacing:"0.14em",textTransform:"uppercase",marginBottom:"5px" }}>{label}</p>
+      <p style={{ ...S,fontSize:large?"26px":"20px",fontWeight:500,color:"#e2e8f0" }}>{value}</p>
+      {sub&&<p style={{ ...S,fontSize:"10px",color:"#3a5070",marginTop:"3px" }}>{sub}</p>}
     </div>
   );
 }
 function Modal({ title, onClose, children, wide }) {
   return (
     <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(8,7,6,0.9)",backdropFilter:"blur(6px)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:"20px" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#161410",border:"1px solid #2e2b24",borderRadius:"2px",width:"100%",maxWidth:wide?"860px":"520px",maxHeight:"92vh",overflowY:"auto",position:"relative" }}>
+      <div onClick={e=>e.stopPropagation()} style={{ background:"#111827",border:"1px solid #2e2b24",borderRadius:"2px",width:"100%",maxWidth:wide?"860px":"520px",maxHeight:"92vh",overflowY:"auto",position:"relative" }}>
         <div style={{ position:"absolute",top:0,left:0,right:0,height:"1px",background:"linear-gradient(90deg,transparent,#b8973a55,transparent)" }}/>
-        <div style={{ padding:"20px 26px 14px",borderBottom:"1px solid #1e1c18",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-          <h3 style={{ ...CG,fontSize:"20px",fontWeight:600,color:"#e8dfc8" }}>{title}</h3>
-          <button onClick={onClose} style={{ background:"none",border:"none",color:"#4a4438",fontSize:"20px",cursor:"pointer" }}>×</button>
+        <div style={{ padding:"20px 26px 14px",borderBottom:"1px solid #e2e4e8",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+          <h3 style={{ ...CG,fontSize:"20px",fontWeight:600,color:"#e2e8f0" }}>{title}</h3>
+          <button onClick={onClose} style={{ background:"none",border:"none",color:"#3a5070",fontSize:"20px",cursor:"pointer" }}>×</button>
         </div>
         <div style={{ padding:"18px 26px 22px" }}>{children}</div>
       </div>
     </div>
   );
 }
-function FL({ children }) { return <p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:"5px" }}>{children}</p>; }
-function FI({ label, ...p }) { return <div><FL>{label}</FL><input style={{ ...S,background:"#1a1815",border:"1px solid #2e2b24",color:"#e8dfc8",borderRadius:"2px",padding:"8px 10px",fontSize:"12px",width:"100%",outline:"none" }} {...p}/></div>; }
-function FS({ label, children, ...p }) { return <div><FL>{label}</FL><select style={{ ...S,background:"#1a1815",border:"1px solid #2e2b24",color:"#e8dfc8",borderRadius:"2px",padding:"8px 10px",fontSize:"12px",width:"100%",outline:"none" }} {...p}>{children}</select></div>; }
-function GoldBtn({ children, onClick }) { return <button onClick={onClick} style={{ background:"linear-gradient(135deg,#b8973a,#d4af55)",color:"#0e0d0b",border:"none",borderRadius:"2px",...S,fontSize:"11px",fontWeight:500,letterSpacing:"0.1em",textTransform:"uppercase",padding:"9px 18px",cursor:"pointer" }}>{children}</button>; }
-function GhostBtn({ children, onClick }) { return <button onClick={onClick} style={{ background:"transparent",color:"#6b6350",border:"1px solid #2e2b24",borderRadius:"2px",...S,fontSize:"11px",letterSpacing:"0.08em",textTransform:"uppercase",padding:"8px 14px",cursor:"pointer" }}>{children}</button>; }
-function TH({ children }) { return <th style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.1em",padding:"9px 14px",textAlign:"left",whiteSpace:"nowrap",background:"#121110",borderBottom:"1px solid #1e1c18" }}>{children}</th>; }
+function FL({ children }) { return <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:"5px" }}>{children}</p>; }
+function FI({ label, ...p }) { return <div><FL>{label}</FL><input style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#e2e8f0",borderRadius:"2px",padding:"8px 10px",fontSize:"12px",width:"100%",outline:"none" }} {...p}/></div>; }
+function FS({ label, children, ...p }) { return <div><FL>{label}</FL><select style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#e2e8f0",borderRadius:"2px",padding:"8px 10px",fontSize:"12px",width:"100%",outline:"none" }} {...p}>{children}</select></div>; }
+function GoldBtn({ children, onClick }) { return <button onClick={onClick} style={{ background:"linear-gradient(135deg,#b8973a,#d4af55)",color:"#0a0e1a",border:"none",borderRadius:"2px",...S,fontSize:"11px",fontWeight:500,letterSpacing:"0.1em",textTransform:"uppercase",padding:"9px 18px",cursor:"pointer" }}>{children}</button>; }
+function GhostBtn({ children, onClick }) { return <button onClick={onClick} style={{ background:"transparent",color:"#4a6080",border:"1px solid #2e2b24",borderRadius:"2px",...S,fontSize:"11px",letterSpacing:"0.08em",textTransform:"uppercase",padding:"8px 14px",cursor:"pointer" }}>{children}</button>; }
+function TH({ children }) { return <th style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.1em",padding:"9px 14px",textAlign:"left",whiteSpace:"nowrap",background:"#121110",borderBottom:"1px solid #e2e4e8" }}>{children}</th>; }
 function CovBar({ pct }) {
-  const c=pct>=100?"#6db87a":pct>=70?"#d4a843":"#c96b6b";
-  return <div style={{ display:"flex",alignItems:"center",gap:"8px" }}><div style={{ flex:1,height:"5px",background:"#1e1c18",borderRadius:"1px",overflow:"hidden" }}><div style={{ width:`${Math.min(pct,100)}%`,height:"100%",background:c,borderRadius:"1px" }}/></div><span style={{ ...S,fontSize:"10px",color:c,minWidth:"38px",textAlign:"right" }}>{N(pct,1)}%</span></div>;
+  const c=pct>=100?"#34d399":pct>=70?"#d4a843":"#f87171";
+  return <div style={{ display:"flex",alignItems:"center",gap:"8px" }}><div style={{ flex:1,height:"5px",background:"#1e2d45",borderRadius:"1px",overflow:"hidden" }}><div style={{ width:`${Math.min(pct,100)}%`,height:"100%",background:c,borderRadius:"1px" }}/></div><span style={{ ...S,fontSize:"10px",color:c,minWidth:"38px",textAlign:"right" }}>{N(pct,1)}%</span></div>;
 }
 
 // Custom chart tooltip
 function ChartTip({ active, payload, label }) {
   if (!active||!payload?.length) return null;
   return (
-    <div style={{ background:"#1a1815",border:"1px solid #2e2b24",borderRadius:"2px",padding:"10px 14px" }}>
-      <p style={{ ...S,fontSize:"10px",color:"#b8973a",marginBottom:"6px" }}>{label}</p>
+    <div style={{ background:"#0d1526",border:"1px solid #2e2b24",borderRadius:"2px",padding:"10px 14px" }}>
+      <p style={{ ...S,fontSize:"10px",color:"#38bdf8",marginBottom:"6px" }}>{label}</p>
       {payload.map(p=>(
         <p key={p.dataKey} style={{ ...S,fontSize:"11px",color:p.color,marginBottom:"2px" }}>{p.name}: {typeof p.value==="number"?N(p.value,p.value>1000?0:2):p.value}</p>
       ))}
@@ -209,24 +209,24 @@ function Reporting({ trades, obligations, prices, curve }) {
     { id:"market",    label:"Prix Marché" },
   ];
 
-  const SectionTitle = ({children}) => <p style={{ ...S,fontSize:"9px",color:"#b8973a",textTransform:"uppercase",letterSpacing:"0.18em",marginBottom:"14px",marginTop:"8px" }}>{children}</p>;
+  const SectionTitle = ({children}) => <p style={{ ...S,fontSize:"9px",color:"#38bdf8",textTransform:"uppercase",letterSpacing:"0.18em",marginBottom:"14px",marginTop:"8px" }}>{children}</p>;
 
   return (
     <div style={{ display:"flex",flexDirection:"column",gap:"16px" }}>
       {/* Report selector */}
       <div style={{ display:"flex",gap:"8px",flexWrap:"wrap" }}>
         {REPORTS.map(r=>(
-          <button key={r.id} onClick={()=>setReport(r.id)} style={{ ...S,fontSize:"10px",padding:"7px 14px",borderRadius:"2px",border:"1px solid",cursor:"pointer",letterSpacing:"0.08em",textTransform:"uppercase",background:report===r.id?"#b8973a":"transparent",color:report===r.id?"#0e0d0b":"#4a4438",borderColor:report===r.id?"#b8973a":"#2e2b24" }}>{r.label}</button>
+          <button key={r.id} onClick={()=>setReport(r.id)} style={{ ...S,fontSize:"10px",padding:"7px 14px",borderRadius:"2px",border:"1px solid",cursor:"pointer",letterSpacing:"0.08em",textTransform:"uppercase",background:report===r.id?"#38bdf8":"transparent",color:report===r.id?"#0a0e1a":"#3a5070",borderColor:report===r.id?"#38bdf8":"#1e2d45" }}>{r.label}</button>
         ))}
       </div>
 
       {/* ── EXECUTIVE SUMMARY ── */}
       {report==="executive" && (
         <div style={{ display:"flex",flexDirection:"column",gap:"20px" }}>
-          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"22px 26px" }}>
-            <p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"4px" }}>Rapport de Gestion CEE — P6</p>
-            <h2 style={{ ...CG,fontSize:"28px",fontWeight:700,color:"#e8dfc8",marginBottom:"2px" }}>Tableau de Bord Exécutif</h2>
-            <p style={{ ...S,fontSize:"10px",color:"#4a4438" }}>Au {prices.slice(-1)[0]?.date ?? "2026-03-06"} · Période de référence: 2026 (P6)</p>
+          <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"22px 26px" }}>
+            <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"4px" }}>Rapport de Gestion CEE — P6</p>
+            <h2 style={{ ...CG,fontSize:"28px",fontWeight:700,color:"#e2e8f0",marginBottom:"2px" }}>Tableau de Bord Exécutif</h2>
+            <p style={{ ...S,fontSize:"10px",color:"#3a5070" }}>Au {prices.slice(-1)[0]?.date ?? "2026-03-06"} · Période de référence: 2026 (P6)</p>
           </div>
 
           {/* Top KPIs */}
@@ -239,60 +239,60 @@ function Reporting({ trades, obligations, prices, curve }) {
 
           {/* Coverage Donut + Waterfall */}
           <div style={{ display:"grid",gridTemplateColumns:"1fr 2fr",gap:"16px" }}>
-            <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+            <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
               <SectionTitle>Couverture Globale 2026</SectionTitle>
               <ResponsiveContainer width="100%" height={200}>
                 <PieChart>
                   <Pie data={[{name:"Couvert",value:Math.round(totalBought)},{name:"Non pricé",value:Math.round(totalUnpriced)},{name:"Découvert",value:Math.max(0,Math.round(totalOblP-totalBought))}]} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value">
-                    <Cell fill="#6db87a"/><Cell fill="#c96b6b"/><Cell fill="#d4a843"/>
+                    <Cell fill="#34d399"/><Cell fill="#f87171"/><Cell fill="#d4a843"/>
                   </Pie>
                   <Tooltip content={<ChartTip/>}/>
-                  <Legend iconSize={8} iconType="circle" wrapperStyle={{ ...S,fontSize:"10px",color:"#6b6350" }}/>
+                  <Legend iconSize={8} iconType="circle" wrapperStyle={{ ...S,fontSize:"10px",color:"#4a6080" }}/>
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+            <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
               <SectionTitle>Position Nette Mensuelle (GWhc) — Pricés</SectionTitle>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={monthlyData} barSize={18}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
-                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
-                  <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={40}/>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={40}/>
                   <Tooltip content={<ChartTip/>}/>
-                  <ReferenceLine y={0} stroke="#2e2b24"/>
-                  <Bar dataKey="netPos" name="Position nette" fill="#5bc2e7" radius={[1,1,0,0]}/>
+                  <ReferenceLine y={0} stroke="#1e2d45"/>
+                  <Bar dataKey="netPos" name="Position nette" fill="#2563eb" radius={[1,1,0,0]}/>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* PnL Bar + Cum line */}
-          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+          <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
             <SectionTitle>PnL Mensuel Réalisé (k€) + Cumulé</SectionTitle>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={cumPnlData} barSize={20}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
-                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
-                <YAxis yAxisId="left"  tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={44}/>
-                <YAxis yAxisId="right" orientation="right" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={44}/>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                <YAxis yAxisId="left"  tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={44}/>
+                <YAxis yAxisId="right" orientation="right" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={44}/>
                 <Tooltip content={<ChartTip/>}/>
-                <ReferenceLine yAxisId="left" y={0} stroke="#2e2b24"/>
-                <Bar yAxisId="left" dataKey="pnl" name="PnL mensuel (k€)" fill="#6db87a" radius={[1,1,0,0]}/>
-                <Line yAxisId="right" type="monotone" dataKey="cumPnl" name="Cumulé (k€)" stroke="#b8973a" strokeWidth={2} dot={false}/>
+                <ReferenceLine yAxisId="left" y={0} stroke="#1e2d45"/>
+                <Bar yAxisId="left" dataKey="pnl" name="PnL mensuel (k€)" fill="#34d399" radius={[1,1,0,0]}/>
+                <Line yAxisId="right" type="monotone" dataKey="cumPnl" name="Cumulé (k€)" stroke="#38bdf8" strokeWidth={2} dot={false}/>
               </BarChart>
             </ResponsiveContainer>
           </div>
 
           {/* Vendor breakdown */}
-          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+          <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
             <SectionTitle>Achats par Vendeur (GWhc)</SectionTitle>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={vendorData} layout="vertical" barSize={14}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" horizontal={false}/>
-                <XAxis type="number" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
-                <YAxis type="category" dataKey="name" tick={{ ...S,fontSize:9,fill:"#8a7d62" }} axisLine={false} tickLine={false} width={170}/>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" horizontal={false}/>
+                <XAxis type="number" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                <YAxis type="category" dataKey="name" tick={{ ...S,fontSize:9,fill:"#4a6080" }} axisLine={false} tickLine={false} width={170}/>
                 <Tooltip content={<ChartTip/>}/>
-                <Bar dataKey="vol" name="Volume (GWhc)" fill="#b8973a" radius={[0,1,1,0]}/>
+                <Bar dataKey="vol" name="Volume (GWhc)" fill="#38bdf8" radius={[0,1,1,0]}/>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -302,46 +302,46 @@ function Reporting({ trades, obligations, prices, curve }) {
       {/* ── POSITION & COUVERTURE ── */}
       {report==="position" && (
         <div style={{ display:"flex",flexDirection:"column",gap:"20px" }}>
-          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+          <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
             <SectionTitle>Obligation vs Achats par Mois (GWhc)</SectionTitle>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={monthlyData} barGap={2} barCategoryGap="20%">
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
-                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
-                <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={44}/>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={44}/>
                 <Tooltip content={<ChartTip/>}/>
-                <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#6b6350" }}/>
+                <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#4a6080" }}/>
                 <Bar dataKey="oblClP" name="Oblig. CL Pricée" fill="#1a3848" radius={[1,1,0,0]} stackId="obl"/>
                 <Bar dataKey="oblPrP" name="Oblig. PR Pricée" fill="#2e2410" radius={[1,1,0,0]} stackId="obl"/>
-                <Bar dataKey="bCl"    name="Acheté CL"        fill="#5bc2e7" radius={[1,1,0,0]} stackId="buy" fillOpacity={0.85}/>
+                <Bar dataKey="bCl"    name="Acheté CL"        fill="#2563eb" radius={[1,1,0,0]} stackId="buy" fillOpacity={0.85}/>
                 <Bar dataKey="bPr"    name="Acheté PR"        fill="#d4a843" radius={[1,1,0,0]} stackId="buy" fillOpacity={0.85}/>
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+          <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
             <SectionTitle>% Couverture par Mois</SectionTitle>
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
-                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
-                <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={40} unit="%"/>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={40} unit="%"/>
                 <Tooltip content={<ChartTip/>}/>
-                <ReferenceLine y={100} stroke="#6db87a" strokeDasharray="4 2" label={{ value:"100%",fill:"#6db87a",fontSize:9,...S }}/>
-                <Area type="monotone" dataKey="covPct" name="Couverture %" stroke="#5bc2e7" fill="#5bc2e711" strokeWidth={2}/>
+                <ReferenceLine y={100} stroke="#34d399" strokeDasharray="4 2" label={{ value:"100%",fill:"#34d399",fontSize:9,...S }}/>
+                <Area type="monotone" dataKey="covPct" name="Couverture %" stroke="#2563eb" fill="#5bc2e711" strokeWidth={2}/>
               </AreaChart>
             </ResponsiveContainer>
           </div>
 
-          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+          <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
             <SectionTitle>Obligation Non Pricée (Forward) — GWhc à couvrir</SectionTitle>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={monthlyData.map(d=>({ ...d, unpriced:d.oblCl+d.oblPr-d.oblClP-d.oblPrP }))}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
-                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
-                <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={44}/>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={44}/>
                 <Tooltip content={<ChartTip/>}/>
-                <Bar dataKey="unpriced" name="Non pricé (GWhc)" fill="#c96b6b" radius={[1,1,0,0]}/>
+                <Bar dataKey="unpriced" name="Non pricé (GWhc)" fill="#f87171" radius={[1,1,0,0]}/>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -352,44 +352,44 @@ function Reporting({ trades, obligations, prices, curve }) {
       {report==="pnl" && (
         <div style={{ display:"flex",flexDirection:"column",gap:"20px" }}>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px" }}>
-            <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+            <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
               <SectionTitle>PnL Réalisé Mensuel (k€)</SectionTitle>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={monthlyData} barGap={3}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
-                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
-                  <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={44}/>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={44}/>
                   <Tooltip content={<ChartTip/>}/>
-                  <ReferenceLine y={0} stroke="#2e2b24"/>
-                  <Bar dataKey="pnlCl" name="PnL Classique (k€)" fill="#5bc2e7" radius={[1,1,0,0]}/>
+                  <ReferenceLine y={0} stroke="#1e2d45"/>
+                  <Bar dataKey="pnlCl" name="PnL Classique (k€)" fill="#2563eb" radius={[1,1,0,0]}/>
                   <Bar dataKey="pnlPr" name="PnL Précarité (k€)" fill="#d4a843" radius={[1,1,0,0]}/>
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+            <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
               <SectionTitle>MtM Open Position Mensuel (k€)</SectionTitle>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
-                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
-                  <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={44}/>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={44}/>
                   <Tooltip content={<ChartTip/>}/>
-                  <ReferenceLine y={0} stroke="#2e2b24"/>
-                  <Bar dataKey="mtm" name="MtM (k€)" fill="#b8973a" radius={[1,1,0,0]}/>
+                  <ReferenceLine y={0} stroke="#1e2d45"/>
+                  <Bar dataKey="mtm" name="MtM (k€)" fill="#38bdf8" radius={[1,1,0,0]}/>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
-          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+          <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
             <SectionTitle>PnL Cumulé YTD (k€)</SectionTitle>
             <ResponsiveContainer width="100%" height={220}>
               <AreaChart data={cumPnlData}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
-                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
-                <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={50}/>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={50}/>
                 <Tooltip content={<ChartTip/>}/>
-                <ReferenceLine y={0} stroke="#2e2b24"/>
-                <Area type="monotone" dataKey="cumPnl" name="PnL cumulé (k€)" stroke="#6db87a" fill="#6db87a22" strokeWidth={2}/>
+                <ReferenceLine y={0} stroke="#1e2d45"/>
+                <Area type="monotone" dataKey="cumPnl" name="PnL cumulé (k€)" stroke="#34d399" fill="#6db87a22" strokeWidth={2}/>
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -399,30 +399,30 @@ function Reporting({ trades, obligations, prices, curve }) {
       {/* ── PRIX MARCHÉ ── */}
       {report==="market" && (
         <div style={{ display:"flex",flexDirection:"column",gap:"20px" }}>
-          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+          <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
             <SectionTitle>Historique Prix C2E Market — Classique vs Précarité (€/MWhc)</SectionTitle>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={priceHistory}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
-                <XAxis dataKey="date" tick={{ ...S,fontSize:8,fill:"#4a4438" }} axisLine={false} tickLine={false} interval={3}/>
-                <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={40} domain={["auto","auto"]}/>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                <XAxis dataKey="date" tick={{ ...S,fontSize:8,fill:"#3a5070" }} axisLine={false} tickLine={false} interval={3}/>
+                <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={40} domain={["auto","auto"]}/>
                 <Tooltip content={<ChartTip/>}/>
-                <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#6b6350" }}/>
-                <Line type="monotone" dataKey="cl" name="Classique (€/MWhc)" stroke="#5bc2e7" strokeWidth={2} dot={false}/>
+                <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#4a6080" }}/>
+                <Line type="monotone" dataKey="cl" name="Classique (€/MWhc)" stroke="#2563eb" strokeWidth={2} dot={false}/>
                 <Line type="monotone" dataKey="pr" name="Précarité (€/MWhc)" stroke="#d4a843" strokeWidth={2} dot={false}/>
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+          <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
             <SectionTitle>Courbe Forward (€/MWhc)</SectionTitle>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={TENORS.map(t=>({ tenor:t, cl:curve[t]?.classique, pr:curve[t]?.precarite }))}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e1c18" vertical={false}/>
-                <XAxis dataKey="tenor" tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false}/>
-                <YAxis tick={{ ...S,fontSize:9,fill:"#4a4438" }} axisLine={false} tickLine={false} width={40} domain={["auto","auto"]}/>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                <XAxis dataKey="tenor" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={40} domain={["auto","auto"]}/>
                 <Tooltip content={<ChartTip/>}/>
-                <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#6b6350" }}/>
-                <Line type="monotone" dataKey="cl" name="Classique" stroke="#5bc2e7" strokeWidth={2} dot={{ fill:"#5bc2e7",r:3 }}/>
+                <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#4a6080" }}/>
+                <Line type="monotone" dataKey="cl" name="Classique" stroke="#2563eb" strokeWidth={2} dot={{ fill:"#2563eb",r:3 }}/>
                 <Line type="monotone" dataKey="pr" name="Précarité" stroke="#d4a843" strokeWidth={2} dot={{ fill:"#d4a843",r:3 }}/>
               </LineChart>
             </ResponsiveContainer>
@@ -498,13 +498,13 @@ function PositionView({ trades, obligations, curve, prices }) {
 
   const VIEWS=[{id:"position",label:"Position & Couverture"},{id:"pnl",label:"PnL Réalisé & MtM"},{id:"unpriced",label:"Oblig. Non Pricées"}];
 
-  const pc=(v,color)=>v!=null?(<span style={{ ...S,fontSize:"12px",color:v>0?CHART_COLORS.green:v<0?CHART_COLORS.red:"#4a4438",fontWeight:v!==0?600:400 }}>{v>0?"+":""}{N(v,2)}</span>):"—";
-  const pk=(v)=>v!=null?(<span style={{ ...S,fontSize:"12px",color:v>0?CHART_COLORS.green:v<0?CHART_COLORS.red:"#4a4438",fontWeight:v!==0?600:400 }}>{fK(v)}</span>):"—";
+  const pc=(v,color)=>v!=null?(<span style={{ ...S,fontSize:"12px",color:v>0?CHART_COLORS.green:v<0?CHART_COLORS.red:"#3a5070",fontWeight:v!==0?600:400 }}>{v>0?"+":""}{N(v,2)}</span>):"—";
+  const pk=(v)=>v!=null?(<span style={{ ...S,fontSize:"12px",color:v>0?CHART_COLORS.green:v<0?CHART_COLORS.red:"#3a5070",fontWeight:v!==0?600:400 }}>{fK(v)}</span>):"—";
 
   return (
     <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
-      <div style={{ display:"flex",gap:"14px",borderBottom:"1px solid #1e1c18" }}>
-        {VIEWS.map(v=><button key={v.id} onClick={()=>setView(v.id)} style={{ ...S,background:"none",border:"none",fontSize:"10px",letterSpacing:"0.1em",textTransform:"uppercase",padding:"10px 0",cursor:"pointer",whiteSpace:"nowrap",color:view===v.id?"#b8973a":"#4a4438",borderBottom:view===v.id?"1px solid #b8973a":"1px solid transparent" }}>{v.label}</button>)}
+      <div style={{ display:"flex",gap:"14px",borderBottom:"1px solid #e2e4e8" }}>
+        {VIEWS.map(v=><button key={v.id} onClick={()=>setView(v.id)} style={{ ...S,background:"none",border:"none",fontSize:"10px",letterSpacing:"0.1em",textTransform:"uppercase",padding:"10px 0",cursor:"pointer",whiteSpace:"nowrap",color:view===v.id?"#38bdf8":"#3a5070",borderBottom:view===v.id?"1px solid #b8973a":"1px solid transparent" }}>{v.label}</button>)}
       </div>
       <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px" }}>
         {view==="position" && <><KPI label="Oblig. CL Pricée" value={N(tot.oblCl,0)+" GWhc"} color="sky"/><KPI label="Acheté CL" value={N(tot.bCl,0)+" GWhc"} color="sky"/><KPI label="Oblig. PR Pricée" value={N(tot.oblPr,0)+" GWhc"} color="amber"/><KPI label="Acheté PR" value={N(tot.bPr,0)+" GWhc"} color="amber"/></>}
@@ -521,53 +521,53 @@ function PositionView({ trades, obligations, curve, prices }) {
           </tr></thead>
           <tbody>
             {rows.map((r,i)=>{
-              const bg=i%2===0?"#161410":"#141210";
+              const bg=i%2===0?"#111827":"#141210";
               const isForecast=r.month>"2026-03";
               return (
-                <tr key={r.month} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#1a1815"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
-                  <td style={{ ...CG,fontSize:"15px",color:"#e8dfc8",padding:"9px 14px",fontWeight:600,whiteSpace:"nowrap" }}>
-                    {ML(r.month)}{isForecast&&<span style={{ ...S,fontSize:"8px",color:"#2e2b24",marginLeft:"6px" }}>FCST</span>}
+                <tr key={r.month} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#0d1526"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
+                  <td style={{ ...CG,fontSize:"15px",color:"#e2e8f0",padding:"9px 14px",fontWeight:600,whiteSpace:"nowrap" }}>
+                    {ML(r.month)}{isForecast&&<span style={{ ...S,fontSize:"8px",color:"#1e2d45",marginLeft:"6px" }}>FCST</span>}
                   </td>
                   {view==="position"&&<>
-                    <td style={{ ...S,fontSize:"12px",color:"#5bc2e7",padding:"9px 14px" }}>{N(r.oblClP,2)}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#2563eb",padding:"9px 14px" }}>{N(r.oblClP,2)}</td>
                     <td style={{ ...S,fontSize:"12px",color:"#d4a843",padding:"9px 14px" }}>{N(r.oblPrP,2)}</td>
-                    <td style={{ ...S,fontSize:"12px",color:r.bCl>0?"#e8dfc8":"#3d3830",padding:"9px 14px" }}>{N(r.bCl,2)}</td>
-                    <td style={{ ...S,fontSize:"12px",color:r.bPr>0?"#e8dfc8":"#3d3830",padding:"9px 14px" }}>{N(r.bPr,2)}</td>
+                    <td style={{ ...S,fontSize:"12px",color:r.bCl>0?"#e2e8f0":"#3d3830",padding:"9px 14px" }}>{N(r.bCl,2)}</td>
+                    <td style={{ ...S,fontSize:"12px",color:r.bPr>0?"#e2e8f0":"#3d3830",padding:"9px 14px" }}>{N(r.bPr,2)}</td>
                     <td style={{ padding:"9px 14px" }}>{pc(r.netCl)}</td>
                     <td style={{ padding:"9px 14px" }}>{pc(r.netPr)}</td>
-                    <td style={{ padding:"9px 14px",minWidth:"120px" }}>{(r.oblClP+r.oblPrP)>0?<CovBar pct={r.covPct}/>:<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#6b6350",padding:"9px 14px" }}>{r.aCl>0?N(r.aCl/1000,2):"—"}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#6b6350",padding:"9px 14px" }}>{r.sCl>0?N(r.sCl/1000,2):"—"}</td>
+                    <td style={{ padding:"9px 14px",minWidth:"120px" }}>{(r.oblClP+r.oblPrP)>0?<CovBar pct={r.covPct}/>:<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{r.aCl>0?N(r.aCl/1000,2):"—"}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{r.sCl>0?N(r.sCl/1000,2):"—"}</td>
                   </>}
                   {view==="pnl"&&<>
-                    <td style={{ ...S,fontSize:"12px",color:"#6b6350",padding:"9px 14px" }}>{r.aCl>0?N(r.aCl/1000,2):"—"}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#6b6350",padding:"9px 14px" }}>{r.sCl>0?N(r.sCl/1000,2):"—"}</td>
-                    <td style={{ padding:"9px 14px" }}>{r.pnlCl!==0?pk(r.pnlCl):<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#6b6350",padding:"9px 14px" }}>{r.aPr>0?N(r.aPr/1000,2):"—"}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#6b6350",padding:"9px 14px" }}>{r.sPr>0?N(r.sPr/1000,2):"—"}</td>
-                    <td style={{ padding:"9px 14px" }}>{r.pnlPr!==0?pk(r.pnlPr):<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
-                    <td style={{ padding:"9px 14px" }}>{r.mtmCl!==0?pk(r.mtmCl):<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
-                    <td style={{ padding:"9px 14px" }}>{r.mtmPr!==0?pk(r.mtmPr):<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{r.aCl>0?N(r.aCl/1000,2):"—"}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{r.sCl>0?N(r.sCl/1000,2):"—"}</td>
+                    <td style={{ padding:"9px 14px" }}>{r.pnlCl!==0?pk(r.pnlCl):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{r.aPr>0?N(r.aPr/1000,2):"—"}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{r.sPr>0?N(r.sPr/1000,2):"—"}</td>
+                    <td style={{ padding:"9px 14px" }}>{r.pnlPr!==0?pk(r.pnlPr):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
+                    <td style={{ padding:"9px 14px" }}>{r.mtmCl!==0?pk(r.mtmCl):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
+                    <td style={{ padding:"9px 14px" }}>{r.mtmPr!==0?pk(r.mtmPr):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
                     <td style={{ padding:"9px 14px" }}>{pk(r.pnlCl+r.pnlPr+r.mtmCl+r.mtmPr)}</td>
                   </>}
                   {view==="unpriced"&&<>
-                    <td style={{ ...S,fontSize:"12px",color:"#5bc2e7",padding:"9px 14px" }}>{N(r.oblClT,2)}</td>
-                    <td style={{ padding:"9px 14px" }}>{r.oblClU>0.01?<span style={{ ...S,fontSize:"12px",color:"#c96b6b",fontWeight:600 }}>{N(r.oblClU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#2563eb",padding:"9px 14px" }}>{N(r.oblClT,2)}</td>
+                    <td style={{ padding:"9px 14px" }}>{r.oblClU>0.01?<span style={{ ...S,fontSize:"12px",color:"#f87171",fontWeight:600 }}>{N(r.oblClU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
                     <td style={{ ...S,fontSize:"12px",color:"#d4a843",padding:"9px 14px" }}>{N(r.oblPrT,2)}</td>
-                    <td style={{ padding:"9px 14px" }}>{r.oblPrU>0.01?<span style={{ ...S,fontSize:"12px",color:"#c96b6b",fontWeight:600 }}>{N(r.oblPrU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
-                    <td style={{ padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?<span style={{ ...S,fontSize:"12px",color:"#c96b6b",fontWeight:600 }}>{N(r.oblClU+r.oblPrU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
-                    <td style={{ ...S,fontSize:"12px",color:r.unpricedBoughtCl>0?"#e8dfc8":"#3d3830",padding:"9px 14px" }}>{r.unpricedBoughtCl>0.01?N(r.unpricedBoughtCl,2):"—"}</td>
-                    <td style={{ padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?pc(r.unpricedBoughtCl+r.unpricedBoughtPr - r.oblClU - r.oblPrU):<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>—</span>}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#8a7d62",padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?fK(r.oblClU*latestSpot.classique*1000 + r.oblPrU*latestSpot.precarite*1000):"—"}</td>
+                    <td style={{ padding:"9px 14px" }}>{r.oblPrU>0.01?<span style={{ ...S,fontSize:"12px",color:"#f87171",fontWeight:600 }}>{N(r.oblPrU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
+                    <td style={{ padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?<span style={{ ...S,fontSize:"12px",color:"#f87171",fontWeight:600 }}>{N(r.oblClU+r.oblPrU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
+                    <td style={{ ...S,fontSize:"12px",color:r.unpricedBoughtCl>0?"#e2e8f0":"#3d3830",padding:"9px 14px" }}>{r.unpricedBoughtCl>0.01?N(r.unpricedBoughtCl,2):"—"}</td>
+                    <td style={{ padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?pc(r.unpricedBoughtCl+r.unpricedBoughtPr - r.oblClU - r.oblPrU):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?fK(r.oblClU*latestSpot.classique*1000 + r.oblPrU*latestSpot.precarite*1000):"—"}</td>
                   </>}
                 </tr>
               );
             })}
-            <tr style={{ background:"#1e1c18",borderTop:"1px solid #2e2b24" }}>
-              <td style={{ ...S,fontSize:"10px",color:"#b8973a",padding:"10px 14px",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em" }}>Total 2026</td>
-              {view==="position"&&<><td style={{ ...S,fontSize:"12px",color:"#5bc2e7",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblCl,0)}</td><td style={{ ...S,fontSize:"12px",color:"#d4a843",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblPr,0)}</td><td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"10px 14px",fontWeight:700 }}>{N(tot.bCl,0)}</td><td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"10px 14px",fontWeight:700 }}>{N(tot.bPr,0)}</td><td colSpan={5}/></>}
+            <tr style={{ background:"#1e2d45",borderTop:"1px solid #2e2b24" }}>
+              <td style={{ ...S,fontSize:"10px",color:"#38bdf8",padding:"10px 14px",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em" }}>Total 2026</td>
+              {view==="position"&&<><td style={{ ...S,fontSize:"12px",color:"#2563eb",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblCl,0)}</td><td style={{ ...S,fontSize:"12px",color:"#d4a843",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblPr,0)}</td><td style={{ ...S,fontSize:"12px",color:"#e2e8f0",padding:"10px 14px",fontWeight:700 }}>{N(tot.bCl,0)}</td><td style={{ ...S,fontSize:"12px",color:"#e2e8f0",padding:"10px 14px",fontWeight:700 }}>{N(tot.bPr,0)}</td><td colSpan={5}/></>}
               {view==="pnl"&&<><td colSpan={2}/><td style={{ padding:"10px 14px" }}>{pk(tot.pnlCl)}</td><td colSpan={2}/><td style={{ padding:"10px 14px" }}>{pk(tot.pnlPr)}</td><td style={{ padding:"10px 14px" }}>{pk(tot.mtmCl)}</td><td style={{ padding:"10px 14px" }}>{pk(tot.mtmPr)}</td><td style={{ padding:"10px 14px" }}>{pk(tot.pnlCl+tot.pnlPr+tot.mtmCl+tot.mtmPr)}</td></>}
-              {view==="unpriced"&&<><td/><td style={{ ...S,fontSize:"12px",color:"#c96b6b",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblClU,0)}</td><td/><td style={{ ...S,fontSize:"12px",color:"#c96b6b",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblPrU,0)}</td><td style={{ ...S,fontSize:"13px",color:"#c96b6b",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblClU+tot.oblPrU,0)}</td><td colSpan={3}/></>}
+              {view==="unpriced"&&<><td/><td style={{ ...S,fontSize:"12px",color:"#f87171",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblClU,0)}</td><td/><td style={{ ...S,fontSize:"12px",color:"#f87171",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblPrU,0)}</td><td style={{ ...S,fontSize:"13px",color:"#f87171",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblClU+tot.oblPrU,0)}</td><td colSpan={3}/></>}
             </tr>
           </tbody>
         </table>
@@ -602,7 +602,7 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
     <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
       <div style={{ display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:"10px" }}>
         <div style={{ display:"flex",flexWrap:"wrap",gap:"5px" }}>
-          {["ALL","PENDING","APPROVED","CLASSIQUE","PRECARITE"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{ ...S,fontSize:"10px",padding:"5px 10px",borderRadius:"2px",border:"1px solid",cursor:"pointer",letterSpacing:"0.08em",textTransform:"uppercase",background:filter===f?"#b8973a":"transparent",color:filter===f?"#0e0d0b":"#4a4438",borderColor:filter===f?"#b8973a":"#2e2b24" }}>{f}</button>)}
+          {["ALL","PENDING","APPROVED","CLASSIQUE","PRECARITE"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{ ...S,fontSize:"10px",padding:"5px 10px",borderRadius:"2px",border:"1px solid",cursor:"pointer",letterSpacing:"0.08em",textTransform:"uppercase",background:filter===f?"#38bdf8":"transparent",color:filter===f?"#0a0e1a":"#3a5070",borderColor:filter===f?"#38bdf8":"#1e2d45" }}>{f}</button>)}
         </div>
         <GoldBtn onClick={()=>setShowModal(true)}>+ Nouvel Achat</GoldBtn>
       </div>
@@ -612,25 +612,25 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
           <tbody>
             {filtered.map(t=>{
               const can=currentUser.role==="approver"&&t.status==="PENDING"&&t.createdBy!==currentUser.id;
-              const bg="#161410";
+              const bg="#111827";
               return(
-                <tr key={t.id} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#1a1815"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
+                <tr key={t.id} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#0d1526"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
                   <td style={{ padding:"9px 14px" }}><Badge color={t.ceeType==="CLASSIQUE"?"sky":"amber"}>{t.ceeType}</Badge></td>
-                  <td style={{ ...CG,fontSize:"14px",color:"#e8dfc8",padding:"9px 14px",maxWidth:"180px" }}>{t.vendor}</td>
-                  <td style={{ ...S,fontSize:"10px",color:"#6b6350",padding:"9px 14px" }}>{t.dealType}</td>
-                  <td style={{ ...S,fontSize:"10px",color:"#4a4438",padding:"9px 14px" }}>{t.period}</td>
-                  <td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"9px 14px" }}>{N(t.volume,3)}</td>
-                  <td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"9px 14px" }}>{N(t.price,0)}</td>
-                  <td style={{ ...S,fontSize:"11px",color:"#6b6350",padding:"9px 14px",whiteSpace:"nowrap" }}>{ML(t.month)}</td>
+                  <td style={{ ...CG,fontSize:"14px",color:"#e2e8f0",padding:"9px 14px",maxWidth:"180px" }}>{t.vendor}</td>
+                  <td style={{ ...S,fontSize:"10px",color:"#4a6080",padding:"9px 14px" }}>{t.dealType}</td>
+                  <td style={{ ...S,fontSize:"10px",color:"#3a5070",padding:"9px 14px" }}>{t.period}</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#e2e8f0",padding:"9px 14px" }}>{N(t.volume,3)}</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#e2e8f0",padding:"9px 14px" }}>{N(t.price,0)}</td>
+                  <td style={{ ...S,fontSize:"11px",color:"#4a6080",padding:"9px 14px",whiteSpace:"nowrap" }}>{ML(t.month)}</td>
                   <td style={{ padding:"9px 14px" }}><Badge color={t.priced===true?"emerald":"gray"}>{t.priced===true?"✓ Oui":"Non"}</Badge></td>
                   <td style={{ padding:"9px 14px" }}><Badge color={t.statut==="Attribué"?"green":"amber"}>{t.statut}</Badge></td>
-                  <td style={{ ...S,fontSize:"10px",color:"#b8973a",padding:"9px 14px" }}>{t.ranking||"—"}</td>
+                  <td style={{ ...S,fontSize:"10px",color:"#38bdf8",padding:"9px 14px" }}>{t.ranking||"—"}</td>
                   <td style={{ padding:"9px 14px" }}><Badge color={t.emmyValidated?"green":"gray"}>{t.emmyValidated?"✓ EMMY":"En attente"}</Badge></td>
                   <td style={{ padding:"9px 14px" }}>{SB(t.status)}</td>
                   <td style={{ padding:"9px 14px" }}>
-                    {can&&<div style={{ display:"flex",gap:"5px" }}><button onClick={()=>onApprove(t.id,currentUser.id)} style={{ ...S,fontSize:"10px",padding:"4px 8px",background:"#0f2e1a",color:"#6db87a",border:"1px solid #1d4a2a",borderRadius:"2px",cursor:"pointer" }}>✓ OK</button><button onClick={()=>onReject(t.id)} style={{ ...S,fontSize:"10px",padding:"4px 8px",background:"#2e1010",color:"#c96b6b",border:"1px solid #4a1c1c",borderRadius:"2px",cursor:"pointer" }}>✗</button></div>}
-                    {t.status==="PENDING"&&!can&&<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>Attente approbateur</span>}
-                    {currentUser?.role==="approver"&&<button onClick={()=>{if(window.confirm(`Supprimer ce trade ?`)) onDelete(t.id)}} style={{ ...S,fontSize:"9px",padding:"3px 7px",background:"none",color:"#4a4438",border:"1px solid #2e2b24",borderRadius:"2px",cursor:"pointer",marginTop:"4px" }}>🗑</button>}
+                    {can&&<div style={{ display:"flex",gap:"5px" }}><button onClick={()=>onApprove(t.id,currentUser.id)} style={{ ...S,fontSize:"10px",padding:"4px 8px",background:"#0a2a1a",color:"#34d399",border:"1px solid #1d4a2a",borderRadius:"2px",cursor:"pointer" }}>✓ OK</button><button onClick={()=>onReject(t.id)} style={{ ...S,fontSize:"10px",padding:"4px 8px",background:"#2a0a0a",color:"#f87171",border:"1px solid #4a1c1c",borderRadius:"2px",cursor:"pointer" }}>✗</button></div>}
+                    {t.status==="PENDING"&&!can&&<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>Attente approbateur</span>}
+                    {currentUser?.role==="approver"&&<button onClick={()=>{if(window.confirm(`Supprimer ce trade ?`)) onDelete(t.id)}} style={{ ...S,fontSize:"9px",padding:"3px 7px",background:"none",color:"#3a5070",border:"1px solid #2e2b24",borderRadius:"2px",cursor:"pointer",marginTop:"4px" }}>🗑</button>}
                   </td>
                 </tr>
               );
@@ -685,13 +685,13 @@ function ObligationTab({ obligations, onAdd, onDelete }) {
   const cc=c=>({Spot:"sky",Certas:"gold","Certas Lyon":"teal",Autre:"gray"}[c]||"gray");
   return (
     <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
-      <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"12px 18px",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"14px" }}>
-        {[["Carburant kWhc/m³","8 718"],["FOD kWhc/m³","11 078"],["Coeff. Précarité","0.364"],["Coeff. Correctif","0.847"]].map(([k,v])=><div key={k}><p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.1em" }}>{k}</p><p style={{ ...S,fontSize:"14px",color:"#b8973a",marginTop:"3px" }}>{v}</p></div>)}
+      <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"12px 18px",display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"14px" }}>
+        {[["Carburant kWhc/m³","8 718"],["FOD kWhc/m³","11 078"],["Coeff. Précarité","0.364"],["Coeff. Correctif","0.847"]].map(([k,v])=><div key={k}><p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.1em" }}>{k}</p><p style={{ ...S,fontSize:"14px",color:"#38bdf8",marginTop:"3px" }}>{v}</p></div>)}
       </div>
       <div style={{ display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:"10px" }}>
         <div style={{ display:"flex",gap:"5px",flexWrap:"wrap" }}>
-          {clients.map(c=><button key={c} onClick={()=>setFilterClient(c)} style={{ ...S,fontSize:"10px",padding:"5px 10px",borderRadius:"2px",border:"1px solid",cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.08em",background:filterClient===c?"#b8973a":"transparent",color:filterClient===c?"#0e0d0b":"#4a4438",borderColor:filterClient===c?"#b8973a":"#2e2b24" }}>{c}</button>)}
-          <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{ ...S,background:"#1a1815",border:"1px solid #2e2b24",color:"#8a7d62",borderRadius:"2px",padding:"5px 8px",fontSize:"10px",outline:"none" }}>
+          {clients.map(c=><button key={c} onClick={()=>setFilterClient(c)} style={{ ...S,fontSize:"10px",padding:"5px 10px",borderRadius:"2px",border:"1px solid",cursor:"pointer",textTransform:"uppercase",letterSpacing:"0.08em",background:filterClient===c?"#38bdf8":"transparent",color:filterClient===c?"#0a0e1a":"#3a5070",borderColor:filterClient===c?"#38bdf8":"#1e2d45" }}>{c}</button>)}
+          <select value={filterMonth} onChange={e=>setFilterMonth(e.target.value)} style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#4a6080",borderRadius:"2px",padding:"5px 8px",fontSize:"10px",outline:"none" }}>
             {months.map(m=><option key={m} value={m}>{m==="ALL"?"Tous les mois":ML(m)}</option>)}
           </select>
         </div>
@@ -702,17 +702,17 @@ function ObligationTab({ obligations, onAdd, onDelete }) {
           <thead><tr>{["Mois","Client","Produit","Volume m³","CEE CL (GWhc)","CEE PR (GWhc)","Prix CL","Prix PR","Pricé",""].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
           <tbody>
             {filtered.map((o,i)=>{
-              const bg=i%2===0?"#161410":"#141210";
+              const bg=i%2===0?"#111827":"#141210";
               return(
-                <tr key={o.id} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#1a1815"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
-                  <td style={{ ...CG,fontSize:"14px",color:"#e8dfc8",padding:"9px 14px" }}>{ML(o.month)}</td>
+                <tr key={o.id} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#0d1526"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
+                  <td style={{ ...CG,fontSize:"14px",color:"#e2e8f0",padding:"9px 14px" }}>{ML(o.month)}</td>
                   <td style={{ padding:"9px 14px" }}><Badge color={cc(o.client)}>{o.client}</Badge></td>
                   <td style={{ padding:"9px 14px" }}><Badge color={o.product==="CARBURANT"?"sky":"purple"}>{PARAMS[o.product].label}</Badge></td>
-                  <td style={{ ...S,fontSize:"12px",color:"#8a7d62",padding:"9px 14px" }}>{N(o.volume_m3,0)}</td>
-                  <td style={{ ...S,fontSize:"12px",color:"#5bc2e7",padding:"9px 14px" }}>{N(o.clGwhc,3)}</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{N(o.volume_m3,0)}</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#2563eb",padding:"9px 14px" }}>{N(o.clGwhc,3)}</td>
                   <td style={{ ...S,fontSize:"12px",color:"#d4a843",padding:"9px 14px" }}>{N(o.prGwhc,3)}</td>
-                  <td style={{ ...S,fontSize:"11px",color:"#6b6350",padding:"9px 14px" }}>{N(o.priceCl/1000,2)}</td>
-                  <td style={{ ...S,fontSize:"11px",color:"#6b6350",padding:"9px 14px" }}>{N(o.pricePr/1000,2)}</td>
+                  <td style={{ ...S,fontSize:"11px",color:"#4a6080",padding:"9px 14px" }}>{N(o.priceCl/1000,2)}</td>
+                  <td style={{ ...S,fontSize:"11px",color:"#4a6080",padding:"9px 14px" }}>{N(o.pricePr/1000,2)}</td>
                   <td style={{ padding:"9px 14px" }}><Badge color={o.priced?"green":"red"}>{o.priced?"Pricé":"Non pricé"}</Badge></td>
                   <td style={{ padding:"9px 14px" }}><button onClick={()=>onDelete(o.id)} style={{ ...S,fontSize:"9px",color:"#3d3830",background:"none",border:"none",cursor:"pointer" }}>✕</button></td>
                 </tr>
@@ -733,7 +733,7 @@ function ObligationTab({ obligations, onAdd, onDelete }) {
             <FI label="Volume (m³)" type="number" placeholder="45000" value={form.volume_m3} onChange={e=>setForm(f=>({...f,volume_m3:e.target.value}))}/>
             <FI label="Prix CEE Classique (€/MWhc)" type="number" placeholder="9.00" value={form.priceCl} onChange={e=>setForm(f=>({...f,priceCl:e.target.value}))}/>
             <FI label="Prix CEE Précarité (€/MWhc)" type="number" placeholder="15.00" value={form.pricePr} onChange={e=>setForm(f=>({...f,pricePr:e.target.value}))}/>
-            <div style={{ display:"flex",alignItems:"center",gap:"10px",paddingTop:"18px" }}><input type="checkbox" id="pr" checked={form.priced} onChange={e=>setForm(f=>({...f,priced:e.target.checked}))} style={{ accentColor:"#b8973a" }}/><label htmlFor="pr" style={{ ...S,fontSize:"11px",color:"#8a7d62",cursor:"pointer" }}>Pricé</label></div>
+            <div style={{ display:"flex",alignItems:"center",gap:"10px",paddingTop:"18px" }}><input type="checkbox" id="pr" checked={form.priced} onChange={e=>setForm(f=>({...f,priced:e.target.checked}))} style={{ accentColor:"#38bdf8" }}/><label htmlFor="pr" style={{ ...S,fontSize:"11px",color:"#4a6080",cursor:"pointer" }}>Pricé</label></div>
           </div>
           <div style={{ display:"flex",justifyContent:"flex-end",gap:"10px",marginTop:"16px" }}><GhostBtn onClick={()=>setShowModal(false)}>Annuler</GhostBtn><GoldBtn onClick={handleAdd}>Ajouter</GoldBtn></div>
         </Modal>
@@ -821,11 +821,11 @@ function Dashboard({ trades, obligations, prices, curve }) {
 
   return (
     <div style={{ display:"flex",flexDirection:"column",gap:"22px" }}>
-      {pending>0&&<div style={{ background:"#2e2000",border:"1px solid #5a4000",borderRadius:"2px",padding:"10px 16px",display:"flex",alignItems:"center",gap:"8px" }}><span style={{ color:"#f0b429",fontSize:"12px" }}>⚠</span><span style={{ ...S,fontSize:"11px",color:"#f0b429" }}>{pending} trade{pending>1?"s":""} en attente d'approbation (4-yeux)</span></div>}
+      {pending>0&&<div style={{ background:"#2a1f0a",border:"1px solid #5a4000",borderRadius:"2px",padding:"10px 16px",display:"flex",alignItems:"center",gap:"8px" }}><span style={{ color:"#fbbf24",fontSize:"12px" }}>⚠</span><span style={{ ...S,fontSize:"11px",color:"#fbbf24" }}>{pending} trade{pending>1?"s":""} en attente d'approbation (4-yeux)</span></div>}
 
       {/* ── PnL / MtM / Spot ── */}
       <div>
-        <p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"10px" }}>Résumé PnL & Marché — 06/03/2026</p>
+        <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"10px" }}>Résumé PnL & Marché — 06/03/2026</p>
         <div style={{ display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:"10px" }}>
           <KPI label="Spot Classique"   value={`${N(spotCl)} €/MWhc`} color="sky"   sub="Prix spot C2E"/>
           <KPI label="Spot Précarité"   value={`${N(spotPr)} €/MWhc`} color="amber" sub="Prix spot C2E"/>
@@ -838,8 +838,8 @@ function Dashboard({ trades, obligations, prices, curve }) {
 
       {/* ── Position PRICÉE (Jan-Mar) ── */}
       <div>
-        <p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"8px" }}>Position PRICÉE — Achats confirmés vs Obligation avec prix fixé (Jan–Mar)</p>
-        <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",overflow:"hidden",marginBottom:"16px" }}>
+        <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"8px" }}>Position PRICÉE — Achats confirmés vs Obligation avec prix fixé (Jan–Mar)</p>
+        <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",overflow:"hidden",marginBottom:"16px" }}>
           <table style={{ width:"100%",borderCollapse:"collapse" }}>
             <thead><tr>{["Type","Oblig. Pricée","Acheté Pricé","Position Nette","Avg Buy","Couverture"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
             <tbody>
@@ -847,11 +847,11 @@ function Dashboard({ trades, obligations, prices, curve }) {
                 ["CEE Précarité",totalOblPrP,bPrP,netPrP,aPrP,"amber"],
                 ["TOTAL",totalOblP,bClP+bPrP,netClP+netPrP,(bClP*aClP+bPrP*aPrP)/((bClP+bPrP)||1),"neutral"]].map(([label,obl,bought,net,avg])=>(
                 <tr key={label} style={{ borderBottom:"1px solid #1a1815" }}>
-                  <td style={{ ...CG,fontSize:"14px",color:"#e8dfc8",padding:"10px 16px" }}>{label}</td>
-                  <td style={{ ...S,fontSize:"12px",color:"#8a7d62",padding:"10px 16px" }}>{N(obl,1)} GWh</td>
-                  <td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"10px 16px" }}>{N(bought,1)} GWh</td>
-                  <td style={{ ...S,fontSize:"12px",padding:"10px 16px",color:net>=0?"#6db87a":"#c96b6b",fontWeight:600 }}>{net>=0?"+":""}{N(net,1)} GWh</td>
-                  <td style={{ ...S,fontSize:"11px",color:"#8a7d62",padding:"10px 16px" }}>{avg>0?N(avg/1000,2)+" €/MWhc":"—"}</td>
+                  <td style={{ ...CG,fontSize:"14px",color:"#e2e8f0",padding:"10px 16px" }}>{label}</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"10px 16px" }}>{N(obl,1)} GWh</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#e2e8f0",padding:"10px 16px" }}>{N(bought,1)} GWh</td>
+                  <td style={{ ...S,fontSize:"12px",padding:"10px 16px",color:net>=0?"#34d399":"#f87171",fontWeight:600 }}>{net>=0?"+":""}{N(net,1)} GWh</td>
+                  <td style={{ ...S,fontSize:"11px",color:"#4a6080",padding:"10px 16px" }}>{avg>0?N(avg/1000,2)+" €/MWhc":"—"}</td>
                   <td style={{ padding:"10px 16px",minWidth:"140px" }}><CovBar pct={obl>0?bought/obl*100:0}/></td>
                 </tr>
               ))}
@@ -860,8 +860,8 @@ function Dashboard({ trades, obligations, prices, curve }) {
         </div>
 
         {/* ── Position NON PRICÉE ── */}
-        <p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"8px" }}>Position NON PRICÉE — Exposition Forward (Mar partiel + Avr–Déc, obligation sans prix fixé)</p>
-        <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",overflow:"hidden" }}>
+        <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"8px" }}>Position NON PRICÉE — Exposition Forward (Mar partiel + Avr–Déc, obligation sans prix fixé)</p>
+        <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",overflow:"hidden" }}>
           <table style={{ width:"100%",borderCollapse:"collapse" }}>
             <thead><tr>{["Type","Oblig. Non Pricée","Acheté Non Pricé","Position Nette","Statut"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
             <tbody>
@@ -869,11 +869,11 @@ function Dashboard({ trades, obligations, prices, curve }) {
                 ["CEE Précarité",totalOblPrU,bPrU,netPrU],
                 ["TOTAL",totalOblClU+totalOblPrU,bClU+bPrU,netClU+netPrU]].map(([label,obl,bought,net])=>(
                 <tr key={label} style={{ borderBottom:"1px solid #1a1815" }}>
-                  <td style={{ ...CG,fontSize:"14px",color:"#e8dfc8",padding:"10px 16px" }}>{label}</td>
-                  <td style={{ ...S,fontSize:"12px",color:"#8a7d62",padding:"10px 16px" }}>{N(obl,1)} GWh</td>
-                  <td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"10px 16px" }}>{N(bought,1)} GWh</td>
-                  <td style={{ ...S,fontSize:"12px",padding:"10px 16px",color:net>=0?"#6db87a":"#c96b6b",fontWeight:600 }}>{net>=0?"+":""}{N(net,1)} GWh</td>
-                  <td style={{ ...S,fontSize:"11px",padding:"10px 16px",color:net<0?"#c96b6b":"#6db87a" }}>{net<0?"⚠ SHORT — oblig. non couvertes":"✓ Long / équilibré"}</td>
+                  <td style={{ ...CG,fontSize:"14px",color:"#e2e8f0",padding:"10px 16px" }}>{label}</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"10px 16px" }}>{N(obl,1)} GWh</td>
+                  <td style={{ ...S,fontSize:"12px",color:"#e2e8f0",padding:"10px 16px" }}>{N(bought,1)} GWh</td>
+                  <td style={{ ...S,fontSize:"12px",padding:"10px 16px",color:net>=0?"#34d399":"#f87171",fontWeight:600 }}>{net>=0?"+":""}{N(net,1)} GWh</td>
+                  <td style={{ ...S,fontSize:"11px",padding:"10px 16px",color:net<0?"#f87171":"#34d399" }}>{net<0?"⚠ SHORT — oblig. non couvertes":"✓ Long / équilibré"}</td>
                 </tr>
               ))}
             </tbody>
@@ -896,14 +896,14 @@ function CurveTab({ curve, onUpdate, trades }) {
         <table style={{ width:"100%",borderCollapse:"collapse" }}>
           <thead><tr>{["Tenor","CL (€/MWhc)","PR (€/MWhc)","MtM CL","MtM PR","MtM Total",""].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
           <tbody>
-            {TENORS.map(t=>{const fp=curve[t],m=mtm(t),isE=editing===t,bg="#161410";return(
-              <tr key={t} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#1a1815"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
+            {TENORS.map(t=>{const fp=curve[t],m=mtm(t),isE=editing===t,bg="#111827";return(
+              <tr key={t} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#0d1526"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
                 <td style={{ padding:"9px 14px" }}><Badge color={t==="SPOT"?"gold":"gray"}>{t}</Badge></td>
-                {isE?<><td style={{ padding:"7px 14px" }}><input value={draft.classique} onChange={e=>setDraft(d=>({...d,classique:e.target.value}))} style={{ ...S,background:"#1a1815",border:"1px solid #b8973a",color:"#e8dfc8",borderRadius:"2px",padding:"5px 8px",fontSize:"12px",width:"80px",outline:"none" }}/></td><td style={{ padding:"7px 14px" }}><input value={draft.precarite} onChange={e=>setDraft(d=>({...d,precarite:e.target.value}))} style={{ ...S,background:"#1a1815",border:"1px solid #b8973a",color:"#e8dfc8",borderRadius:"2px",padding:"5px 8px",fontSize:"12px",width:"80px",outline:"none" }}/></td></>:<><td style={{ ...S,fontSize:"13px",color:"#5bc2e7",padding:"9px 14px",fontWeight:500 }}>{fp?N(fp.classique):"—"}</td><td style={{ ...S,fontSize:"13px",color:"#d4a843",padding:"9px 14px",fontWeight:500 }}>{fp?N(fp.precarite):"—"}</td></>}
-                <td style={{ ...S,fontSize:"12px",padding:"9px 14px",color:m&&m.mCl>=0?"#6db87a":"#c96b6b" }}>{m?fK(m.mCl):"—"}</td>
-                <td style={{ ...S,fontSize:"12px",padding:"9px 14px",color:m&&m.mPr>=0?"#6db87a":"#c96b6b" }}>{m?fK(m.mPr):"—"}</td>
-                <td style={{ ...S,fontSize:"13px",padding:"9px 14px",fontWeight:700,color:m&&m.tot>=0?"#6db87a":"#c96b6b" }}>{m?fK(m.tot):"—"}</td>
-                <td style={{ padding:"9px 14px" }}>{isE?<button onClick={()=>{onUpdate(t,{classique:parseFloat(draft.classique),precarite:parseFloat(draft.precarite)});setEditing(null);}} style={{ ...S,fontSize:"10px",padding:"4px 10px",background:"#b8973a",color:"#0e0d0b",border:"none",borderRadius:"2px",cursor:"pointer" }}>✓</button>:<button onClick={()=>{setEditing(t);setDraft({classique:String(fp?.classique??""),precarite:String(fp?.precarite??"")});}} style={{ ...S,fontSize:"10px",padding:"4px 10px",background:"transparent",color:"#4a4438",border:"1px solid #2e2b24",borderRadius:"2px",cursor:"pointer" }}>Modifier</button>}</td>
+                {isE?<><td style={{ padding:"7px 14px" }}><input value={draft.classique} onChange={e=>setDraft(d=>({...d,classique:e.target.value}))} style={{ ...S,background:"#0d1526",border:"1px solid #b8973a",color:"#e2e8f0",borderRadius:"2px",padding:"5px 8px",fontSize:"12px",width:"80px",outline:"none" }}/></td><td style={{ padding:"7px 14px" }}><input value={draft.precarite} onChange={e=>setDraft(d=>({...d,precarite:e.target.value}))} style={{ ...S,background:"#0d1526",border:"1px solid #b8973a",color:"#e2e8f0",borderRadius:"2px",padding:"5px 8px",fontSize:"12px",width:"80px",outline:"none" }}/></td></>:<><td style={{ ...S,fontSize:"13px",color:"#2563eb",padding:"9px 14px",fontWeight:500 }}>{fp?N(fp.classique):"—"}</td><td style={{ ...S,fontSize:"13px",color:"#d4a843",padding:"9px 14px",fontWeight:500 }}>{fp?N(fp.precarite):"—"}</td></>}
+                <td style={{ ...S,fontSize:"12px",padding:"9px 14px",color:m&&m.mCl>=0?"#34d399":"#f87171" }}>{m?fK(m.mCl):"—"}</td>
+                <td style={{ ...S,fontSize:"12px",padding:"9px 14px",color:m&&m.mPr>=0?"#34d399":"#f87171" }}>{m?fK(m.mPr):"—"}</td>
+                <td style={{ ...S,fontSize:"13px",padding:"9px 14px",fontWeight:700,color:m&&m.tot>=0?"#34d399":"#f87171" }}>{m?fK(m.tot):"—"}</td>
+                <td style={{ padding:"9px 14px" }}>{isE?<button onClick={()=>{onUpdate(t,{classique:parseFloat(draft.classique),precarite:parseFloat(draft.precarite)});setEditing(null);}} style={{ ...S,fontSize:"10px",padding:"4px 10px",background:"#38bdf8",color:"#0a0e1a",border:"none",borderRadius:"2px",cursor:"pointer" }}>✓</button>:<button onClick={()=>{setEditing(t);setDraft({classique:String(fp?.classique??""),precarite:String(fp?.precarite??"")});}} style={{ ...S,fontSize:"10px",padding:"4px 10px",background:"transparent",color:"#3a5070",border:"1px solid #2e2b24",borderRadius:"2px",cursor:"pointer" }}>Modifier</button>}</td>
               </tr>
             );})}
           </tbody>
@@ -925,12 +925,12 @@ function PricesTab({ prices, currentUser, onAdd }) {
         <table style={{ width:"100%",borderCollapse:"collapse" }}>
           <thead><tr>{["Date","Classique (€/MWhc)","Précarité (€/MWhc)","Saisi par","Horodatage"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
           <tbody>
-            {sorted.map((p,i)=>{const user=USERS.find(u=>u.id===p.enteredBy);const bg=i===0?"#1a1815":"#161410";return(
+            {sorted.map((p,i)=>{const user=USERS.find(u=>u.id===p.enteredBy);const bg=i===0?"#0d1526":"#111827";return(
               <tr key={p.id} style={{ borderBottom:"1px solid #1a1815",background:bg }}>
-                <td style={{ ...S,fontSize:"12px",color:"#e8dfc8",padding:"10px 14px",fontWeight:500 }}>{p.date}{i===0&&<span style={{ marginLeft:"8px",fontSize:"9px",color:"#b8973a" }}>DERNIER</span>}</td>
-                <td style={{ ...S,fontSize:"13px",color:"#5bc2e7",padding:"10px 14px" }}>{N(p.classique)}</td>
+                <td style={{ ...S,fontSize:"12px",color:"#e2e8f0",padding:"10px 14px",fontWeight:500 }}>{p.date}{i===0&&<span style={{ marginLeft:"8px",fontSize:"9px",color:"#38bdf8" }}>DERNIER</span>}</td>
+                <td style={{ ...S,fontSize:"13px",color:"#2563eb",padding:"10px 14px" }}>{N(p.classique)}</td>
                 <td style={{ ...S,fontSize:"13px",color:"#d4a843",padding:"10px 14px" }}>{N(p.precarite)}</td>
-                <td style={{ ...S,fontSize:"11px",color:"#6b6350",padding:"10px 14px" }}>{user?.name??p.enteredBy}</td>
+                <td style={{ ...S,fontSize:"11px",color:"#4a6080",padding:"10px 14px" }}>{user?.name??p.enteredBy}</td>
                 <td style={{ ...S,fontSize:"10px",color:"#3d3830",padding:"10px 14px" }}>{new Date(p.enteredAt).toLocaleString("fr-FR")}</td>
               </tr>
             );})}
@@ -952,13 +952,13 @@ function AuditLog({ audit, users=USERS }) {
         <table style={{ width:"100%",borderCollapse:"collapse" }}>
           <thead><tr>{["Horodatage","Utilisateur","Action","Entité","Détail"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
           <tbody>
-            {[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a=>{const user=USERS.find(u=>u.id===a.user);const bg="#161410";return(
+            {[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a=>{const user=USERS.find(u=>u.id===a.user);const bg="#111827";return(
               <tr key={a.id} style={{ borderBottom:"1px solid #1a1815",background:bg }}>
-                <td style={{ ...S,fontSize:"10px",color:"#4a4438",padding:"9px 14px",whiteSpace:"nowrap" }}>{new Date(a.ts).toLocaleString("fr-FR")}</td>
-                <td style={{ padding:"9px 14px" }}><div style={{ display:"flex",alignItems:"center",gap:"6px" }}><span style={{ ...S,width:"22px",height:"22px",borderRadius:"50%",background:"#252219",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",color:"#b8973a",fontWeight:600 }}>{user?.initials??""}</span><span style={{ ...S,fontSize:"10px",color:"#6b6350" }}>{user?.name??a.user}</span></div></td>
+                <td style={{ ...S,fontSize:"10px",color:"#3a5070",padding:"9px 14px",whiteSpace:"nowrap" }}>{new Date(a.ts).toLocaleString("fr-FR")}</td>
+                <td style={{ padding:"9px 14px" }}><div style={{ display:"flex",alignItems:"center",gap:"6px" }}><span style={{ ...S,width:"22px",height:"22px",borderRadius:"50%",background:"#1e2d45",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",color:"#38bdf8",fontWeight:600 }}>{user?.initials??""}</span><span style={{ ...S,fontSize:"10px",color:"#4a6080" }}>{user?.name??a.user}</span></div></td>
                 <td style={{ padding:"9px 14px" }}><Badge color={AC[a.action]||"gray"}>{a.action.replace(/_/g," ")}</Badge></td>
                 <td style={{ ...S,fontSize:"10px",color:"#3d3830",padding:"9px 14px" }}>{a.entity}</td>
-                <td style={{ ...S,fontSize:"10px",color:"#6b6350",padding:"9px 14px" }}>{a.detail}</td>
+                <td style={{ ...S,fontSize:"10px",color:"#4a6080",padding:"9px 14px" }}>{a.detail}</td>
               </tr>
             );})}
           </tbody>
@@ -1070,18 +1070,18 @@ export default function App() {
   },[persist,addAudit]);
 
   if(loading) return(
-    <div style={{background:"#0e0d0b",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{background:"#0a0e1a",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{textAlign:"center"}}>
-        <div style={{fontFamily:"Cormorant Garamond, serif",fontSize:"32px",color:"#b8973a",marginBottom:"16px"}}>CEE Platform</div>
-        <div style={{fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#4a4438"}}>Connexion à la base de données…</div>
+        <div style={{fontFamily:"Inter, sans-serif",fontSize:"32px",color:"#38bdf8",marginBottom:"16px"}}>CEE Platform</div>
+        <div style={{fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#3a5070"}}>Connexion à la base de données…</div>
       </div>
     </div>
   );
   if(error) return(
-    <div style={{background:"#0e0d0b",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{background:"#0a0e1a",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{textAlign:"center"}}>
-        <div style={{fontFamily:"Cormorant Garamond, serif",fontSize:"28px",color:"#c96b6b",marginBottom:"12px"}}>Erreur de connexion</div>
-        <div style={{fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#8a7d62"}}>{error}</div>
+        <div style={{fontFamily:"Inter, sans-serif",fontSize:"28px",color:"#f87171",marginBottom:"12px"}}>Erreur de connexion</div>
+        <div style={{fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#4a6080"}}>{error}</div>
       </div>
     </div>
   );
@@ -1101,23 +1101,23 @@ export default function App() {
   ];
 
   return(
-    <div style={{ minHeight:"100vh",background:"#0e0d0b",color:"#e8dfc8" }}>
-      <div style={{ position:"fixed",inset:0,backgroundImage:"linear-gradient(#1a181506 1px,transparent 1px),linear-gradient(90deg,#1a181506 1px,transparent 1px)",backgroundSize:"40px 40px",pointerEvents:"none",zIndex:0 }}/>
+    <div style={{ minHeight:"100vh",background:"#0a0e1a",color:"#e2e8f0" }}>
+      <div style={{ position:"fixed",inset:0,backgroundImage:"linear-gradient(#ffffff06 1px,transparent 1px),linear-gradient(90deg,#ffffff06 1px,transparent 1px)",backgroundSize:"40px 40px",pointerEvents:"none",zIndex:0 }}/>
       <div style={{ position:"relative",zIndex:1,maxWidth:"1400px",margin:"0 auto",padding:"0 28px 80px" }}>
-        <header style={{ padding:"28px 0 16px",borderBottom:"1px solid #1e1c18",display:"flex",justifyContent:"space-between",alignItems:"flex-end" }}>
+        <header style={{ padding:"28px 0 16px",borderBottom:"1px solid #e2e4e8",display:"flex",justifyContent:"space-between",alignItems:"flex-end" }}>
           <div>
-            <p style={{ ...S,fontSize:"9px",color:"#b8973a",letterSpacing:"0.22em",textTransform:"uppercase",marginBottom:"4px" }}>Gestion Stock CEE · Position · PnL · Obligation P6</p>
-            <h1 style={{ ...CG,fontSize:"32px",fontWeight:700,color:"#e8dfc8",lineHeight:1 }}>CEE Dashboard <span style={{ ...S,fontSize:"11px",color:"#4a4438",fontWeight:400,marginLeft:"12px" }}>{prices.length>0?`Données au ${new Date([...prices].sort((a,b)=>b.date.localeCompare(a.date))[0].date).toLocaleDateString("fr-FR")}`:"Chargement…"}</span></h1>
+            <p style={{ ...S,fontSize:"9px",color:"#38bdf8",letterSpacing:"0.22em",textTransform:"uppercase",marginBottom:"4px" }}>Gestion Stock CEE · Position · PnL · Obligation P6</p>
+            <h1 style={{ ...CG,fontSize:"32px",fontWeight:700,color:"#e2e8f0",lineHeight:1 }}>CEE Dashboard <span style={{ ...S,fontSize:"11px",color:"#3a5070",fontWeight:400,marginLeft:"12px" }}>{prices.length>0?`Données au ${new Date([...prices].sort((a,b)=>b.date.localeCompare(a.date))[0].date).toLocaleDateString("fr-FR")}`:"Chargement…"}</span></h1>
           </div>
           <div style={{ display:"flex",alignItems:"center",gap:"10px" }}>
             <div style={{ display:"flex",gap:"4px" }}>
-              {users.map(u=><button key={u.id} onClick={()=>setCurrentUser(u)} title={`${u.name} — ${u.role}`} style={{ width:"30px",height:"30px",borderRadius:"50%",border:currentUser?.id===u.id?"2px solid #b8973a":"1px solid #2e2b24",background:currentUser?.id===u.id?"#252219":"#1a1815",color:currentUser?.id===u.id?"#b8973a":"#4a4438",...S,fontSize:"9px",fontWeight:600,cursor:"pointer" }}>{u.initials}</button>)}
+              {users.map(u=><button key={u.id} onClick={()=>setCurrentUser(u)} title={`${u.name} — ${u.role}`} style={{ width:"30px",height:"30px",borderRadius:"50%",border:currentUser?.id===u.id?"2px solid #b8973a":"1px solid #2e2b24",background:currentUser?.id===u.id?"#1e2d45":"#0d1526",color:currentUser?.id===u.id?"#38bdf8":"#3a5070",...S,fontSize:"9px",fontWeight:600,cursor:"pointer" }}>{u.initials}</button>)}
             </div>
-            <div><p style={{ ...S,fontSize:"11px",color:"#e8dfc8" }}>{currentUser.name}</p><p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.08em" }}>{currentUser.role}</p></div>
+            <div><p style={{ ...S,fontSize:"11px",color:"#e2e8f0" }}>{currentUser.name}</p><p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.08em" }}>{currentUser.role}</p></div>
           </div>
         </header>
-        <div style={{ display:"flex",gap:"16px",borderBottom:"1px solid #1e1c18",marginBottom:"22px",overflowX:"auto" }}>
-          {TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{ ...S,background:"none",border:"none",fontSize:"10px",letterSpacing:"0.1em",textTransform:"uppercase",padding:"12px 0",cursor:"pointer",whiteSpace:"nowrap",color:tab===t.id?"#b8973a":"#4a4438",borderBottom:tab===t.id?"1px solid #b8973a":"1px solid transparent",transition:"color 0.2s" }}>{t.label}</button>)}
+        <div style={{ display:"flex",gap:"16px",borderBottom:"1px solid #e2e4e8",marginBottom:"22px",overflowX:"auto" }}>
+          {TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{ ...S,background:"none",border:"none",fontSize:"10px",letterSpacing:"0.1em",textTransform:"uppercase",padding:"12px 0",cursor:"pointer",whiteSpace:"nowrap",color:tab===t.id?"#38bdf8":"#3a5070",borderBottom:tab===t.id?"1px solid #b8973a":"1px solid transparent",transition:"color 0.2s" }}>{t.label}</button>)}
         </div>
         {tab==="dashboard"  && <Dashboard     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
         {tab==="reporting"  && <Reporting     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
