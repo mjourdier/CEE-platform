@@ -17,6 +17,7 @@ const PARAMS = {
 
 const MONTHS_LIST = ["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06",
                      "2026-07","2026-08","2026-09","2026-10","2026-11","2026-12"];
+const TENORS = ["SPOT","S1-26","S2-26","S1-27","S2-27","S1-28","S2-28"];
 
 const SEED_CURVE = {
   SPOT:    { classique:8.96,  precarite:16.44 },
@@ -225,7 +226,7 @@ function Reporting({ trades, obligations, prices, curve }) {
           <div style={{ background:"#161410",border:"1px solid #252219",borderRadius:"2px",padding:"22px 26px" }}>
             <p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"4px" }}>Rapport de Gestion CEE — P6</p>
             <h2 style={{ ...CG,fontSize:"28px",fontWeight:700,color:"#e8dfc8",marginBottom:"2px" }}>Tableau de Bord Exécutif</h2>
-            <p style={{ ...S,fontSize:"10px",color:"#4a4438" }}>Au {REAL_PRICES.slice(-1)[0]?.date ?? "2026-03-06"} · Période de référence: 2026 (P6)</p>
+            <p style={{ ...S,fontSize:"10px",color:"#4a4438" }}>Au {prices.slice(-1)[0]?.date ?? "2026-03-06"} · Période de référence: 2026 (P6)</p>
           </div>
 
           {/* Top KPIs */}
