@@ -1100,7 +1100,7 @@ export default function App() {
         <header style={{ padding:"28px 0 16px",borderBottom:"1px solid #1e1c18",display:"flex",justifyContent:"space-between",alignItems:"flex-end" }}>
           <div>
             <p style={{ ...S,fontSize:"9px",color:"#b8973a",letterSpacing:"0.22em",textTransform:"uppercase",marginBottom:"4px" }}>Gestion Stock CEE · Position · PnL · Obligation P6</p>
-            <h1 style={{ ...CG,fontSize:"32px",fontWeight:700,color:"#e8dfc8",lineHeight:1 }}>CEE Dashboard <span style={{ ...S,fontSize:"11px",color:"#4a4438",fontWeight:400,marginLeft:"12px" }}>Données au 06/03/2026</span></h1>
+            <h1 style={{ ...CG,fontSize:"32px",fontWeight:700,color:"#e8dfc8",lineHeight:1 }}>CEE Dashboard <span style={{ ...S,fontSize:"11px",color:"#4a4438",fontWeight:400,marginLeft:"12px" }}>{prices.length>0?`Données au ${new Date([...prices].sort((a,b)=>b.date.localeCompare(a.date))[0].date).toLocaleDateString("fr-FR")}`:"Chargement…"}</span></h1>
           </div>
           <div style={{ display:"flex",alignItems:"center",gap:"10px" }}>
             <div style={{ display:"flex",gap:"4px" }}>
