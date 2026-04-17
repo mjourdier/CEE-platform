@@ -39,9 +39,9 @@ function calcCEE(volume_m3, product) {
 // USERS
 // ─────────────────────────────────────────────────────────────────────────────
 const USERS = [
-  { id:"u1", name:"Sophie Martin",  role:"trader",   initials:"SM" },
-  { id:"u2", name:"Julien Dufour",  role:"trader",   initials:"JD" },
-  { id:"u3", name:"Clara Bernard",  role:"approver", initials:"CB" },
+  { id:"u1", name:"Maxime Jourdier", role:"trader",   initials:"MJ" },
+  { id:"u2", name:"Lilian Fages",    role:"trader",   initials:"LF" },
+  { id:"u3", name:"Eric De Gail",    role:"approver", initials:"EG" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -579,7 +579,7 @@ function PositionView({ trades, obligations, curve, prices }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // BLOTTER
 // ─────────────────────────────────────────────────────────────────────────────
-function Blotter({ trades, currentUser, onAdd, onApprove, onReject }) {
+function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) {
   const [filter, setFilter] = useState("ALL");
   const [showModal, setShowModal] = useState(false);
   const blank = { ceeType:"CLASSIQUE", vendor:"", dealType:"Fixed Price", period:"P6", volume:"", price:"", month:"", ranking:"", statut:"Attribué" };
@@ -630,6 +630,7 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject }) {
                   <td style={{ padding:"9px 14px" }}>
                     {can&&<div style={{ display:"flex",gap:"5px" }}><button onClick={()=>onApprove(t.id,currentUser.id)} style={{ ...S,fontSize:"10px",padding:"4px 8px",background:"#0f2e1a",color:"#6db87a",border:"1px solid #1d4a2a",borderRadius:"2px",cursor:"pointer" }}>✓ OK</button><button onClick={()=>onReject(t.id)} style={{ ...S,fontSize:"10px",padding:"4px 8px",background:"#2e1010",color:"#c96b6b",border:"1px solid #4a1c1c",borderRadius:"2px",cursor:"pointer" }}>✗</button></div>}
                     {t.status==="PENDING"&&!can&&<span style={{ ...S,fontSize:"10px",color:"#2e2b24" }}>Attente approbateur</span>}
+                    {currentUser?.role==="approver"&&<button onClick={()=>{if(window.confirm(`Supprimer ce trade ?`)) onDelete(t.id)}} style={{ ...S,fontSize:"9px",padding:"3px 7px",background:"none",color:"#4a4438",border:"1px solid #2e2b24",borderRadius:"2px",cursor:"pointer",marginTop:"4px" }}>🗑</button>}
                   </td>
                 </tr>
               );
@@ -941,7 +942,7 @@ function PricesTab({ prices, currentUser, onAdd }) {
   );
 }
 
-function AuditLog({ audit }) {
+function AuditLog({ audit, users=USERS }) {
   const AC={TRADE_CREATED:"blue",TRADE_APPROVED:"green",TRADE_REJECTED:"red",PRICE_ADDED:"amber",OBLIG_ADDED:"sky",CURVE_UPDATED:"purple"};
   const handleExport=()=>{const rows=[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a=>`"${a.ts}","${USERS.find(u=>u.id===a.user)?.name??a.user}","${a.action}","${a.entity}","${a.detail}"`);const blob=new Blob(["Timestamp,User,Action,Entity,Detail\n"+rows.join("\n")],{type:"text/csv"});const url=URL.createObjectURL(blob);const l=document.createElement("a");l.href=url;l.download="cee_audit.csv";l.click();URL.revokeObjectURL(url);};
   return(
@@ -1054,6 +1055,12 @@ export default function App() {
       updated_by:currentUser?.id,updated_at:new Date().toISOString()}).eq("tenor",tenor);
     await addAudit({action:"CURVE_UPDATED",entity:tenor,detail:`${tenor}: CL ${px.classique} / PR ${px.precarite}`});
   },[currentUser,addAudit]);
+  const handleDeleteTrade=useCallback(async(id)=>{
+    setTrades(ts=>ts.filter(t=>t.id!==id));
+    await supabase.from("trades").delete().eq("id",id);
+    await addAudit({action:"TRADE_DELETED",entity:id,detail:`Trade ${id} supprimé`});
+  },[addAudit]);
+
   const handleAddObligation=useCallback(async(o)=>{
     setObligations(os=>[...os,o]);
     await persist("obligations",{id:o.id,month:o.month,product:o.product,volume_m3:o.volume_m3,
@@ -1115,11 +1122,11 @@ export default function App() {
         {tab==="dashboard"  && <Dashboard     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
         {tab==="reporting"  && <Reporting     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
         {tab==="position"   && <PositionView  trades={trades} obligations={obligations} curve={curve} prices={prices}/>}
-        {tab==="blotter"    && <Blotter       trades={trades} currentUser={currentUser} onAdd={handleAddTrade} onApprove={handleApproveTrade} onReject={handleRejectTrade}/>}
+        {tab==="blotter"    && <Blotter       trades={trades} currentUser={currentUser} onAdd={handleAddTrade} onApprove={handleApproveTrade} onReject={handleRejectTrade} onDelete={handleDeleteTrade}/>}
         {tab==="obligation" && <ObligationTab obligations={obligations} onAdd={handleAddObligation} onDelete={id=>setObligations(os=>os.filter(o=>o.id!==id))}/>}
         {tab==="curve"      && <CurveTab      curve={curve} onUpdate={handleUpdateCurve} trades={trades}/>}
         {tab==="prices"     && <PricesTab     prices={prices} currentUser={currentUser} onAdd={handleAddPrice}/>}
-        {tab==="audit"      && <AuditLog      audit={audit}/>}
+        {tab==="audit"      && <AuditLog      audit={audit} users={users}/>}
       </div>
     </div>
   );
