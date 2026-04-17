@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
-
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } from "recharts";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -981,8 +980,7 @@ export default function App() {
             supabase.from("forward_curve").select("*"),
             supabase.from("audit_log").select("*").order("ts",{ascending:false}).limit(200),
           ]);
-        const err=e1||e2||e3||e4||e5||e6;
-        if(err) throw new Error(err.message);
+        if(e1||e2||e3||e4||e5||e6) throw new Error((e1||e2||e3||e4||e5||e6).message);
         const normT=(td||[]).map(t=>({id:t.id,ceeType:t.cee_type,vendor:t.vendor,dealType:t.deal_type,
           period:t.period,volume:+t.volume,price:+t.price,month:t.month,status:t.status,
           priced:t.priced,statut:t.statut,ranking:t.ranking,emmyValidated:t.emmy_validated,
@@ -994,8 +992,8 @@ export default function App() {
           precarite:+p.precarite,enteredBy:p.entered_by,enteredAt:p.entered_at}));
         const normC={};(cd||[]).forEach(c=>{normC[c.tenor]={classique:+c.classique,precarite:+c.precarite};});
         const normA=(ad||[]).map(a=>({id:a.id,ts:a.ts,user:a.user_id,action:a.action,entity:a.entity,detail:a.detail}));
-        setUsers(ud||[]); setCurrentUser((ud||[])[0]||null);
-        setTrades(normT); setObligations(normO); setPrices(normP); setCurve(normC); setAudit(normA);
+        setUsers(ud||[]);setCurrentUser((ud||[])[0]||null);
+        setTrades(normT);setObligations(normO);setPrices(normP);setCurve(normC);setAudit(normA);
         setLoading(false);
       }catch(e){setError(e.message);setLoading(false);}
     }
@@ -1006,60 +1004,48 @@ export default function App() {
     const{error}=await supabase.from(table).upsert(row);
     if(error)console.error("Supabase:",error.message);
   },[]);
-
-  const addAuditEntry=useCallback(async(entry)=>{
+  const addAudit=useCallback(async(entry)=>{
     const row={id:"a"+uid(),ts:new Date().toISOString(),user_id:currentUser?.id,
                action:entry.action,entity:entry.entity,detail:entry.detail};
-    setAudit(a=>[row,...a]);
-    await persist("audit_log",row);
+    setAudit(a=>[row,...a]);await persist("audit_log",row);
   },[currentUser,persist]);
-
   const handleAddTrade=useCallback(async(t)=>{
     setTrades(ts=>[...ts,t]);
     await persist("trades",{id:t.id,cee_type:t.ceeType,vendor:t.vendor,deal_type:t.dealType,
       period:t.period,volume:t.volume,price:t.price,month:t.month,status:t.status,
       priced:t.priced,statut:t.statut,ranking:t.ranking,emmy_validated:t.emmyValidated,
       created_by:t.createdBy,approved_by:t.approvedBy,created_at:t.createdAt});
-    await addAuditEntry({action:"TRADE_CREATED",entity:t.id,detail:`BUY ${N(t.volume,3)} GWhc ${t.ceeType} @ ${N(t.price,0)} — ${t.vendor}`});
-  },[persist,addAuditEntry]);
-
+    await addAudit({action:"TRADE_CREATED",entity:t.id,detail:`BUY ${N(t.volume,3)} GWhc ${t.ceeType} @ ${N(t.price,0)} — ${t.vendor}`});
+  },[persist,addAudit]);
   const handleApproveTrade=useCallback(async(id,aid)=>{
     setTrades(ts=>ts.map(t=>t.id===id?{...t,status:"APPROVED",approvedBy:aid}:t));
     await supabase.from("trades").update({status:"APPROVED",approved_by:aid}).eq("id",id);
-    await addAuditEntry({action:"TRADE_APPROVED",entity:id,detail:`Approuvé par ${aid}`});
-  },[addAuditEntry]);
-
+    await addAudit({action:"TRADE_APPROVED",entity:id,detail:`Approuvé par ${aid}`});
+  },[addAudit]);
   const handleRejectTrade=useCallback(async(id)=>{
     setTrades(ts=>ts.map(t=>t.id===id?{...t,status:"REJECTED"}:t));
     await supabase.from("trades").update({status:"REJECTED"}).eq("id",id);
-    await addAuditEntry({action:"TRADE_REJECTED",entity:id,detail:"Rejeté"});
-  },[addAuditEntry]);
-
+    await addAudit({action:"TRADE_REJECTED",entity:id,detail:"Rejeté"});
+  },[addAudit]);
   const handleAddPrice=useCallback(async(p)=>{
     setPrices(ps=>[...ps,p]);
     await persist("market_prices",{id:p.id,date:p.date,classique:p.classique,
       precarite:p.precarite,entered_by:p.enteredBy,entered_at:p.enteredAt});
-    await addAuditEntry({action:"PRICE_ADDED",entity:p.id,detail:`${p.date}: CL ${p.classique} / PR ${p.precarite}`});
-  },[persist,addAuditEntry]);
-
+    await addAudit({action:"PRICE_ADDED",entity:p.id,detail:`${p.date}: CL ${p.classique} / PR ${p.precarite}`});
+  },[persist,addAudit]);
   const handleUpdateCurve=useCallback(async(tenor,px)=>{
     setCurve(c=>({...c,[tenor]:px}));
     await supabase.from("forward_curve").update({classique:px.classique,precarite:px.precarite,
       updated_by:currentUser?.id,updated_at:new Date().toISOString()}).eq("tenor",tenor);
-    await addAuditEntry({action:"CURVE_UPDATED",entity:tenor,detail:`${tenor}: CL ${px.classique} / PR ${px.precarite}`});
-  },[currentUser,addAuditEntry]);
-
+    await addAudit({action:"CURVE_UPDATED",entity:tenor,detail:`${tenor}: CL ${px.classique} / PR ${px.precarite}`});
+  },[currentUser,addAudit]);
   const handleAddObligation=useCallback(async(o)=>{
     setObligations(os=>[...os,o]);
     await persist("obligations",{id:o.id,month:o.month,product:o.product,volume_m3:o.volume_m3,
       price_cl:o.priceCl,price_pr:o.pricePr,priced:o.priced,client:o.client,
       cl_gwhc:o.clGwhc,pr_gwhc:o.prGwhc});
-    await addAuditEntry({action:"OBLIGATION_ADDED",entity:o.id,detail:`${o.month} ${o.product} ${o.volume_m3}m³`});
-  },[persist,addAuditEntry]);
-
-  const handleSwitchUser=useCallback((uid)=>{
-    const u=users.find(u=>u.id===uid); if(u) setCurrentUser(u);
-  },[users]);
+    await addAudit({action:"OBLIG_ADDED",entity:o.id,detail:`${o.month} ${o.product} ${o.volume_m3}m³`});
+  },[persist,addAudit]);
 
   if(loading) return(
     <div style={{background:"#0e0d0b",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
@@ -1079,3 +1065,47 @@ export default function App() {
   );
   if(!currentUser) return null;
 
+  const pending=trades.filter(t=>t.status==="PENDING").length;
+
+  const TABS=[
+    {id:"dashboard",  label:"Dashboard"},
+    {id:"reporting",  label:"📊 Reporting"},
+    {id:"position",   label:"Position CEE"},
+    {id:"blotter",    label:`Blotter${pending>0?` (${pending})`:""}`},
+    {id:"obligation", label:"Obligation"},
+    {id:"curve",      label:"Courbe Forward"},
+    {id:"prices",     label:"Prix Marché"},
+    {id:"audit",      label:"Audit Log"},
+  ];
+
+  return(
+    <div style={{ minHeight:"100vh",background:"#0e0d0b",color:"#e8dfc8" }}>
+      <div style={{ position:"fixed",inset:0,backgroundImage:"linear-gradient(#1a181506 1px,transparent 1px),linear-gradient(90deg,#1a181506 1px,transparent 1px)",backgroundSize:"40px 40px",pointerEvents:"none",zIndex:0 }}/>
+      <div style={{ position:"relative",zIndex:1,maxWidth:"1400px",margin:"0 auto",padding:"0 28px 80px" }}>
+        <header style={{ padding:"28px 0 16px",borderBottom:"1px solid #1e1c18",display:"flex",justifyContent:"space-between",alignItems:"flex-end" }}>
+          <div>
+            <p style={{ ...S,fontSize:"9px",color:"#b8973a",letterSpacing:"0.22em",textTransform:"uppercase",marginBottom:"4px" }}>Gestion Stock CEE · Position · PnL · Obligation P6</p>
+            <h1 style={{ ...CG,fontSize:"32px",fontWeight:700,color:"#e8dfc8",lineHeight:1 }}>CEE Dashboard <span style={{ ...S,fontSize:"11px",color:"#4a4438",fontWeight:400,marginLeft:"12px" }}>Données au 06/03/2026</span></h1>
+          </div>
+          <div style={{ display:"flex",alignItems:"center",gap:"10px" }}>
+            <div style={{ display:"flex",gap:"4px" }}>
+              {users.map(u=><button key={u.id} onClick={()=>setCurrentUser(u)} title={`${u.name} — ${u.role}`} style={{ width:"30px",height:"30px",borderRadius:"50%",border:currentUser?.id===u.id?"2px solid #b8973a":"1px solid #2e2b24",background:currentUser?.id===u.id?"#252219":"#1a1815",color:currentUser?.id===u.id?"#b8973a":"#4a4438",...S,fontSize:"9px",fontWeight:600,cursor:"pointer" }}>{u.initials}</button>)}
+            </div>
+            <div><p style={{ ...S,fontSize:"11px",color:"#e8dfc8" }}>{currentUser.name}</p><p style={{ ...S,fontSize:"9px",color:"#4a4438",textTransform:"uppercase",letterSpacing:"0.08em" }}>{currentUser.role}</p></div>
+          </div>
+        </header>
+        <div style={{ display:"flex",gap:"16px",borderBottom:"1px solid #1e1c18",marginBottom:"22px",overflowX:"auto" }}>
+          {TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{ ...S,background:"none",border:"none",fontSize:"10px",letterSpacing:"0.1em",textTransform:"uppercase",padding:"12px 0",cursor:"pointer",whiteSpace:"nowrap",color:tab===t.id?"#b8973a":"#4a4438",borderBottom:tab===t.id?"1px solid #b8973a":"1px solid transparent",transition:"color 0.2s" }}>{t.label}</button>)}
+        </div>
+        {tab==="dashboard"  && <Dashboard     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
+        {tab==="reporting"  && <Reporting     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
+        {tab==="position"   && <PositionView  trades={trades} obligations={obligations} curve={curve} prices={prices}/>}
+        {tab==="blotter"    && <Blotter       trades={trades} currentUser={currentUser} onAdd={handleAddTrade} onApprove={handleApproveTrade} onReject={handleRejectTrade}/>}
+        {tab==="obligation" && <ObligationTab obligations={obligations} onAdd={handleAddObligation} onDelete={id=>setObligations(os=>os.filter(o=>o.id!==id))}/>}
+        {tab==="curve"      && <CurveTab      curve={curve} onUpdate={handleUpdateCurve} trades={trades}/>}
+        {tab==="prices"     && <PricesTab     prices={prices} currentUser={currentUser} onAdd={handleAddPrice}/>}
+        {tab==="audit"      && <AuditLog      audit={audit}/>}
+      </div>
+    </div>
+  );
+}
