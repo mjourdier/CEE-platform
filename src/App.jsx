@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } from "recharts";
-
+import * as XLSX from "xlsx";
 // ─────────────────────────────────────────────────────────────────────────────
 // PARAMS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -595,8 +595,10 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
   const [sortKey, setSortKey] = useState("createdAt");
   const [sortDir, setSortDir] = useState("desc");
   const [showModal, setShowModal] = useState(false);
+
   const blank = { ceeType:"CLASSIQUE", vendor:"", dealType:"Fixed Price", period:"P6", volume:"", price:"", month:"", ranking:"", statut:"Attribué" };
   const [form, setForm] = useState(blank);
+
   const months = useMemo(
     () => ["ALL", ...new Set(trades.map(t => t.month).filter(Boolean))].sort(),
     [trades]
@@ -606,6 +608,7 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
     () => ["ALL", ...new Set(trades.map(t => t.vendor).filter(Boolean))].sort(),
     [trades]
   );
+
   const filtered = useMemo(() => {
     let l = [...trades];
 
@@ -620,7 +623,6 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
 
     l.sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
-
       const av = a[sortKey];
       const bv = b[sortKey];
 
@@ -633,18 +635,49 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
 
     return l;
   }, [trades, filter, filterMonth, filterVendor, filterPriced, sortKey, sortDir]);
+
+  const exportBlotterToExcel = () => {
+    const data = filtered.map(t => ({
+      ID: t.id,
+      Type: t.ceeType,
+      Vendeur: t.vendor,
+      "Type deal": t.dealType,
+      Période: t.period,
+      "Volume (GWhc)": t.volume,
+      "Prix (EUR/GWhc)": t.price ?? "",
+      Mois: t.month,
+      Pricé: t.priced ? "Oui" : "Non",
+      "Statut contrat": t.statut || "",
+      Ranking: t.ranking || "",
+      EMMY: t.emmyValidated ? "Validé" : "En attente",
+      Approbation: t.status,
+      "Créé par": t.createdBy,
+      "Approuvé par": t.approvedBy || "",
+      "Date création": t.createdAt ? new Date(t.createdAt).toLocaleString("fr-FR") : ""
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    worksheet["!autofilter"] = { ref: worksheet["!ref"] };
+    worksheet["!cols"] = Object.keys(data[0] || { Vide: "" }).map(() => ({ wch: 18 }));
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Blotter");
+
+    XLSX.writeFile(workbook, `CEE_Blotter_${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
+
   const handleSubmit=()=>{
     if(!form.vendor||!form.volume||!form.price||!form.month) return;
     onAdd({...form,id:"t"+uid(),volume:parseFloat(form.volume),price:parseFloat(form.price),status:"PENDING",createdBy:currentUser.id,approvedBy:null,createdAt:new Date().toISOString(),emmyValidated:false});
     setShowModal(false); setForm(blank);
   };
+
   const SB=s=>s==="APPROVED"?<Badge color="green">Approuvé</Badge>:s==="PENDING"?<Badge color="amber">En attente</Badge>:<Badge color="red">Rejeté</Badge>;
+
   return (
     <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
       <div style={{ display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:"10px" }}>
         <div style={{ display:"flex",flexWrap:"wrap",gap:"5px" }}>
-
-          {/* Filtres existants */}
           {["ALL", "PENDING", "APPROVED", "CLASSIQUE", "PRECARITE"].map(f => (
             <button
               key={f}
@@ -667,84 +700,21 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
             </button>
           ))}
 
-          {/* Nouveau filtre mois */}
-          <select
-            value={filterMonth}
-            onChange={e => setFilterMonth(e.target.value)}
-            style={{
-              ...S,
-              background: "#0d1526",
-              border: "1px solid #2e2b24",
-              color: "#4a6080",
-              borderRadius: "2px",
-              padding: "5px 8px",
-              fontSize: "10px",
-              outline: "none"
-            }}
-          >
-            {months.map(m => (
-              <option key={m} value={m}>
-                {m === "ALL" ? "Tous les mois" : ML(m)}
-              </option>
-            ))}
+          <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#4a6080",borderRadius:"2px",padding:"5px 8px",fontSize:"10px",outline:"none" }}>
+            {months.map(m => <option key={m} value={m}>{m === "ALL" ? "Tous les mois" : ML(m)}</option>)}
           </select>
-          {/* Nouveau filtre vendeur */}
-          <select
-            value={filterVendor}
-            onChange={e => setFilterVendor(e.target.value)}
-            style={{
-              ...S,
-              background: "#0d1526",
-              border: "1px solid #2e2b24",
-              color: "#4a6080",
-              borderRadius: "2px",
-              padding: "5px 8px",
-              fontSize: "10px",
-              outline: "none",
-              maxWidth: "180px"
-            }}
-          >
-            {vendors.map(v => (
-              <option key={v} value={v}>
-                {v === "ALL" ? "Tous vendeurs" : v}
-              </option>
-            ))}
+
+          <select value={filterVendor} onChange={e => setFilterVendor(e.target.value)} style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#4a6080",borderRadius:"2px",padding:"5px 8px",fontSize:"10px",outline:"none",maxWidth:"180px" }}>
+            {vendors.map(v => <option key={v} value={v}>{v === "ALL" ? "Tous vendeurs" : v}</option>)}
           </select>
-          {/* Filtre pricé */}
-          <select
-            value={filterPriced}
-            onChange={e => setFilterPriced(e.target.value)}
-            style={{
-              ...S,
-              background: "#0d1526",
-              border: "1px solid #2e2b24",
-              color: "#4a6080",
-              borderRadius: "2px",
-              padding: "5px 8px",
-              fontSize: "10px",
-              outline: "none"
-            }}
-          >
+
+          <select value={filterPriced} onChange={e => setFilterPriced(e.target.value)} style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#4a6080",borderRadius:"2px",padding:"5px 8px",fontSize:"10px",outline:"none" }}>
             <option value="ALL">Pricé / non pricé</option>
             <option value="true">Pricé</option>
             <option value="false">Non pricé</option>
           </select>
 
-          {/* Tri */}
-          <select
-            value={sortKey}
-            onChange={e => setSortKey(e.target.value)}
-            style={{
-              ...S,
-              background: "#0d1526",
-              border: "1px solid #2e2b24",
-              color: "#4a6080",
-              borderRadius: "2px",
-              padding: "5px 8px",
-              fontSize: "10px",
-              outline: "none"
-            }}
-          >
+          <select value={sortKey} onChange={e => setSortKey(e.target.value)} style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#4a6080",borderRadius:"2px",padding:"5px 8px",fontSize:"10px",outline:"none" }}>
             <option value="createdAt">Tri création</option>
             <option value="month">Tri mois</option>
             <option value="vendor">Tri vendeur</option>
@@ -753,26 +723,17 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
             <option value="status">Tri statut</option>
           </select>
 
-          {/* Sens du tri */}
-          <button
-            onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}
-            style={{
-              ...S,
-              fontSize: "10px",
-              padding: "5px 10px",
-              borderRadius: "2px",
-              border: "1px solid #1e2d45",
-              cursor: "pointer",
-              background: "transparent",
-              color: "#3a5070"
-            }}
-          >
+          <button onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")} style={{ ...S,fontSize:"10px",padding:"5px 10px",borderRadius:"2px",border:"1px solid #1e2d45",cursor:"pointer",background:"transparent",color:"#3a5070" }}>
             {sortDir === "asc" ? "↑ ASC" : "↓ DESC"}
           </button>
         </div>
-        
-        <GoldBtn onClick={()=>setShowModal(true)}>+ Nouvel Achat</GoldBtn>
+
+        <div style={{ display:"flex",gap:"8px",alignItems:"center" }}>
+          <GhostBtn onClick={exportBlotterToExcel}>Exporter Excel</GhostBtn>
+          <GoldBtn onClick={()=>setShowModal(true)}>+ Nouvel Achat</GoldBtn>
+        </div>
       </div>
+
       <div style={{ overflowX:"auto",border:"1px solid #1e1c18",borderRadius:"2px" }}>
         <table style={{ width:"100%",borderCollapse:"collapse" }}>
           <thead><tr>{["Type","Vendeur","Deal Type","Période","Volume (GWhc)","Prix (€/GWhc)","Mois","Pricé","Statut Contrat","Ranking","EMMY","Approbation","Actions"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
@@ -805,6 +766,7 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
           </tbody>
         </table>
       </div>
+
       {showModal&&(
         <Modal title="Nouvel Achat CEE" onClose={()=>setShowModal(false)} wide>
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"13px" }}>
@@ -968,6 +930,52 @@ function Dashboard({ trades, obligations, prices, curve }) {
     };
   },{mtmCl:0,mtmPr:0}),[trades,obligations,spotCl,spotPr]);
 
+  // ── Data Quality ──
+  const dataQualityChecks = useMemo(() => {
+    const issues = [];
+
+    trades.forEach(t => {
+      if (!t.month) issues.push({ severity:"high", type:"Trade sans mois", detail:`Trade ${t.id} — ${t.vendor}` });
+      if (!t.volume || t.volume <= 0) issues.push({ severity:"high", type:"Volume trade invalide", detail:`Trade ${t.id} — ${t.volume} GWhc` });
+      if (t.priced && (!t.price || t.price <= 0)) issues.push({ severity:"high", type:"Prix trade manquant", detail:`Trade ${t.id} — ${t.vendor}` });
+      if (t.status === "APPROVED" && !t.approvedBy) issues.push({ severity:"medium", type:"Trade approuvé sans approver", detail:`Trade ${t.id}` });
+      if (t.month && !MONTHS_LIST.includes(t.month)) issues.push({ severity:"medium", type:"Mois trade hors scope", detail:`Trade ${t.id} — ${t.month}` });
+    });
+
+    obligations.forEach(o => {
+      const month = o.month;
+      const m = parseInt(month.split("-")[1], 10);
+      const NEGATIVE_ALLOWED_MONTHS = [1, 2];
+      if (!o.month) issues.push({ severity:"high", type:"Obligation sans mois", detail:`Obligation ${o.id}` });
+      const isEarlyYear = m === 1 || m === 2; // Janvier / Février
+
+      if (o.volume_m3 < 0 && !isEarlyYear) {
+        issues.push({
+          severity: "high",
+          type: "Volume obligation négatif anormal",
+          detail: `Obligation ${o.id} — ${N(o.volume_m3,0)} m³`
+        });
+      }
+
+      if (o.priced && (!o.priceCl || !o.pricePr || o.priceCl <= 0 || o.pricePr <= 0)) {
+        issues.push({ severity:"high", type:"Obligation pricée sans prix", detail:`Obligation ${o.id} — ${ML(o.month)}` });
+      }
+      if (o.month && !MONTHS_LIST.includes(o.month)) issues.push({ severity:"medium", type:"Mois obligation hors scope", detail:`Obligation ${o.id} — ${o.month}` });
+    });
+
+    const seen = new Map();
+    trades.forEach(t => {
+      const key = `${t.ceeType}|${t.vendor}|${t.month}|${t.volume}|${t.price}`;
+      if (seen.has(key)) {
+        issues.push({ severity:"medium", type:"Doublon trade potentiel", detail:`${seen.get(key)} / ${t.id} — ${t.vendor}` });
+      } else {
+        seen.set(key, t.id);
+      }
+    });
+
+    return issues;
+  }, [trades, obligations]);
+
   // ── PnL réalisé YTD (mois pricés) ──
   const {pnlClYTD,pnlPrYTD} = useMemo(()=>MONTHS_LIST.reduce((acc,month)=>{
     const oblClP=oblMonth(obligations,month,"CLASSIQUE",true);
@@ -1005,7 +1013,7 @@ function Dashboard({ trades, obligations, prices, curve }) {
     const covPct = obligation > 0 ? (bought / obligation) * 100 : null;
 
     return { month, obligation, bought, covPct };
-  }).filter(r => r.obligation > 0);
+  });
 
   const coverageAlerts = coverageRows.filter(
     r => r.covPct !== null && r.covPct < COVERAGE_ALERT_THRESHOLD
@@ -1014,6 +1022,53 @@ function Dashboard({ trades, obligations, prices, curve }) {
   const worstCoverageMonth = coverageAlerts.length
     ? coverageAlerts.reduce((worst, r) => r.covPct < worst.covPct ? r : worst, coverageAlerts[0])
     : null;
+  
+  const EPS = 0.1;
+
+  const getCoverageStatus = (pct) => {
+    if (pct == null) {
+      return {
+        label: "Pas d'obligation",
+        bg: "#111827",
+        color: "#64748b",
+        border: "#334155"
+      };
+    }
+
+    if (pct >= 120) {
+      return {
+        label: "Surcouvert",
+        bg: "#0e2030",
+        color: "#38bdf8",
+        border: "#1a3848"
+      };
+    }
+
+    if (pct >= 100 - EPS) {
+      return {
+        label: "OK",
+        bg: "#0f2e1a",
+        color: "#34d399",
+        border: "#1d4a2a"
+      };
+    }
+
+    if (pct >= COVERAGE_ALERT_THRESHOLD) {
+      return {
+        label: "À surveiller",
+        bg: "#2e2410",
+        color: "#d4a843",
+        border: "#4a3a18"
+      };
+    }
+
+    return {
+      label: "Sous-couvert",
+      bg: "#2e1010",
+      color: "#f87171",
+      border: "#4a1c1c"
+    };
+  };
 
   const pending=trades.filter(t=>t.status==="PENDING").length;
 
@@ -1037,6 +1092,39 @@ function Dashboard({ trades, obligations, prices, curve }) {
       </span>
     </div>
   )}
+
+  {dataQualityChecks.length > 0 && (
+    <div style={{
+      background:"#2a0a0a",
+      border:"1px solid #7f1d1d",
+      borderRadius:"2px",
+      padding:"10px 16px",
+      display:"flex",
+      flexDirection:"column",
+      gap:"6px"
+    }}>
+      <div style={{ display:"flex",alignItems:"center",gap:"8px" }}>
+        <span style={{ color:"#f87171",fontSize:"12px" }}>⚠</span>
+        <span style={{ ...S,fontSize:"11px",color:"#fca5a5" }}>
+          {dataQualityChecks.length} anomalie(s) détectée(s) dans les données
+        </span>
+      </div>
+
+      <div style={{ ...S,fontSize:"10px",color:"#fca5a5" }}>
+        {dataQualityChecks.slice(0,3).map((e,i)=>(
+          <div key={i}>
+            • {e.type} — {e.detail}
+          </div>
+        ))}
+        {dataQualityChecks.length > 3 && (
+          <div style={{ color:"#64748b" }}>
+            … +{dataQualityChecks.length - 3} autres
+          </div>
+        )}
+      </div>
+    </div>
+  )}
+
       {/* ── PnL / MtM / Spot ── */}
       <div>
         <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"10px" }}>Résumé PnL & Marché — 06/03/2026</p>
@@ -1088,9 +1176,88 @@ function Dashboard({ trades, obligations, prices, curve }) {
           />
         </div>
       </div>
+      {/* ── Heatmap Couverture Mensuelle ── */}
+      <div>
+        <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"10px" }}>
+          Heatmap couverture mensuelle — obligations pricées
+        </p>
+
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(12,1fr)",gap:"8px" }}>
+          {coverageRows.map(r => {
+            const status = getCoverageStatus(r.covPct);
+            const rawNet = r.bought - r.obligation;
+            const net = Math.abs(rawNet) < 0.5 ? 0 : rawNet;
+            const avgSpot = ((spotCl * 1000) + (spotPr * 1000)) / 2;
+            const netValue = net * avgSpot;
+            const isEmpty = r.obligation === 0;
+            const displayPct = r.covPct > 150 ? ">150%" : `${N(r.covPct,1)}%`;
+
+            return (
+              <div
+                key={r.month}
+                title={
+                  isEmpty
+                    ? `${ML(r.month)} — Pas d'obligation pricée`
+                    : `${ML(r.month)} — ${displayPct}% couvert · ${N(r.bought,0)} / ${N(r.obligation,0)} GWhc`
+                }
+                style={{
+                  background: status.bg,
+                  border: `1px solid ${status.border}`,
+                  boxShadow: (!isEmpty && r.covPct < 80)
+                    ? "0 0 0 1px #f87171 inset"
+                    : "none",
+                  borderRadius: "2px",
+                  padding: "10px 8px",
+                  minHeight: "88px"
+                }}
+              >
+                <p style={{ ...S,fontSize:"9px",color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:"6px" }}>
+                  {MLS(r.month)}
+                </p>
+
+                {isEmpty ? (
+                  <>
+                    <p style={{ ...S,fontSize:"15px",fontWeight:600,color:status.color,marginBottom:"5px" }}>
+                      —
+                    </p>
+                    <p style={{ ...S,fontSize:"9px",color:status.color,marginBottom:"4px" }}>
+                      Pas d'obligation
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ ...S,fontSize:"17px",fontWeight:600,color:status.color,marginBottom:"4px" }}>
+                      {displayPct}
+                    </p>
+
+                    <p style={{ ...S,fontSize:"9px",color:status.color,marginBottom:"4px" }}>
+                      {status.label}
+                    </p>
+                  </>
+                )}
+
+                <p style={{ ...S,fontSize:"8px",color:"#64748b",marginBottom:"3px" }}>
+                  {isEmpty ? "—" : `${N(r.bought,0)} / ${N(r.obligation,0)} GWhc`}
+                </p>
+
+                {!isEmpty && (
+                  <p style={{ ...S,fontSize:"8px",color:net>=0?"#34d399":"#f87171" }}>
+                    {net === 0 ? "0 GWhc" : `${net > 0 ? "+" : ""}${N(net,0)} GWhc`}
+                  </p>
+                )}
+                {!isEmpty && net !== 0 && (
+                <p style={{ ...S,fontSize:"8px",color:"#64748b",marginTop:"3px" }}>
+                  Expo: {Math.abs(netValue) > 1_000_000 ? fM(netValue) : fK(netValue)}
+                </p>
+              )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
       {/* ── Position PRICÉE (Jan-Mar) ── */}
       <div>
-        <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"8px" }}>Position PRICÉE — Achats confirmés vs Obligation avec prix fixé (Jan–Mar)</p>
+        <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"8px" }}>Position PRICÉE — Achats confirmés vs obligations avec prix fixé</p>
         <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",overflow:"hidden",marginBottom:"16px" }}>
           <table style={{ width:"100%",borderCollapse:"collapse" }}>
             <thead><tr>{["Type","Oblig. Pricée","Acheté Pricé","Position Nette","Avg Buy","Couverture"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
