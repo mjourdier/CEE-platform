@@ -187,3 +187,4 @@ Contactez-nous et on génère le kit Phase 2.
 ---
 
 *CEE Platform v1.0 — Phase 1 (données via data.json)*
+Fix audit dashboard
