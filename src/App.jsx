@@ -991,12 +991,52 @@ function Dashboard({ trades, obligations, prices, curve }) {
   const totalBoughtU = bClU + bPrU;
   const coverageUnpriced = totalOblU > 0 ? (totalBoughtU / totalOblU) * 100 : 0;
 
+  // ── Coverage Alerts ──
+  const COVERAGE_ALERT_THRESHOLD = 80;
+
+  const coverageRows = MONTHS_LIST.map(month => {
+    const oblClP = oblMonth(obligations, month, "CLASSIQUE", true);
+    const oblPrP = oblMonth(obligations, month, "PRECARITE", true);
+    const boughtClP = sumVol(trades, "CLASSIQUE", month, true);
+    const boughtPrP = sumVol(trades, "PRECARITE", month, true);
+
+    const obligation = oblClP + oblPrP;
+    const bought = boughtClP + boughtPrP;
+    const covPct = obligation > 0 ? (bought / obligation) * 100 : null;
+
+    return { month, obligation, bought, covPct };
+  }).filter(r => r.obligation > 0);
+
+  const coverageAlerts = coverageRows.filter(
+    r => r.covPct !== null && r.covPct < COVERAGE_ALERT_THRESHOLD
+  );
+
+  const worstCoverageMonth = coverageAlerts.length
+    ? coverageAlerts.reduce((worst, r) => r.covPct < worst.covPct ? r : worst, coverageAlerts[0])
+    : null;
+
   const pending=trades.filter(t=>t.status==="PENDING").length;
 
   return (
     <div style={{ display:"flex",flexDirection:"column",gap:"22px" }}>
-      {pending>0&&<div style={{ background:"#2a1f0a",border:"1px solid #5a4000",borderRadius:"2px",padding:"10px 16px",display:"flex",alignItems:"center",gap:"8px" }}><span style={{ color:"#fbbf24",fontSize:"12px" }}>⚠</span><span style={{ ...S,fontSize:"11px",color:"#fbbf24" }}>{pending} trade{pending>1?"s":""} en attente d'approbation (4-yeux)</span></div>}
+  {pending>0&&(
+    <div style={{ background:"#2a1f0a",border:"1px solid #5a4000",borderRadius:"2px",padding:"10px 16px",display:"flex",alignItems:"center",gap:"8px" }}>
+      <span style={{ color:"#fbbf24",fontSize:"12px" }}>⚠</span>
+      <span style={{ ...S,fontSize:"11px",color:"#fbbf24" }}>
+        {pending} trade{pending>1?"s":""} en attente d'approbation (4-yeux)
+      </span>
+    </div>
+  )}
 
+  {coverageAlerts.length > 0 && (
+    <div style={{ background:"#2a0a0a",border:"1px solid #7f1d1d",borderRadius:"2px",padding:"10px 16px",display:"flex",alignItems:"center",gap:"8px" }}>
+      <span style={{ color:"#f87171",fontSize:"12px" }}>⚠</span>
+      <span style={{ ...S,fontSize:"11px",color:"#fca5a5" }}>
+        {coverageAlerts.length} mois sous le seuil de couverture de {COVERAGE_ALERT_THRESHOLD}% :{" "}
+        {coverageAlerts.map(r => `${ML(r.month)} (${N(r.covPct,1)}%)`).join(", ")}
+      </span>
+    </div>
+  )}
       {/* ── PnL / MtM / Spot ── */}
       <div>
         <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"10px" }}>Résumé PnL & Marché — 06/03/2026</p>
@@ -1015,7 +1055,7 @@ function Dashboard({ trades, obligations, prices, curve }) {
           Vue Risk / Exposition
         </p>
 
-        <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"10px" }}>
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px" }}>
           <KPI
             label="Position nette pricée"
             value={`${netPriced >= 0 ? "+" : ""}${N(netPriced,0)} GWhc`}
@@ -1035,6 +1075,16 @@ function Dashboard({ trades, obligations, prices, curve }) {
             value={`${N(coverageUnpriced,1)}%`}
             color={coverageUnpriced >= 100 ? "emerald" : coverageUnpriced >= 70 ? "amber" : "rose"}
             sub={`${N(totalBoughtU,0)} / ${N(totalOblU,0)} GWhc`}
+          />
+          <KPI
+            label={worstCoverageMonth ? "Mois le plus risqué" : "Aucun risque détecté"}
+            value={worstCoverageMonth ? ML(worstCoverageMonth.month) : "—"}
+            color={worstCoverageMonth ? "rose" : "emerald"}
+            sub={
+              worstCoverageMonth
+                ? `Couverture: ${N(worstCoverageMonth.covPct,1)}%`
+                : "Aucun mois sous le seuil"
+            }
           />
         </div>
       </div>
