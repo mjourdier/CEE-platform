@@ -589,17 +589,50 @@ function PositionView({ trades, obligations, curve, prices }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) {
   const [filter, setFilter] = useState("ALL");
+  const [filterMonth, setFilterMonth] = useState("ALL");
+  const [filterVendor, setFilterVendor] = useState("ALL");
+  const [filterPriced, setFilterPriced] = useState("ALL");
+  const [sortKey, setSortKey] = useState("createdAt");
+  const [sortDir, setSortDir] = useState("desc");
   const [showModal, setShowModal] = useState(false);
   const blank = { ceeType:"CLASSIQUE", vendor:"", dealType:"Fixed Price", period:"P6", volume:"", price:"", month:"", ranking:"", statut:"Attribué" };
   const [form, setForm] = useState(blank);
-  const filtered = useMemo(()=>{
-    let l=[...trades].sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
-    if(filter==="PENDING")   l=l.filter(t=>t.status==="PENDING");
-    if(filter==="APPROVED")  l=l.filter(t=>t.status==="APPROVED");
-    if(filter==="CLASSIQUE") l=l.filter(t=>t.ceeType==="CLASSIQUE");
-    if(filter==="PRECARITE") l=l.filter(t=>t.ceeType==="PRECARITE");
+  const months = useMemo(
+    () => ["ALL", ...new Set(trades.map(t => t.month).filter(Boolean))].sort(),
+    [trades]
+  );
+
+  const vendors = useMemo(
+    () => ["ALL", ...new Set(trades.map(t => t.vendor).filter(Boolean))].sort(),
+    [trades]
+  );
+  const filtered = useMemo(() => {
+    let l = [...trades];
+
+    if (filter === "PENDING") l = l.filter(t => t.status === "PENDING");
+    if (filter === "APPROVED") l = l.filter(t => t.status === "APPROVED");
+    if (filter === "CLASSIQUE") l = l.filter(t => t.ceeType === "CLASSIQUE");
+    if (filter === "PRECARITE") l = l.filter(t => t.ceeType === "PRECARITE");
+
+    if (filterMonth !== "ALL") l = l.filter(t => t.month === filterMonth);
+    if (filterVendor !== "ALL") l = l.filter(t => t.vendor === filterVendor);
+    if (filterPriced !== "ALL") l = l.filter(t => String(t.priced) === filterPriced);
+
+    l.sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+
+      const av = a[sortKey];
+      const bv = b[sortKey];
+
+      if (sortKey === "volume" || sortKey === "price") {
+        return ((av ?? 0) - (bv ?? 0)) * dir;
+      }
+
+      return String(av ?? "").localeCompare(String(bv ?? "")) * dir;
+    });
+
     return l;
-  },[trades,filter]);
+  }, [trades, filter, filterMonth, filterVendor, filterPriced, sortKey, sortDir]);
   const handleSubmit=()=>{
     if(!form.vendor||!form.volume||!form.price||!form.month) return;
     onAdd({...form,id:"t"+uid(),volume:parseFloat(form.volume),price:parseFloat(form.price),status:"PENDING",createdBy:currentUser.id,approvedBy:null,createdAt:new Date().toISOString(),emmyValidated:false});
@@ -610,8 +643,134 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
     <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
       <div style={{ display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:"10px" }}>
         <div style={{ display:"flex",flexWrap:"wrap",gap:"5px" }}>
-          {["ALL","PENDING","APPROVED","CLASSIQUE","PRECARITE"].map(f=><button key={f} onClick={()=>setFilter(f)} style={{ ...S,fontSize:"10px",padding:"5px 10px",borderRadius:"2px",border:"1px solid",cursor:"pointer",letterSpacing:"0.08em",textTransform:"uppercase",background:filter===f?"#38bdf8":"transparent",color:filter===f?"#0a0e1a":"#3a5070",borderColor:filter===f?"#38bdf8":"#1e2d45" }}>{f}</button>)}
+
+          {/* Filtres existants */}
+          {["ALL", "PENDING", "APPROVED", "CLASSIQUE", "PRECARITE"].map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              style={{
+                ...S,
+                fontSize: "10px",
+                padding: "5px 10px",
+                borderRadius: "2px",
+                border: "1px solid",
+                cursor: "pointer",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                background: filter === f ? "#38bdf8" : "transparent",
+                color: filter === f ? "#0a0e1a" : "#3a5070",
+                borderColor: filter === f ? "#38bdf8" : "#1e2d45"
+              }}
+            >
+              {f}
+            </button>
+          ))}
+
+          {/* Nouveau filtre mois */}
+          <select
+            value={filterMonth}
+            onChange={e => setFilterMonth(e.target.value)}
+            style={{
+              ...S,
+              background: "#0d1526",
+              border: "1px solid #2e2b24",
+              color: "#4a6080",
+              borderRadius: "2px",
+              padding: "5px 8px",
+              fontSize: "10px",
+              outline: "none"
+            }}
+          >
+            {months.map(m => (
+              <option key={m} value={m}>
+                {m === "ALL" ? "Tous les mois" : ML(m)}
+              </option>
+            ))}
+          </select>
+          {/* Nouveau filtre vendeur */}
+          <select
+            value={filterVendor}
+            onChange={e => setFilterVendor(e.target.value)}
+            style={{
+              ...S,
+              background: "#0d1526",
+              border: "1px solid #2e2b24",
+              color: "#4a6080",
+              borderRadius: "2px",
+              padding: "5px 8px",
+              fontSize: "10px",
+              outline: "none",
+              maxWidth: "180px"
+            }}
+          >
+            {vendors.map(v => (
+              <option key={v} value={v}>
+                {v === "ALL" ? "Tous vendeurs" : v}
+              </option>
+            ))}
+          </select>
+          {/* Filtre pricé */}
+          <select
+            value={filterPriced}
+            onChange={e => setFilterPriced(e.target.value)}
+            style={{
+              ...S,
+              background: "#0d1526",
+              border: "1px solid #2e2b24",
+              color: "#4a6080",
+              borderRadius: "2px",
+              padding: "5px 8px",
+              fontSize: "10px",
+              outline: "none"
+            }}
+          >
+            <option value="ALL">Pricé / non pricé</option>
+            <option value="true">Pricé</option>
+            <option value="false">Non pricé</option>
+          </select>
+
+          {/* Tri */}
+          <select
+            value={sortKey}
+            onChange={e => setSortKey(e.target.value)}
+            style={{
+              ...S,
+              background: "#0d1526",
+              border: "1px solid #2e2b24",
+              color: "#4a6080",
+              borderRadius: "2px",
+              padding: "5px 8px",
+              fontSize: "10px",
+              outline: "none"
+            }}
+          >
+            <option value="createdAt">Tri création</option>
+            <option value="month">Tri mois</option>
+            <option value="vendor">Tri vendeur</option>
+            <option value="volume">Tri volume</option>
+            <option value="price">Tri prix</option>
+            <option value="status">Tri statut</option>
+          </select>
+
+          {/* Sens du tri */}
+          <button
+            onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}
+            style={{
+              ...S,
+              fontSize: "10px",
+              padding: "5px 10px",
+              borderRadius: "2px",
+              border: "1px solid #1e2d45",
+              cursor: "pointer",
+              background: "transparent",
+              color: "#3a5070"
+            }}
+          >
+            {sortDir === "asc" ? "↑ ASC" : "↓ DESC"}
+          </button>
         </div>
+        
         <GoldBtn onClick={()=>setShowModal(true)}>+ Nouvel Achat</GoldBtn>
       </div>
       <div style={{ overflowX:"auto",border:"1px solid #1e1c18",borderRadius:"2px" }}>
