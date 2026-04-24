@@ -54,6 +54,14 @@ const uid = ()      => Math.random().toString(36).slice(2,9);
 const MO  = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
 const ML  = m       => { const [y,mo]=m.split("-"); return MO[parseInt(mo)-1]+" "+y; };
 const MLS = m       => { const [,mo]=m.split("-"); return MO[parseInt(mo)-1]; };
+// Unit convention:
+// - trades / obligations stored prices: €/GWhc
+// - market prices / forward curve: €/MWhc
+// - calculations: €/GWhc
+const toGWhc = (priceMWhc) => priceMWhc * 1000;
+const toMWhc = (priceGWhc) => priceGWhc / 1000;
+const fmtMWhc = (priceGWhc, d = 2) => priceGWhc ? `${N(toMWhc(priceGWhc), d)} €/MWhc` : "—";
+const fmtGWhc = (priceGWhc, d = 0) => priceGWhc ? `${N(priceGWhc, d)} €/GWhc` : "—";
 
 function wAvg(trades,ceeType,month=null,pricedOnly=false){
   const b=trades.filter(t=>t.status==="APPROVED"&&t.ceeType===ceeType
@@ -478,8 +486,8 @@ function PositionView({ trades, obligations, curve, prices }) {
     // MtM = (spot - avgBuyPricé) × position ouverte PRICÉE (achetéPricé > oblPricée)
     const openCl = (oblClP>0.001 && netCl>0) ? netCl : 0;
     const openPr = (oblPrP>0.001 && netPr>0) ? netPr : 0;
-    const mtmCl = openCl>0 ? openCl * (latestSpot.classique*1000 - aClP) : 0;
-    const mtmPr = openPr>0 ? openPr * (latestSpot.precarite*1000  - aPrP) : 0;
+    const mtmCl = openCl > 0 ? openCl * (latestSpot.classique - aClP) : 0;
+    const mtmPr = openPr > 0 ? openPr * (latestSpot.precarite - aPrP) : 0;
     // Non pricés
     const oblClU = oblClT - oblClP;
     const oblPrU = oblPrT - oblPrP;
@@ -509,8 +517,8 @@ function PositionView({ trades, obligations, curve, prices }) {
       <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px" }}>
         {view==="position" && <><KPI label="Oblig. CL Pricée" value={N(tot.oblCl,0)+" GWhc"} color="sky"/><KPI label="Acheté CL" value={N(tot.bCl,0)+" GWhc"} color="sky"/><KPI label="Oblig. PR Pricée" value={N(tot.oblPr,0)+" GWhc"} color="amber"/><KPI label="Acheté PR" value={N(tot.bPr,0)+" GWhc"} color="amber"/></>}
         {view==="pnl"      && <><KPI label="PnL Réalisé CL" value={fK(tot.pnlCl)} color={tot.pnlCl>=0?"emerald":"rose"}/><KPI label="PnL Réalisé PR" value={fK(tot.pnlPr)} color={tot.pnlPr>=0?"emerald":"rose"}/><KPI label="MtM CL" value={fK(tot.mtmCl)} color={tot.mtmCl>=0?"emerald":"rose"}/><KPI label="MtM PR" value={fK(tot.mtmPr)} color={tot.mtmPr>=0?"emerald":"rose"}/></>}
-        {view==="unpriced" && <><KPI label="Non Pricée CL" value={N(tot.oblClU,0)+" GWhc"} color="rose"/><KPI label="Non Pricée PR" value={N(tot.oblPrU,0)+" GWhc"} color="rose"/><KPI label="Total Non Pricé" value={N(tot.oblClU+tot.oblPrU,0)+" GWhc"} color="amber"/><KPI label="Valeur Spot Estimée" value={fM(tot.oblClU*latestSpot.classique*1000 + tot.oblPrU*latestSpot.precarite*1000)} color="gray"/></>}
-      </div>
+        {view==="unpriced" && <><KPI label="Non Pricée CL" value={N(tot.oblClU,0)+" GWhc"} color="rose"/><KPI label="Non Pricée PR" value={N(tot.oblPrU,0)+" GWhc"} color="rose"/><KPI label="Total Non Pricé" value={N(tot.oblClU+tot.oblPrU,0)+" GWhc"} color="amber"/></>}
+      </div><KPI label="Valeur Spot Estimée" value={fM(tot.oblClU*latestSpot.classique + tot.oblPrU*latestSpot.precarite)} color="gray"/>
       <div style={{ overflowX:"auto",border:"1px solid #1e1c18",borderRadius:"2px" }}>
         <table style={{ width:"100%",borderCollapse:"collapse",minWidth:"900px" }}>
           <thead><tr>
@@ -536,15 +544,15 @@ function PositionView({ trades, obligations, curve, prices }) {
                     <td style={{ padding:"9px 14px" }}>{pc(r.netCl)}</td>
                     <td style={{ padding:"9px 14px" }}>{pc(r.netPr)}</td>
                     <td style={{ padding:"9px 14px",minWidth:"120px" }}>{(r.oblClP+r.oblPrP)>0?<CovBar pct={r.covPct}/>:<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{r.aCl>0?N(r.aCl/1000,2):"—"}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{r.sCl>0?N(r.sCl/1000,2):"—"}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{fmtMWhc(r.aCl)}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{fmtMWhc(r.sCl)}</td>
                   </>}
                   {view==="pnl"&&<>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{r.aCl>0?N(r.aCl/1000,2):"—"}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{r.sCl>0?N(r.sCl/1000,2):"—"}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{fmtMWhc(r.aCl)}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{fmtMWhc(r.sCl)}</td>
                     <td style={{ padding:"9px 14px" }}>{r.pnlCl!==0?pk(r.pnlCl):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{r.aPr>0?N(r.aPr/1000,2):"—"}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{r.sPr>0?N(r.sPr/1000,2):"—"}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{fmtMWhc(r.aPr)}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{fmtMWhc(r.sPr)}</td>
                     <td style={{ padding:"9px 14px" }}>{r.pnlPr!==0?pk(r.pnlPr):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
                     <td style={{ padding:"9px 14px" }}>{r.mtmCl!==0?pk(r.mtmCl):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
                     <td style={{ padding:"9px 14px" }}>{r.mtmPr!==0?pk(r.mtmPr):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
@@ -558,7 +566,7 @@ function PositionView({ trades, obligations, curve, prices }) {
                     <td style={{ padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?<span style={{ ...S,fontSize:"12px",color:"#f87171",fontWeight:600 }}>{N(r.oblClU+r.oblPrU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
                     <td style={{ ...S,fontSize:"12px",color:r.unpricedBoughtCl>0?"#e2e8f0":"#3d3830",padding:"9px 14px" }}>{r.unpricedBoughtCl>0.01?N(r.unpricedBoughtCl,2):"—"}</td>
                     <td style={{ padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?pc(r.unpricedBoughtCl+r.unpricedBoughtPr - r.oblClU - r.oblPrU):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?fK(r.oblClU*latestSpot.classique*1000 + r.oblPrU*latestSpot.precarite*1000):"—"}</td>
+                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?fK(r.oblClU*latestSpot.classique + r.oblPrU*latestSpot.precarite):"—"}</td>
                   </>}
                 </tr>
               );
@@ -646,7 +654,7 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
             <FS label="Deal Type" value={form.dealType} onChange={e=>setForm(f=>({...f,dealType:e.target.value}))}><option value="Fixed Price">Fixed Price</option><option value="Floating">Floating</option></FS>
             <FS label="Période" value={form.period} onChange={e=>setForm(f=>({...f,period:e.target.value}))}><option value="P6">P6</option><option value="P5">P5</option></FS>
             <FI label="Volume (GWhc)" type="number" step="0.001" placeholder="0.000" value={form.volume} onChange={e=>setForm(f=>({...f,volume:e.target.value}))}/>
-            <FI label="Prix (€/MWhc)" type="number" step="1" placeholder="9000" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))}/>
+            <FI label="Prix (€/GWhc)" type="number" step="1" placeholder="9000" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))}/>
             <FI label="Mois" type="month" value={form.month} onChange={e=>setForm(f=>({...f,month:e.target.value}))}/>
             <FS label="Statut" value={form.statut} onChange={e=>setForm(f=>({...f,statut:e.target.value}))}><option value="Attribué">Attribué</option><option value="Pas encore contracté">Pas encore contracté</option><option value="Contrat signé">Contrat signé</option></FS>
             <FS label="Ranking" value={form.ranking} onChange={e=>setForm(f=>({...f,ranking:e.target.value}))}><option value="">—</option>{["AAA","AA","A+","BBB","BB","B+"].map(r=><option key={r}>{r}</option>)}</FS>
@@ -851,7 +859,7 @@ function Dashboard({ trades, obligations, prices, curve }) {
                   <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"10px 16px" }}>{N(obl,1)} GWh</td>
                   <td style={{ ...S,fontSize:"12px",color:"#e2e8f0",padding:"10px 16px" }}>{N(bought,1)} GWh</td>
                   <td style={{ ...S,fontSize:"12px",padding:"10px 16px",color:net>=0?"#34d399":"#f87171",fontWeight:600 }}>{net>=0?"+":""}{N(net,1)} GWh</td>
-                  <td style={{ ...S,fontSize:"11px",color:"#4a6080",padding:"10px 16px" }}>{avg>0?N(avg/1000,2)+" €/MWhc":"—"}</td>
+                  <td style={{ ...S,fontSize:"11px",color:"#4a6080",padding:"10px 16px" }}>{fmtMWhc(avg)}</td>
                   <td style={{ padding:"10px 16px",minWidth:"140px" }}><CovBar pct={obl>0?bought/obl*100:0}/></td>
                 </tr>
               ))}
