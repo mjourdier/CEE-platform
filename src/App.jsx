@@ -923,8 +923,26 @@ function CurveTab({ curve, onUpdate, trades }) {
 
 function PricesTab({ prices, currentUser, onAdd }) {
   const [showModal,setShowModal]=useState(false);
-  const [form,setForm]=useState({date:"",classique:"",precarite:""});
-  const handleAdd=()=>{if(!form.date||!form.classique||!form.precarite)return;onAdd({id:"p"+uid(),date:form.date,classique:parseFloat(form.classique),precarite:parseFloat(form.precarite),enteredBy:currentUser.id,enteredAt:new Date().toISOString()});setShowModal(false);setForm({date:"",classique:"",precarite:""});};
+  const today = new Date().toISOString().slice(0, 10);
+  const [form,setForm]=useState({date:today,classique:"",precarite:""});
+  const handleAdd = () => {
+    if (!form.date || !form.classique || !form.precarite) {
+      alert("Merci de remplir tous les champs.");
+      return;
+    }
+
+    onAdd({
+      id: "p" + uid(),
+      date: form.date,
+      classique: parseFloat(form.classique),
+      precarite: parseFloat(form.precarite),
+      enteredBy: currentUser.id,
+      enteredAt: new Date().toISOString()
+    });
+
+    setShowModal(false);
+    setForm({ date: today, classique: "", precarite: "" });
+};
   const sorted=[...prices].sort((a,b)=>b.date.localeCompare(a.date));
   return(
     <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
