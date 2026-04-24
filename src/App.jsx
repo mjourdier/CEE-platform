@@ -1380,6 +1380,10 @@ function PricesTab({ prices, currentUser, onAdd }) {
 }
 
 function AuditLog({ audit, users = USERS }) {
+  const [filterUser, setFilterUser] = useState("ALL");
+  const [filterAction, setFilterAction] = useState("ALL");
+  const [search, setSearch] = useState("");
+
   const AC = {
     TRADE_CREATED: "blue",
     TRADE_APPROVED: "green",
@@ -1407,6 +1411,35 @@ function AuditLog({ audit, users = USERS }) {
     };
   };
 
+  const actions = useMemo(
+    () => ["ALL", ...new Set(audit.map(a => a.action).filter(Boolean))].sort(),
+    [audit]
+  );
+
+  const auditUsers = useMemo(
+    () => ["ALL", ...new Set(audit.map(a => a.user).filter(Boolean))],
+    [audit]
+  );
+
+  const filteredAudit = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    return [...audit]
+      .filter(a => filterUser === "ALL" || a.user === filterUser)
+      .filter(a => filterAction === "ALL" || a.action === filterAction)
+      .filter(a => {
+        if (!q) return true;
+        const user = getUser(a.user);
+
+        return [a.ts, user.name, a.action, a.entity, a.detail]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(q);
+      })
+      .sort((a, b) => b.ts.localeCompare(a.ts));
+  }, [audit, filterUser, filterAction, search, users]);
+
   const escapeCsv = (value) => {
     const v = value == null ? "" : String(value);
     return `"${v.replace(/"/g, '""')}"`;
@@ -1415,19 +1448,17 @@ function AuditLog({ audit, users = USERS }) {
   const handleExport = () => {
     const header = ["Timestamp", "Utilisateur", "Action", "Entité", "Détail"];
 
-    const rows = [...audit]
-      .sort((a, b) => b.ts.localeCompare(a.ts))
-      .map(a => {
-        const user = getUser(a.user);
+    const rows = filteredAudit.map(a => {
+      const user = getUser(a.user);
 
-        return [
-          a.ts,
-          user.name,
-          a.action,
-          a.entity,
-          a.detail
-        ].map(escapeCsv).join(",");
-      });
+      return [
+        a.ts,
+        user.name,
+        a.action,
+        a.entity,
+        a.detail
+      ].map(escapeCsv).join(",");
+    });
 
     const csv = "\uFEFF" + [header.map(escapeCsv).join(","), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -1442,7 +1473,41 @@ function AuditLog({ audit, users = USERS }) {
 
   return (
     <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
-      <div style={{ display:"flex",justifyContent:"flex-end" }}>
+      <div style={{ display:"flex",justifyContent:"space-between",gap:"8px",alignItems:"center",flexWrap:"wrap" }}>
+        <div style={{ display:"flex",gap:"8px",flexWrap:"wrap" }}>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher..."
+            style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#e2e8f0",borderRadius:"2px",padding:"7px 10px",fontSize:"10px",outline:"none",width:"220px" }}
+          />
+
+          <select
+            value={filterUser}
+            onChange={e => setFilterUser(e.target.value)}
+            style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#4a6080",borderRadius:"2px",padding:"7px 10px",fontSize:"10px",outline:"none" }}
+          >
+            {auditUsers.map(u => {
+              const user = u === "ALL" ? null : getUser(u);
+              return <option key={u} value={u}>{u === "ALL" ? "Tous utilisateurs" : user.name}</option>;
+            })}
+          </select>
+
+          <select
+            value={filterAction}
+            onChange={e => setFilterAction(e.target.value)}
+            style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#4a6080",borderRadius:"2px",padding:"7px 10px",fontSize:"10px",outline:"none" }}
+          >
+            {actions.map(a => (
+              <option key={a} value={a}>{a === "ALL" ? "Toutes actions" : a.replace(/_/g," ")}</option>
+            ))}
+          </select>
+
+          <span style={{ ...S,fontSize:"10px",color:"#3a5070",alignSelf:"center" }}>
+            {filteredAudit.length} / {audit.length} lignes
+          </span>
+        </div>
+
         <GhostBtn onClick={handleExport}>↓ Exporter CSV</GhostBtn>
       </div>
 
@@ -1457,7 +1522,7 @@ function AuditLog({ audit, users = USERS }) {
           </thead>
 
           <tbody>
-            {[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a => {
+            {filteredAudit.map(a => {
               const user = getUser(a.user);
               const bg = "#111827";
 
@@ -1553,11 +1618,27 @@ export default function App() {
     const{error}=await supabase.from(table).upsert(row);
     if(error)console.error("Supabase:",error.message);
   },[]);
-  const addAudit=useCallback(async(entry)=>{
-    const row={id:"a"+uid(),ts:new Date().toISOString(),user_id:currentUser?.id,
-               action:entry.action,entity:entry.entity,detail:entry.detail};
-    setAudit(a=>[row,...a]);await persist("audit_log",row);
-  },[currentUser,persist]);
+  const addAudit = useCallback(async(entry) => {
+    const row = {
+      id: "a" + uid(),
+      ts: new Date().toISOString(),
+      user_id: currentUser?.id,
+      action: entry.action,
+      entity: entry.entity,
+      detail: entry.detail,
+    };
+
+    setAudit(a => [{
+      id: row.id,
+      ts: row.ts,
+      user: row.user_id,
+      action: row.action,
+      entity: row.entity,
+      detail: row.detail
+    }, ...a]);
+
+    await persist("audit_log", row);
+  }, [currentUser, persist]);
   const handleAddTrade=useCallback(async(t)=>{
     setTrades(ts=>[...ts,t]);
     await persist("trades",{id:t.id,cee_type:t.ceeType,vendor:t.vendor,deal_type:t.dealType,
@@ -1566,15 +1647,26 @@ export default function App() {
       created_by:t.createdBy,approved_by:t.approvedBy,created_at:t.createdAt});
     await addAudit({action:"TRADE_CREATED",entity:t.id,detail:`BUY ${N(t.volume,3)} GWhc ${t.ceeType} @ ${N(t.price,0)} — ${t.vendor}`});
   },[persist,addAudit]);
-  const handleApproveTrade=useCallback(async(id,aid)=>{
-    setTrades(ts=>ts.map(t=>t.id===id?{...t,status:"APPROVED",approvedBy:aid}:t));
-    await supabase.from("trades").update({status:"APPROVED",approved_by:aid}).eq("id",id);
-    await addAudit({action:"TRADE_APPROVED",entity:id,detail:`Approuvé par ${aid}`});
-  },[addAudit]);
+  const handleApproveTrade = useCallback(async (id, aid) => {
+    setTrades(ts => ts.map(t =>
+      t.id === id ? { ...t, status: "APPROVED", approvedBy: aid } : t
+    ));
+
+    await supabase
+      .from("trades")
+      .update({ status: "APPROVED", approved_by: aid })
+      .eq("id", id);
+
+    await addAudit({
+      action: "TRADE_APPROVED",
+      entity: id,
+      detail: `Trade approuvé — approver: ${USERS.find(u => u.id === aid)?.name || aid}`
+    });
+  }, [addAudit]);
   const handleRejectTrade=useCallback(async(id)=>{
     setTrades(ts=>ts.map(t=>t.id===id?{...t,status:"REJECTED"}:t));
     await supabase.from("trades").update({status:"REJECTED"}).eq("id",id);
-    await addAudit({action:"TRADE_REJECTED",entity:id,detail:"Rejeté"});
+    await addAudit({action:"TRADE_REJECTED",entity:id,detail:"Trade rejeté par approver"});
   },[addAudit]);
   const handleAddPrice=useCallback(async(p)=>{
     setPrices(ps=>[...ps,p]);
@@ -1591,7 +1683,7 @@ export default function App() {
   const handleDeleteTrade=useCallback(async(id)=>{
     setTrades(ts=>ts.filter(t=>t.id!==id));
     await supabase.from("trades").delete().eq("id",id);
-    await addAudit({action:"TRADE_DELETED",entity:id,detail:`Trade ${id} supprimé`});
+    await addAudit({action:"TRADE_DELETED",entity:id,detail:`Trade supprimé définitivement — id: ${id}`});
   },[addAudit]);
 
   const handleAddObligation=useCallback(async(o)=>{
