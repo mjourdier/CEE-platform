@@ -984,6 +984,13 @@ function Dashboard({ trades, obligations, prices, curve }) {
     };
   },{pnlClYTD:0,pnlPrYTD:0}),[trades,obligations]);
 
+  // ── Risk / Exposure KPIs ──
+  const netPriced = netClP + netPrP;
+  const netUnpriced = netClU + netPrU;
+  const totalOblU = totalOblClU + totalOblPrU;
+  const totalBoughtU = bClU + bPrU;
+  const coverageUnpriced = totalOblU > 0 ? (totalBoughtU / totalOblU) * 100 : 0;
+
   const pending=trades.filter(t=>t.status==="PENDING").length;
 
   return (
@@ -1002,7 +1009,35 @@ function Dashboard({ trades, obligations, prices, curve }) {
           <KPI label="En attente"       value={pending>0?`⚠ ${pending}`:"✓ 0"} color={pending>0?"amber":"emerald"} sub="Trades 4-yeux"/>
         </div>
       </div>
+      {/* ── Risk / Exposure View ── */}
+      <div>
+        <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"10px" }}>
+          Vue Risk / Exposition
+        </p>
 
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"10px" }}>
+          <KPI
+            label="Position nette pricée"
+            value={`${netPriced >= 0 ? "+" : ""}${N(netPriced,0)} GWhc`}
+            color={netPriced >= 0 ? "emerald" : "rose"}
+            sub="Achats pricés - obligations pricées"
+          />
+
+          <KPI
+            label="Position nette non pricée"
+            value={`${netUnpriced >= 0 ? "+" : ""}${N(netUnpriced,0)} GWhc`}
+            color={netUnpriced >= 0 ? "emerald" : "rose"}
+            sub="Achats non pricés - obligations non pricées"
+          />
+
+          <KPI
+            label="Couverture non pricée"
+            value={`${N(coverageUnpriced,1)}%`}
+            color={coverageUnpriced >= 100 ? "emerald" : coverageUnpriced >= 70 ? "amber" : "rose"}
+            sub={`${N(totalBoughtU,0)} / ${N(totalOblU,0)} GWhc`}
+          />
+        </div>
+      </div>
       {/* ── Position PRICÉE (Jan-Mar) ── */}
       <div>
         <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"8px" }}>Position PRICÉE — Achats confirmés vs Obligation avec prix fixé (Jan–Mar)</p>
@@ -1368,8 +1403,10 @@ export default function App() {
   );
   if(!currentUser) return null;
 
+
   const pending=trades.filter(t=>t.status==="PENDING").length;
 
+  
   const TABS=[
     {id:"dashboard",  label:"Dashboard"},
     {id:"reporting",  label:"📊 Reporting"},
