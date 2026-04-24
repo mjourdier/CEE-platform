@@ -1573,6 +1573,10 @@ function AuditLog({ audit, users = USERS }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
   const [currentUser,setCurrentUser]=useState(null);
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [loginError, setLoginError] = useState(null);
   const [trades,setTrades]          =useState([]);
   const [prices,setPrices]          =useState([]);
   const [curve,setCurve]            =useState({});
@@ -1608,13 +1612,70 @@ export default function App() {
           precarite:+p.precarite,enteredBy:p.entered_by,enteredAt:p.entered_at}));
         const normC={};(cd||[]).forEach(c=>{normC[c.tenor]={classique:+c.classique,precarite:+c.precarite};});
         const normA=(ad||[]).map(a=>({id:a.id,ts:a.ts,user:a.user_id,action:a.action,entity:a.entity,detail:a.detail}));
-        setUsers(ud||[]);setCurrentUser((ud||[])[0]||null);
-        setTrades(normT);setObligations(normO);setPrices(normP);setCurve(normC);setAudit(normA);
+        setUsers(ud || []);
+        setTrades(normT);
+        setObligations(normO);
+        setPrices(normP);
+        setCurve(normC);
+        setAudit(normA);
         setLoading(false);
       }catch(e){setError(e.message);setLoading(false);}
     }
     loadAll();
   },[]);
+
+  useEffect(() => {
+    async function initAuth() {
+      setAuthLoading(true);
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const currentSession = sessionData?.session || null;
+
+      setSession(currentSession);
+
+      if (!currentSession?.user) {
+        setCurrentUser(null);
+        setAuthLoading(false);
+        return;
+      }
+
+      const authId = currentSession.user.id;
+
+      const { data: userRow, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("auth_id", authId)
+        .single();
+
+      if (error || !userRow) {
+        console.error("User mapping error:", error);
+        setCurrentUser(null);
+        setAuthLoading(false);
+        return;
+      }
+
+      setCurrentUser({
+        id: userRow.id,
+        name: userRow.name,
+        role: userRow.role,
+        initials: userRow.initials,
+        email: userRow.email,
+        authId: userRow.auth_id
+      });
+
+      setAuthLoading(false);
+    }
+
+    initAuth();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      initAuth();
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
+  }, []);
 
   const persist=useCallback(async(table,row)=>{
     const{error}=await supabase.from(table).upsert(row);
@@ -1726,6 +1787,20 @@ export default function App() {
     await addAudit({action:"OBLIG_ADDED",entity:o.id,detail:`${o.month} ${o.product} ${o.volume_m3}m³`});
   },[persist,addAudit]);
 
+  const handleLogin = async () => {
+    setLoginError(null);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: loginForm.email,
+      password: loginForm.password
+    });
+
+    if (error) {
+      setLoginError(error.message);
+      return;
+    }
+  };
+
   if(loading) return(
     <div style={{background:"#0a0e1a",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
       <div style={{textAlign:"center"}}>
@@ -1742,7 +1817,48 @@ export default function App() {
       </div>
     </div>
   );
-  if(!currentUser) return null;
+  if (!currentUser) return (
+    <div style={{ minHeight:"100vh",background:"#0a0e1a",display:"flex",alignItems:"center",justifyContent:"center",color:"#e2e8f0" }}>
+      <div style={{ width:"360px",background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"26px" }}>
+        <p style={{ ...S,fontSize:"9px",color:"#38bdf8",letterSpacing:"0.18em",textTransform:"uppercase",marginBottom:"8px" }}>
+          CEE Platform
+        </p>
+
+        <h2 style={{ ...CG,fontSize:"24px",marginBottom:"18px" }}>
+          Connexion
+        </h2>
+
+        <div style={{ display:"flex",flexDirection:"column",gap:"12px" }}>
+          <input
+            type="email"
+            placeholder="Email"
+            value={loginForm.email}
+            onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))}
+            style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#e2e8f0",padding:"10px",borderRadius:"2px",outline:"none" }}
+          />
+
+          <input
+            type="password"
+            placeholder="Mot de passe"
+            value={loginForm.password}
+            onChange={e => setLoginForm(f => ({ ...f, password: e.target.value }))}
+            onKeyDown={e => { if (e.key === "Enter") handleLogin(); }}
+            style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#e2e8f0",padding:"10px",borderRadius:"2px",outline:"none" }}
+          />
+
+          {loginError && (
+            <p style={{ ...S,fontSize:"11px",color:"#f87171" }}>
+              {loginError}
+            </p>
+          )}
+
+          <GoldBtn onClick={handleLogin}>
+            Se connecter
+          </GoldBtn>
+        </div>
+      </div>
+    </div>
+  );
 
 
   const pending=trades.filter(t=>t.status==="PENDING").length;
@@ -1759,34 +1875,93 @@ export default function App() {
     {id:"audit",      label:"Audit Log"},
   ];
 
-  return(
-    <div style={{ minHeight:"100vh",background:"#0a0e1a",color:"#e2e8f0" }}>
-      <div style={{ position:"fixed",inset:0,backgroundImage:"linear-gradient(#ffffff06 1px,transparent 1px),linear-gradient(90deg,#ffffff06 1px,transparent 1px)",backgroundSize:"40px 40px",pointerEvents:"none",zIndex:0 }}/>
-      <div style={{ position:"relative",zIndex:1,maxWidth:"1400px",margin:"0 auto",padding:"0 28px 80px" }}>
-        <header style={{ padding:"28px 0 16px",borderBottom:"1px solid #e2e4e8",display:"flex",justifyContent:"space-between",alignItems:"flex-end" }}>
-          <div>
-            <p style={{ ...S,fontSize:"9px",color:"#38bdf8",letterSpacing:"0.22em",textTransform:"uppercase",marginBottom:"4px" }}>Gestion Stock CEE · Position · PnL · Obligation P6</p>
-            <h1 style={{ ...CG,fontSize:"32px",fontWeight:700,color:"#e2e8f0",lineHeight:1 }}>CEE Dashboard <span style={{ ...S,fontSize:"11px",color:"#3a5070",fontWeight:400,marginLeft:"12px" }}>{prices.length>0?`Données au ${new Date([...prices].sort((a,b)=>b.date.localeCompare(a.date))[0].date).toLocaleDateString("fr-FR")}`:"Chargement…"}</span></h1>
-          </div>
-          <div style={{ display:"flex",alignItems:"center",gap:"10px" }}>
-            <div style={{ display:"flex",gap:"4px" }}>
-              {users.map(u=><button key={u.id} onClick={()=>setCurrentUser(u)} title={`${u.name} — ${u.role}`} style={{ width:"30px",height:"30px",borderRadius:"50%",border:currentUser?.id===u.id?"2px solid #b8973a":"1px solid #2e2b24",background:currentUser?.id===u.id?"#1e2d45":"#0d1526",color:currentUser?.id===u.id?"#38bdf8":"#3a5070",...S,fontSize:"9px",fontWeight:600,cursor:"pointer" }}>{u.initials}</button>)}
-            </div>
-            <div><p style={{ ...S,fontSize:"11px",color:"#e2e8f0" }}>{currentUser.name}</p><p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.08em" }}>{currentUser.role}</p></div>
-          </div>
-        </header>
-        <div style={{ display:"flex",gap:"16px",borderBottom:"1px solid #e2e4e8",marginBottom:"22px",overflowX:"auto" }}>
-          {TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{ ...S,background:"none",border:"none",fontSize:"10px",letterSpacing:"0.1em",textTransform:"uppercase",padding:"12px 0",cursor:"pointer",whiteSpace:"nowrap",color:tab===t.id?"#38bdf8":"#3a5070",borderBottom:tab===t.id?"1px solid #b8973a":"1px solid transparent",transition:"color 0.2s" }}>{t.label}</button>)}
+return(
+  <div style={{ minHeight:"100vh",background:"#0a0e1a",color:"#e2e8f0" }}>
+    <div style={{ position:"fixed",inset:0,backgroundImage:"linear-gradient(#ffffff06 1px,transparent 1px),linear-gradient(90deg,#ffffff06 1px,transparent 1px)",backgroundSize:"40px 40px",pointerEvents:"none",zIndex:0 }}/>
+    <div style={{ position:"relative",zIndex:1,maxWidth:"1400px",margin:"0 auto",padding:"0 28px 80px" }}>
+      <header style={{ padding:"28px 0 16px",borderBottom:"1px solid #e2e4e8",display:"flex",justifyContent:"space-between",alignItems:"flex-end" }}>
+        <div>
+          <p style={{ ...S,fontSize:"9px",color:"#38bdf8",letterSpacing:"0.22em",textTransform:"uppercase",marginBottom:"4px" }}>
+            Gestion Stock CEE · Position · PnL · Obligation P6
+          </p>
+          <h1 style={{ ...CG,fontSize:"32px",fontWeight:700,color:"#e2e8f0",lineHeight:1 }}>
+            CEE Dashboard
+            <span style={{ ...S,fontSize:"11px",color:"#3a5070",fontWeight:400,marginLeft:"12px" }}>
+              {prices.length>0
+                ? `Données au ${new Date([...prices].sort((a,b)=>b.date.localeCompare(a.date))[0].date).toLocaleDateString("fr-FR")}`
+                : "Chargement…"}
+            </span>
+          </h1>
         </div>
-        {tab==="dashboard"  && <Dashboard     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
-        {tab==="reporting"  && <Reporting     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
-        {tab==="position"   && <PositionView  trades={trades} obligations={obligations} curve={curve} prices={prices}/>}
-        {tab==="blotter"    && <Blotter       trades={trades} currentUser={currentUser} onAdd={handleAddTrade} onApprove={handleApproveTrade} onReject={handleRejectTrade} onDelete={handleDeleteTrade}/>}
-        {tab==="obligation" && <ObligationTab obligations={obligations} onAdd={handleAddObligation} onDelete={id=>setObligations(os=>os.filter(o=>o.id!==id))}/>}
-        {tab==="curve"      && <CurveTab      curve={curve} onUpdate={handleUpdateCurve} trades={trades}/>}
-        {tab==="prices"     && <PricesTab     prices={prices} currentUser={currentUser} onAdd={handleAddPrice}/>}
-        {tab==="audit"      && <AuditLog      audit={audit} users={users}/>}
+
+        <div style={{ display:"flex",alignItems:"center",gap:"10px" }}>
+          <div>
+            <p style={{ ...S,fontSize:"11px",color:"#e2e8f0" }}>
+              {currentUser.name}
+            </p>
+            <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.08em" }}>
+              {currentUser.role}
+            </p>
+          </div>
+
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              setCurrentUser(null);
+              setSession(null);
+            }}
+            style={{
+              ...S,
+              fontSize:"9px",
+              padding:"6px 10px",
+              background:"transparent",
+              color:"#3a5070",
+              border:"1px solid #2e2b24",
+              borderRadius:"2px",
+              cursor:"pointer",
+              textTransform:"uppercase",
+              letterSpacing:"0.08em"
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      <div style={{ display:"flex",gap:"16px",borderBottom:"1px solid #e2e4e8",marginBottom:"22px",overflowX:"auto" }}>
+        {TABS.map(t=>(
+          <button
+            key={t.id}
+            onClick={()=>setTab(t.id)}
+            style={{
+              ...S,
+              background:"none",
+              border:"none",
+              fontSize:"10px",
+              letterSpacing:"0.1em",
+              textTransform:"uppercase",
+              padding:"12px 0",
+              cursor:"pointer",
+              whiteSpace:"nowrap",
+              color:tab===t.id?"#38bdf8":"#3a5070",
+              borderBottom:tab===t.id?"1px solid #b8973a":"1px solid transparent",
+              transition:"color 0.2s"
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      {tab==="dashboard"  && <Dashboard     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
+      {tab==="reporting"  && <Reporting     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
+      {tab==="position"   && <PositionView  trades={trades} obligations={obligations} curve={curve} prices={prices}/>}
+      {tab==="blotter"    && <Blotter       trades={trades} currentUser={currentUser} onAdd={handleAddTrade} onApprove={handleApproveTrade} onReject={handleRejectTrade} onDelete={handleDeleteTrade}/>}
+      {tab==="obligation" && <ObligationTab obligations={obligations} onAdd={handleAddObligation} onDelete={id=>setObligations(os=>os.filter(o=>o.id!==id))}/>}
+      {tab==="curve"      && <CurveTab      curve={curve} onUpdate={handleUpdateCurve} trades={trades}/>}
+      {tab==="prices"     && <PricesTab     prices={prices} currentUser={currentUser} onAdd={handleAddPrice}/>}
+      {tab==="audit"      && <AuditLog      audit={audit} users={users}/>}
     </div>
-  );
+  </div>
+);
 }
