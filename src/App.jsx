@@ -1127,25 +1127,121 @@ function PricesTab({ prices, currentUser, onAdd }) {
   );
 }
 
-function AuditLog({ audit, users=USERS }) {
-  const AC={TRADE_CREATED:"blue",TRADE_APPROVED:"green",TRADE_REJECTED:"red",PRICE_ADDED:"amber",OBLIG_ADDED:"sky",CURVE_UPDATED:"purple"};
-  const handleExport=()=>{const rows=[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a=>`"${a.ts}","${USERS.find(u=>u.id===a.user)?.name??a.user}","${a.action}","${a.entity}","${a.detail}"`);const blob=new Blob(["Timestamp,User,Action,Entity,Detail\n"+rows.join("\n")],{type:"text/csv"});const url=URL.createObjectURL(blob);const l=document.createElement("a");l.href=url;l.download="cee_audit.csv";l.click();URL.revokeObjectURL(url);};
-  return(
+function AuditLog({ audit, users = USERS }) {
+  const AC = {
+    TRADE_CREATED: "blue",
+    TRADE_APPROVED: "green",
+    TRADE_REJECTED: "red",
+    TRADE_DELETED: "red",
+    PRICE_ADDED: "amber",
+    OBLIG_ADDED: "sky",
+    CURVE_UPDATED: "purple"
+  };
+
+  const getUser = (userId) => {
+    if (!userId || userId === "undefined") {
+      return { name: "Utilisateur inconnu", initials: "?" };
+    }
+
+    const user = users.find(u => u.id === userId) || USERS.find(u => u.id === userId);
+
+    if (!user) {
+      return { name: `Utilisateur ${userId}`, initials: "?" };
+    }
+
+    return {
+      name: user.name || `Utilisateur ${userId}`,
+      initials: user.initials || user.name?.split(" ").map(x => x[0]).join("").slice(0, 2).toUpperCase() || "?"
+    };
+  };
+
+  const escapeCsv = (value) => {
+    const v = value == null ? "" : String(value);
+    return `"${v.replace(/"/g, '""')}"`;
+  };
+
+  const handleExport = () => {
+    const header = ["Timestamp", "Utilisateur", "Action", "Entité", "Détail"];
+
+    const rows = [...audit]
+      .sort((a, b) => b.ts.localeCompare(a.ts))
+      .map(a => {
+        const user = getUser(a.user);
+
+        return [
+          a.ts,
+          user.name,
+          a.action,
+          a.entity,
+          a.detail
+        ].map(escapeCsv).join(",");
+      });
+
+    const csv = "\uFEFF" + [header.map(escapeCsv).join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+
+    const url = URL.createObjectURL(blob);
+    const l = document.createElement("a");
+    l.href = url;
+    l.download = "cee_audit.csv";
+    l.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
     <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
-      <div style={{ display:"flex",justifyContent:"flex-end" }}><GhostBtn onClick={handleExport}>↓ Exporter CSV</GhostBtn></div>
+      <div style={{ display:"flex",justifyContent:"flex-end" }}>
+        <GhostBtn onClick={handleExport}>↓ Exporter CSV</GhostBtn>
+      </div>
+
       <div style={{ border:"1px solid #1e1c18",borderRadius:"2px",overflow:"hidden" }}>
         <table style={{ width:"100%",borderCollapse:"collapse" }}>
-          <thead><tr>{["Horodatage","Utilisateur","Action","Entité","Détail"].map(h=><TH key={h}>{h}</TH>)}</tr></thead>
+          <thead>
+            <tr>
+              {["Horodatage","Utilisateur","Action","Entité","Détail"].map(h => (
+                <TH key={h}>{h}</TH>
+              ))}
+            </tr>
+          </thead>
+
           <tbody>
-            {[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a=>{const user=USERS.find(u=>u.id===a.user);const bg="#111827";return(
-              <tr key={a.id} style={{ borderBottom:"1px solid #1a1815",background:bg }}>
-                <td style={{ ...S,fontSize:"10px",color:"#3a5070",padding:"9px 14px",whiteSpace:"nowrap" }}>{new Date(a.ts).toLocaleString("fr-FR")}</td>
-                <td style={{ padding:"9px 14px" }}><div style={{ display:"flex",alignItems:"center",gap:"6px" }}><span style={{ ...S,width:"22px",height:"22px",borderRadius:"50%",background:"#1e2d45",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",color:"#38bdf8",fontWeight:600 }}>{user?.initials??""}</span><span style={{ ...S,fontSize:"10px",color:"#4a6080" }}>{user?.name??a.user}</span></div></td>
-                <td style={{ padding:"9px 14px" }}><Badge color={AC[a.action]||"gray"}>{a.action.replace(/_/g," ")}</Badge></td>
-                <td style={{ ...S,fontSize:"10px",color:"#3d3830",padding:"9px 14px" }}>{a.entity}</td>
-                <td style={{ ...S,fontSize:"10px",color:"#4a6080",padding:"9px 14px" }}>{a.detail}</td>
-              </tr>
-            );})}
+            {[...audit].sort((a,b)=>b.ts.localeCompare(a.ts)).map(a => {
+              const user = getUser(a.user);
+              const bg = "#111827";
+
+              return (
+                <tr key={a.id} style={{ borderBottom:"1px solid #1a1815",background:bg }}>
+                  <td style={{ ...S,fontSize:"10px",color:"#3a5070",padding:"9px 14px",whiteSpace:"nowrap" }}>
+                    {new Date(a.ts).toLocaleString("fr-FR")}
+                  </td>
+
+                  <td style={{ padding:"9px 14px" }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:"6px" }}>
+                      <span style={{ ...S,width:"22px",height:"22px",borderRadius:"50%",background:"#1e2d45",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"9px",color:"#38bdf8",fontWeight:600 }}>
+                        {user.initials}
+                      </span>
+                      <span style={{ ...S,fontSize:"10px",color:"#4a6080" }}>
+                        {user.name}
+                      </span>
+                    </div>
+                  </td>
+
+                  <td style={{ padding:"9px 14px" }}>
+                    <Badge color={AC[a.action] || "gray"}>
+                      {(a.action || "UNKNOWN").replace(/_/g," ")}
+                    </Badge>
+                  </td>
+
+                  <td style={{ ...S,fontSize:"10px",color:"#3d3830",padding:"9px 14px" }}>
+                    {a.entity || "—"}
+                  </td>
+
+                  <td style={{ ...S,fontSize:"10px",color:"#4a6080",padding:"9px 14px" }}>
+                    {a.detail || "—"}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
