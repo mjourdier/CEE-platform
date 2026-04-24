@@ -730,7 +730,9 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
 
         <div style={{ display:"flex",gap:"8px",alignItems:"center" }}>
           <GhostBtn onClick={exportBlotterToExcel}>Exporter Excel</GhostBtn>
-          <GoldBtn onClick={()=>setShowModal(true)}>+ Nouvel Achat</GoldBtn>
+          {currentUser?.role === "trader" && (
+            <GoldBtn onClick={()=>setShowModal(true)}>+ Nouvel Achat</GoldBtn>
+          )}
         </div>
       </div>
 
@@ -1674,17 +1676,47 @@ export default function App() {
       precarite:p.precarite,entered_by:p.enteredBy,entered_at:p.enteredAt});
     await addAudit({action:"PRICE_ADDED",entity:p.id,detail:`${p.date}: CL ${p.classique} / PR ${p.precarite}`});
   },[persist,addAudit]);
-  const handleUpdateCurve=useCallback(async(tenor,px)=>{
-    setCurve(c=>({...c,[tenor]:px}));
-    await supabase.from("forward_curve").update({classique:px.classique,precarite:px.precarite,
-      updated_by:currentUser?.id,updated_at:new Date().toISOString()}).eq("tenor",tenor);
-    await addAudit({action:"CURVE_UPDATED",entity:tenor,detail:`${tenor}: CL ${px.classique} / PR ${px.precarite}`});
-  },[currentUser,addAudit]);
-  const handleDeleteTrade=useCallback(async(id)=>{
-    setTrades(ts=>ts.filter(t=>t.id!==id));
-    await supabase.from("trades").delete().eq("id",id);
-    await addAudit({action:"TRADE_DELETED",entity:id,detail:`Trade supprimé définitivement — id: ${id}`});
-  },[addAudit]);
+  const handleUpdateCurve = useCallback(async (tenor, px) => {
+    const oldPx = curve[tenor];
+
+    setCurve(c => ({ ...c, [tenor]: px }));
+
+    await supabase
+      .from("forward_curve")
+      .update({
+        classique: px.classique,
+        precarite: px.precarite,
+        updated_by: currentUser?.id,
+        updated_at: new Date().toISOString()
+      })
+      .eq("tenor", tenor);
+
+    await addAudit({
+      action: "CURVE_UPDATED",
+      entity: tenor,
+      detail: oldPx
+        ? `${tenor} — CL ${N(oldPx.classique,2)} → ${N(px.classique,2)} / PR ${N(oldPx.precarite,2)} → ${N(px.precarite,2)}`
+        : `${tenor} — CL ${N(px.classique,2)} / PR ${N(px.precarite,2)}`
+    });
+  }, [curve, currentUser, addAudit]);
+  const handleDeleteTrade = useCallback(async (id) => {
+    const tradeToDelete = trades.find(t => t.id === id);
+
+    setTrades(ts => ts.filter(t => t.id !== id));
+
+    await supabase
+      .from("trades")
+      .delete()
+      .eq("id", id);
+
+    await addAudit({
+      action: "TRADE_DELETED",
+      entity: id,
+      detail: tradeToDelete
+        ? `Trade supprimé — ${tradeToDelete.vendor} · ${tradeToDelete.ceeType} · ${N(tradeToDelete.volume,3)} GWhc @ ${N(tradeToDelete.price,0)} €/GWhc · ${ML(tradeToDelete.month)}`
+        : `Trade supprimé définitivement — id: ${id}`
+    });
+  }, [trades, addAudit]);
 
   const handleAddObligation=useCallback(async(o)=>{
     setObligations(os=>[...os,o]);
@@ -1718,7 +1750,7 @@ export default function App() {
   
   const TABS=[
     {id:"dashboard",  label:"Dashboard"},
-    {id:"reporting",  label:"📊 Reporting"},
+    {id:"reporting",  label:"Reporting"},
     {id:"position",   label:"Position CEE"},
     {id:"blotter",    label:`Blotter${pending>0?` (${pending})`:""}`},
     {id:"obligation", label:"Obligation"},
