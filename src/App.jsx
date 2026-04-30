@@ -1587,42 +1587,101 @@ export default function App() {
   const [loading,setLoading]        =useState(true);
   const [error,setError]            =useState(null);
 
-  useEffect(()=>{
-    async function loadAll(){
-      try{
-        const [{data:ud,error:e1},{data:td,error:e2},{data:od,error:e3},
-               {data:pd,error:e4},{data:cd,error:e5},{data:ad,error:e6}]=
-          await Promise.all([
-            supabase.from("users").select("*"),
-            supabase.from("trades").select("*").order("created_at"),
-            supabase.from("obligations").select("*").order("month"),
-            supabase.from("market_prices").select("*").order("date"),
-            supabase.from("forward_curve").select("*"),
-            supabase.from("audit_log").select("*").order("ts",{ascending:false}).limit(200),
-          ]);
-        if(e1||e2||e3||e4||e5||e6) throw new Error((e1||e2||e3||e4||e5||e6).message);
-        const normT=(td||[]).map(t=>({id:t.id,ceeType:t.cee_type,vendor:t.vendor,dealType:t.deal_type,
-          period:t.period,volume:+t.volume,price:+t.price,month:t.month,status:t.status,
-          priced:t.priced,statut:t.statut,ranking:t.ranking,emmyValidated:t.emmy_validated,
-          createdBy:t.created_by,approvedBy:t.approved_by,createdAt:t.created_at}));
-        const normO=(od||[]).map(o=>({id:o.id,month:o.month,product:o.product,volume_m3:+o.volume_m3,
-          priceCl:+o.price_cl,pricePr:+o.price_pr,priced:o.priced,client:o.client,
-          clGwhc:+o.cl_gwhc,prGwhc:+o.pr_gwhc}));
-        const normP=(pd||[]).map(p=>({id:p.id,date:p.date,classique:+p.classique,
-          precarite:+p.precarite,enteredBy:p.entered_by,enteredAt:p.entered_at}));
-        const normC={};(cd||[]).forEach(c=>{normC[c.tenor]={classique:+c.classique,precarite:+c.precarite};});
-        const normA=(ad||[]).map(a=>({id:a.id,ts:a.ts,user:a.user_id,action:a.action,entity:a.entity,detail:a.detail}));
-        setUsers(ud || []);
-        setTrades(normT);
-        setObligations(normO);
-        setPrices(normP);
-        setCurve(normC);
-        setAudit(normA);
-        setLoading(false);
-      }catch(e){setError(e.message);setLoading(false);}
+  async function loadAll() {
+    try {
+      setLoading(true);
+
+      const [
+        { data: ud, error: e1 },
+        { data: td, error: e2 },
+        { data: od, error: e3 },
+        { data: pd, error: e4 },
+        { data: cd, error: e5 },
+        { data: ad, error: e6 }
+      ] = await Promise.all([
+        supabase.from("users").select("*"),
+        supabase.from("trades").select("*").order("created_at"),
+        supabase.from("obligations").select("*").order("month"),
+        supabase.from("market_prices").select("*").order("date"),
+        supabase.from("forward_curve").select("*"),
+        supabase.from("audit_log").select("*").order("ts", { ascending: false }).limit(200),
+      ]);
+
+      if (e1 || e2 || e3 || e4 || e5 || e6) {
+        throw new Error((e1 || e2 || e3 || e4 || e5 || e6).message);
+      }
+
+      const normT = (td || []).map(t => ({
+        id: t.id,
+        ceeType: t.cee_type,
+        vendor: t.vendor,
+        dealType: t.deal_type,
+        period: t.period,
+        volume: +t.volume,
+        price: +t.price,
+        month: t.month,
+        status: t.status,
+        priced: t.priced,
+        statut: t.statut,
+        ranking: t.ranking,
+        emmyValidated: t.emmy_validated,
+        createdBy: t.created_by,
+        approvedBy: t.approved_by,
+        createdAt: t.created_at
+      }));
+
+      const normO = (od || []).map(o => ({
+        id: o.id,
+        month: o.month,
+        product: o.product,
+        volume_m3: +o.volume_m3,
+        priceCl: +o.price_cl,
+        pricePr: +o.price_pr,
+        priced: o.priced,
+        client: o.client,
+        clGwhc: +o.cl_gwhc,
+        prGwhc: +o.pr_gwhc
+      }));
+
+      const normP = (pd || []).map(p => ({
+        id: p.id,
+        date: p.date,
+        classique: +p.classique,
+        precarite: +p.precarite,
+        enteredBy: p.entered_by,
+        enteredAt: p.entered_at
+      }));
+
+      const normC = {};
+      (cd || []).forEach(c => {
+        normC[c.tenor] = {
+          classique: +c.classique,
+          precarite: +c.precarite
+        };
+      });
+
+      const normA = (ad || []).map(a => ({
+        id: a.id,
+        ts: a.ts,
+        user: a.user_id,
+        action: a.action,
+        entity: a.entity,
+        detail: a.detail
+      }));
+
+      setUsers(ud || []);
+      setTrades(normT);
+      setObligations(normO);
+      setPrices(normP);
+      setCurve(normC);
+      setAudit(normA);
+
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
     }
-    loadAll();
-  },[]);
+  }
 
   useEffect(() => {
     async function initAuth() {
@@ -1635,6 +1694,10 @@ export default function App() {
 
       if (!currentSession?.user) {
         setCurrentUser(null);
+
+        // 👉 optionnel : charger quand même les données
+        await loadAll();
+
         setAuthLoading(false);
         return;
       }
@@ -1650,6 +1713,9 @@ export default function App() {
       if (error || !userRow) {
         console.error("User mapping error:", error);
         setCurrentUser(null);
+
+        await loadAll(); // fallback safe
+
         setAuthLoading(false);
         return;
       }
@@ -1662,6 +1728,9 @@ export default function App() {
         email: userRow.email,
         authId: userRow.auth_id
       });
+
+      // ✅ LOAD APRÈS AUTH
+      await loadAll();
 
       setAuthLoading(false);
     }
