@@ -97,15 +97,27 @@ function oblMonth(obligations,month,ceeType,pricedOnly=false){
 }
 // avgSellMonth: weighted avg of obligation sell prices (signed volumes, so negative rows reduce total)
 // Result is the blended €/GWhc price the client is charged across all priced rows
-function avgSellMonth(obligations,month,ceeType){
-  const rows=obligations.filter(o=>o.month===month&&o.priced);
-  const key=ceeType==="CLASSIQUE"?"priceCl":"pricePr";
-  let wv=0,ws=0;
-  rows.forEach(o=>{
-    const vol=ceeType==="CLASSIQUE"?o.clGwhc:o.prGwhc;
-    wv+=vol; ws+=vol*o[key];
+function avgSellMonth(obligations, month, ceeType, pricedOnly = true) {
+  const priceKey = ceeType === "CLASSIQUE" ? "priceCl" : "pricePr";
+  const volumeKey = ceeType === "CLASSIQUE" ? "clGwhc" : "prGwhc";
+
+  const rows = obligations.filter(o =>
+    o.month === month &&
+    (!pricedOnly || o.priced)
+  );
+
+  let weightedVolume = 0;
+  let weightedSum = 0;
+
+  rows.forEach(o => {
+    const volume = Number(o[volumeKey]) || 0;
+    const price = Number(o[priceKey]) || 0;
+
+    weightedVolume += volume;
+    weightedSum += volume * price;
   });
-  return wv>0?ws/wv:0;
+
+  return weightedVolume > 0 ? weightedSum / weightedVolume : 0;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -338,8 +350,8 @@ function Reporting({ trades, obligations, prices, curve }) {
                 <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={44}/>
                 <Tooltip content={<ChartTip/>}/>
                 <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#4a6080" }}/>
-                <Bar dataKey="oblClP" name="Oblig. CL Pricée" fill="#1a3848" radius={[1,1,0,0]} stackId="obl"/>
-                <Bar dataKey="oblPrP" name="Oblig. PR Pricée" fill="#2e2410" radius={[1,1,0,0]} stackId="obl"/>
+                <Bar dataKey="oblClP" name="Oblig. CL Totale" fill="#1a3848" radius={[1,1,0,0]} stackId="obl"/>
+                <Bar dataKey="oblPrP" name="Oblig. PR Totale" fill="#2e2410" radius={[1,1,0,0]} stackId="obl"/>
                 <Bar dataKey="bCl"    name="Acheté CL"        fill="#2563eb" radius={[1,1,0,0]} stackId="buy" fillOpacity={0.85}/>
                 <Bar dataKey="bPr"    name="Acheté PR"        fill="#d4a843" radius={[1,1,0,0]} stackId="buy" fillOpacity={0.85}/>
               </BarChart>
@@ -466,54 +478,72 @@ function Reporting({ trades, obligations, prices, curve }) {
 function PositionView({ trades, obligations, curve, prices }) {
   const [view, setView] = useState("position");
 
-  const latestSpot = useMemo(()=>{
-    if(!prices.length) return { classique:(curve.SPOT?.classique??8.96)*1000, precarite:(curve.SPOT?.precarite??16.44)*1000 };
-    const p=[...prices].sort((a,b)=>b.date.localeCompare(a.date))[0];
-    return { classique:p.classique*1000, precarite:p.precarite*1000 };
-  },[prices,curve]);
+  const latestSpot = useMemo(() => {
+    if (!prices.length) {
+      return {
+        classique: (curve.SPOT?.classique ?? 8.96) * 1000,
+        precarite: (curve.SPOT?.precarite ?? 16.44) * 1000
+      };
+    }
+    const p = [...prices].sort((a, b) => b.date.localeCompare(a.date))[0];
+    return {
+      classique: p.classique * 1000,
+      precarite: p.precarite * 1000
+    };
+  }, [prices, curve]);
 
-  const rows = useMemo(()=>MONTHS_LIST.map(month=>{
-    const oblClP = oblMonth(obligations,month,"CLASSIQUE",true);
-    const oblPrP = oblMonth(obligations,month,"PRECARITE",true);
-    const oblClT = oblMonth(obligations,month,"CLASSIQUE");
-    const oblPrT = oblMonth(obligations,month,"PRECARITE");
+  const rows = useMemo(() => MONTHS_LIST.map(month => {
+    const oblClP = oblMonth(obligations, month, "CLASSIQUE", true);
+    const oblPrP = oblMonth(obligations, month, "PRECARITE", true);
+    const oblClT = oblMonth(obligations, month, "CLASSIQUE");
+    const oblPrT = oblMonth(obligations, month, "PRECARITE");
 
-    const bClP = sumVol(trades,"CLASSIQUE",month,true);
-    const bPrP = sumVol(trades,"PRECARITE",month,true);
-    const bCl  = sumVol(trades,"CLASSIQUE",month);
-    const bPr  = sumVol(trades,"PRECARITE",month);
+    const bClP = sumVol(trades, "CLASSIQUE", month, true);
+    const bPrP = sumVol(trades, "PRECARITE", month, true);
+    const bCl = sumVol(trades, "CLASSIQUE", month);
+    const bPr = sumVol(trades, "PRECARITE", month);
 
-    const aClP = wAvg(trades,"CLASSIQUE",month,true);
-    const aPrP = wAvg(trades,"PRECARITE",month,true);
+    const aClP = wAvg(trades, "CLASSIQUE", month, true);
+    const aPrP = wAvg(trades, "PRECARITE", month, true);
+    const aCl = wAvg(trades, "CLASSIQUE", month);
+    const aPr = wAvg(trades, "PRECARITE", month);
 
-    const aCl  = wAvg(trades,"CLASSIQUE",month);
-    const aPr  = wAvg(trades,"PRECARITE",month);
+    // Prix moyens de vente pricés uniquement, comme dans l'Excel : Obligation CEE!C:C = "Yes"
+    const sClP = avgSellMonth(obligations, month, "CLASSIQUE", true);
+    const sPrP = avgSellMonth(obligations, month, "PRECARITE", true);
 
-    const sCl = avgSellMonth(obligations,month,"CLASSIQUE");
-    const sPr = avgSellMonth(obligations,month,"PRECARITE");
+    // Prix moyens de vente totaux éventuellement utiles pour la vue Position
+    const sCl = avgSellMonth(obligations, month, "CLASSIQUE");
+    const sPr = avgSellMonth(obligations, month, "PRECARITE");
 
-    // ✅ CORRECTION ICI → NET basé sur TOTAL
+    // Vue Position & Couverture : logique totale
     const netCl = bCl - oblClT;
     const netPr = bPr - oblPrT;
+    const covPct = (oblClT + oblPrT) > 0 ? (bCl + bPr) / (oblClT + oblPrT) * 100 : 0;
 
-    // ✅ CORRECTION ICI → couverture sur TOTAL
-    const covPct = (oblClT+oblPrT)>0 ? (bCl+bPr)/(oblClT+oblPrT)*100 : 0;
-
-    // PnL (inchangé)
+    // Vue PnL & MtM : réplication Excel
+    // Excel : =SI(volume_acheté_pricé <= volume_sold_pricé;
+    //             (prix_sold_pricé - prix_purchased_pricé) * volume_acheté_pricé;
+    //             (prix_sold_pricé - prix_purchased_pricé) * volume_sold_pricé)
     const matchCl = Math.min(bClP, oblClP);
     const matchPr = Math.min(bPrP, oblPrP);
-    const pnlCl = (oblClP>0.001 && aClP>0 && sCl>0) ? (sCl - aClP) * matchCl : 0;
-    const pnlPr = (oblPrP>0.001 && aPrP>0 && sPr>0) ? (sPr - aPrP) * matchPr : 0;
 
-    // MtM (inchangé)
-    const openCl = (oblClP>0.001 && (bClP-oblClP)>0) ? (bClP-oblClP) : 0;
-    const openPr = (oblPrP>0.001 && (bPrP-oblPrP)>0) ? (bPrP-oblPrP) : 0;
+    const pnlCl = (matchCl > 0.001 && aClP > 0 && sClP > 0)
+      ? (sClP - aClP) * matchCl
+      : 0;
+
+    const pnlPr = (matchPr > 0.001 && aPrP > 0 && sPrP > 0)
+      ? (sPrP - aPrP) * matchPr
+      : 0;
+
+    const openCl = (oblClP > 0.001 && (bClP - oblClP) > 0) ? (bClP - oblClP) : 0;
+    const openPr = (oblPrP > 0.001 && (bPrP - oblPrP) > 0) ? (bPrP - oblPrP) : 0;
     const mtmCl = openCl > 0 ? openCl * (latestSpot.classique - aClP) : 0;
     const mtmPr = openPr > 0 ? openPr * (latestSpot.precarite - aPrP) : 0;
 
+    // Vue Obligations non pricées
     const oblClU = oblClT - oblClP;
     const oblPrU = oblPrT - oblPrP;
-
     const bClU = bCl - bClP;
     const bPrU = bPr - bPrP;
 
@@ -527,102 +557,309 @@ function PositionView({ trades, obligations, curve, prices }) {
       aCl, aPr,
       aClP, aPrP,
       sCl, sPr,
+      sClP, sPrP,
       netCl, netPr,
       covPct,
       pnlCl, pnlPr,
       mtmCl, mtmPr,
       oblClU, oblPrU,
-      unpricedBoughtCl:bClU,
-      unpricedBoughtPr:bPrU
+      unpricedBoughtCl: bClU,
+      unpricedBoughtPr: bPrU
     };
-  }),[trades,obligations,latestSpot]);
+  }), [trades, obligations, latestSpot]);
 
-  // ✅ TOTAL corrigé
-  const tot = useMemo(()=>({
-    oblCl:rows.reduce((s,r)=>s+r.oblClT,0),
-    oblPr:rows.reduce((s,r)=>s+r.oblPrT,0),
-    bCl:rows.reduce((s,r)=>s+r.bCl,0),
-    bPr:rows.reduce((s,r)=>s+r.bPr,0),
-    pnlCl:rows.reduce((s,r)=>s+r.pnlCl,0),
-    pnlPr:rows.reduce((s,r)=>s+r.pnlPr,0),
-    mtmCl:rows.reduce((s,r)=>s+r.mtmCl,0),
-    mtmPr:rows.reduce((s,r)=>s+r.mtmPr,0),
-    oblClU:rows.reduce((s,r)=>s+r.oblClU,0),
-    oblPrU:rows.reduce((s,r)=>s+r.oblPrU,0)
-  }),[rows]);
-  
-  const VIEWS=[{id:"position",label:"Position & Couverture"},{id:"pnl",label:"PnL Réalisé & MtM"},{id:"unpriced",label:"Oblig. Non Pricées"}];
+  const tot = useMemo(() => ({
+    oblCl: rows.reduce((s, r) => s + r.oblClT, 0),
+    oblPr: rows.reduce((s, r) => s + r.oblPrT, 0),
+    bCl: rows.reduce((s, r) => s + r.bCl, 0),
+    bPr: rows.reduce((s, r) => s + r.bPr, 0),
+    pnlCl: rows.reduce((s, r) => s + r.pnlCl, 0),
+    pnlPr: rows.reduce((s, r) => s + r.pnlPr, 0),
+    mtmCl: rows.reduce((s, r) => s + r.mtmCl, 0),
+    mtmPr: rows.reduce((s, r) => s + r.mtmPr, 0),
+    oblClU: rows.reduce((s, r) => s + r.oblClU, 0),
+    oblPrU: rows.reduce((s, r) => s + r.oblPrU, 0)
+  }), [rows]);
 
-  const pc=(v,color)=>v!=null?(<span style={{ ...S,fontSize:"12px",color:v>0?CHART_COLORS.green:v<0?CHART_COLORS.red:"#3a5070",fontWeight:v!==0?600:400 }}>{v>0?"+":""}{N(v,2)}</span>):"—";
-  const pk=(v)=>v!=null?(<span style={{ ...S,fontSize:"12px",color:v>0?CHART_COLORS.green:v<0?CHART_COLORS.red:"#3a5070",fontWeight:v!==0?600:400 }}>{fK(v)}</span>):"—";
+  const VIEWS = [
+    { id: "position", label: "Position & Couverture" },
+    { id: "pnl", label: "PnL Réalisé & MtM" },
+    { id: "unpriced", label: "Oblig. Non Pricées" }
+  ];
+
+  const pc = (v) => v != null ? (
+    <span style={{
+      ...S,
+      fontSize: "12px",
+      color: v > 0 ? CHART_COLORS.green : v < 0 ? CHART_COLORS.red : "#3a5070",
+      fontWeight: v !== 0 ? 600 : 400
+    }}>
+      {v > 0 ? "+" : ""}{N(v, 2)}
+    </span>
+  ) : "—";
+
+  const pk = (v) => v != null ? (
+    <span style={{
+      ...S,
+      fontSize: "12px",
+      color: v > 0 ? CHART_COLORS.green : v < 0 ? CHART_COLORS.red : "#3a5070",
+      fontWeight: v !== 0 ? 600 : 400
+    }}>
+      {fK(v)}
+    </span>
+  ) : "—";
 
   return (
-    <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
-      <div style={{ display:"flex",gap:"14px",borderBottom:"1px solid #e2e4e8" }}>
-        {VIEWS.map(v=><button key={v.id} onClick={()=>setView(v.id)} style={{ ...S,background:"none",border:"none",fontSize:"10px",letterSpacing:"0.1em",textTransform:"uppercase",padding:"10px 0",cursor:"pointer",whiteSpace:"nowrap",color:view===v.id?"#38bdf8":"#3a5070",borderBottom:view===v.id?"1px solid #b8973a":"1px solid transparent" }}>{v.label}</button>)}
+    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+      <div style={{ display: "flex", gap: "14px", borderBottom: "1px solid #e2e4e8" }}>
+        {VIEWS.map(v => (
+          <button
+            key={v.id}
+            onClick={() => setView(v.id)}
+            style={{
+              ...S,
+              background: "none",
+              border: "none",
+              fontSize: "10px",
+              letterSpacing: "0.1em",
+              textTransform: "uppercase",
+              padding: "10px 0",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              color: view === v.id ? "#38bdf8" : "#3a5070",
+              borderBottom: view === v.id ? "1px solid #b8973a" : "1px solid transparent"
+            }}
+          >
+            {v.label}
+          </button>
+        ))}
       </div>
-      <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px" }}>
-        {view==="position" && <><KPI label="Oblig. CL Pricée" value={N(tot.oblCl,0)+" GWhc"} color="sky"/><KPI label="Acheté CL" value={N(tot.bCl,0)+" GWhc"} color="sky"/><KPI label="Oblig. PR Pricée" value={N(tot.oblPr,0)+" GWhc"} color="amber"/><KPI label="Acheté PR" value={N(tot.bPr,0)+" GWhc"} color="amber"/></>}
-        {view==="pnl"      && <><KPI label="PnL Réalisé CL" value={fK(tot.pnlCl)} color={tot.pnlCl>=0?"emerald":"rose"}/><KPI label="PnL Réalisé PR" value={fK(tot.pnlPr)} color={tot.pnlPr>=0?"emerald":"rose"}/><KPI label="MtM CL" value={fK(tot.mtmCl)} color={tot.mtmCl>=0?"emerald":"rose"}/><KPI label="MtM PR" value={fK(tot.mtmPr)} color={tot.mtmPr>=0?"emerald":"rose"}/></>}
-        {view==="unpriced" && <><KPI label="Non Pricée CL" value={N(tot.oblClU,0)+" GWhc"} color="rose"/><KPI label="Non Pricée PR" value={N(tot.oblPrU,0)+" GWhc"} color="rose"/><KPI label="Total Non Pricé" value={N(tot.oblClU+tot.oblPrU,0)+" GWhc"} color="amber"/></>}
-      </div><KPI label="Valeur Spot Estimée" value={fM(tot.oblClU*latestSpot.classique + tot.oblPrU*latestSpot.precarite)} color="gray"/>
-      <div style={{ overflowX:"auto",border:"1px solid #1e1c18",borderRadius:"2px" }}>
-        <table style={{ width:"100%",borderCollapse:"collapse",minWidth:"900px" }}>
-          <thead><tr>
-            <TH>Mois</TH>
-            {view==="position"&&<><TH>Oblig. CL (GWhc)</TH><TH>Oblig. PR (GWhc)</TH><TH>Acheté CL</TH><TH>Acheté PR</TH><TH>Net CL</TH><TH>Net PR</TH><TH>% Couvert</TH><TH>Avg Achat CL</TH><TH>Avg Vente CL</TH></>}
-            {view==="pnl"&&<><TH>Avg Achat CL</TH><TH>Avg Vente CL</TH><TH>PnL CL</TH><TH>Avg Achat PR</TH><TH>Avg Vente PR</TH><TH>PnL PR</TH><TH>MtM CL</TH><TH>MtM PR</TH><TH>Net PnL+MtM</TH></>}
-            {view==="unpriced"&&<><TH>Oblig. CL Totale</TH><TH>Non Pricée CL</TH><TH>Oblig. PR Totale</TH><TH>Non Pricée PR</TH><TH>Total Non Pricé</TH><TH>Acheté (non pricé) CL</TH><TH>Position Forward CL</TH><TH>Val. Spot Estimée</TH></>}
-          </tr></thead>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "10px" }}>
+        {view === "position" && (
+          <>
+            <KPI label="Oblig. CL Totale" value={N(tot.oblCl, 0) + " GWhc"} color="sky" />
+            <KPI label="Acheté CL" value={N(tot.bCl, 0) + " GWhc"} color="sky" />
+            <KPI label="Oblig. PR Totale" value={N(tot.oblPr, 0) + " GWhc"} color="amber" />
+            <KPI label="Acheté PR" value={N(tot.bPr, 0) + " GWhc"} color="amber" />
+          </>
+        )}
+
+        {view === "pnl" && (
+          <>
+            <KPI label="PnL Réalisé CL" value={fK(tot.pnlCl)} color={tot.pnlCl >= 0 ? "emerald" : "rose"} />
+            <KPI label="PnL Réalisé PR" value={fK(tot.pnlPr)} color={tot.pnlPr >= 0 ? "emerald" : "rose"} />
+            <KPI label="MtM CL" value={fK(tot.mtmCl)} color={tot.mtmCl >= 0 ? "emerald" : "rose"} />
+            <KPI label="MtM PR" value={fK(tot.mtmPr)} color={tot.mtmPr >= 0 ? "emerald" : "rose"} />
+          </>
+        )}
+
+        {view === "unpriced" && (
+          <>
+            <KPI label="Non Pricée CL" value={N(tot.oblClU, 0) + " GWhc"} color="rose" />
+            <KPI label="Non Pricée PR" value={N(tot.oblPrU, 0) + " GWhc"} color="rose" />
+            <KPI label="Total Non Pricé" value={N(tot.oblClU + tot.oblPrU, 0) + " GWhc"} color="amber" />
+          </>
+        )}
+      </div>
+
+      {view === "position" && (
+        <KPI
+          label="Exposition Non Pricée au Spot"
+          value={fM(tot.oblClU * latestSpot.classique + tot.oblPrU * latestSpot.precarite)}
+          color="gray"
+        />
+      )}
+
+      {view === "pnl" && (
+        <KPI
+          label="PnL Total Estimé"
+          value={fM(tot.pnlCl + tot.pnlPr + tot.mtmCl + tot.mtmPr)}
+          color={(tot.pnlCl + tot.pnlPr + tot.mtmCl + tot.mtmPr) >= 0 ? "emerald" : "rose"}
+        />
+      )}
+
+      {view === "unpriced" && (
+        <KPI
+          label="Valorisation Non Pricée au Spot"
+          value={fM(tot.oblClU * latestSpot.classique + tot.oblPrU * latestSpot.precarite)}
+          color="gray"
+        />
+      )}
+
+      <div style={{ overflowX: "auto", border: "1px solid #1e1c18", borderRadius: "2px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px" }}>
+          <thead>
+            <tr>
+              <TH>Mois</TH>
+
+              {view === "position" && (
+                <>
+                  <TH>Oblig. CL Totale (GWhc)</TH>
+                  <TH>Oblig. PR Totale (GWhc)</TH>
+                  <TH>Acheté CL</TH>
+                  <TH>Acheté PR</TH>
+                  <TH>Net CL</TH>
+                  <TH>Net PR</TH>
+                  <TH>% Couvert</TH>
+                  <TH>Avg Achat CL</TH>
+                  <TH>Avg Vente CL</TH>
+                </>
+              )}
+
+              {view === "pnl" && (
+                <>
+                  <TH>Avg Achat CL</TH>
+                  <TH>Avg Vente CL</TH>
+                  <TH>PnL CL</TH>
+                  <TH>Avg Achat PR</TH>
+                  <TH>Avg Vente PR</TH>
+                  <TH>PnL PR</TH>
+                  <TH>MtM CL</TH>
+                  <TH>MtM PR</TH>
+                  <TH>Net PnL + MtM</TH>
+                </>
+              )}
+
+              {view === "unpriced" && (
+                <>
+                  <TH>Oblig. CL Totale</TH>
+                  <TH>Non Pricée CL</TH>
+                  <TH>Oblig. PR Totale</TH>
+                  <TH>Non Pricée PR</TH>
+                  <TH>Total Non Pricé</TH>
+                  <TH>Acheté Non Pricé CL</TH>
+                  <TH>Position Forward</TH>
+                  <TH>Val. Spot Estimée</TH>
+                </>
+              )}
+            </tr>
+          </thead>
+
           <tbody>
-            {rows.map((r,i)=>{
-              const bg=i%2===0?"#111827":"#141210";
-              const isForecast=r.month>"2026-03";
+            {rows.map((r, i) => {
+              const bg = i % 2 === 0 ? "#111827" : "#141210";
+              const isForecast = r.month > "2026-03";
+
               return (
-                <tr key={r.month} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#0d1526"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
-                  <td style={{ ...CG,fontSize:"15px",color:"#e2e8f0",padding:"9px 14px",fontWeight:600,whiteSpace:"nowrap" }}>
-                    {ML(r.month)}{isForecast&&<span style={{ ...S,fontSize:"8px",color:"#1e2d45",marginLeft:"6px" }}>FCST</span>}
+                <tr
+                  key={r.month}
+                  style={{ borderBottom: "1px solid #1a1815", background: bg }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#0d1526"}
+                  onMouseLeave={e => e.currentTarget.style.background = bg}
+                >
+                  <td style={{ ...CG, fontSize: "15px", color: "#e2e8f0", padding: "9px 14px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    {ML(r.month)}
+                    {isForecast && <span style={{ ...S, fontSize: "8px", color: "#1e2d45", marginLeft: "6px" }}>FCST</span>}
                   </td>
-                  {view==="position"&&<>
-                    <td style={{ ...S,fontSize:"12px",color:"#2563eb",padding:"9px 14px" }}>{N(r.oblClP,2)}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#d4a843",padding:"9px 14px" }}>{N(r.oblPrP,2)}</td>
-                    <td style={{ ...S,fontSize:"12px",color:r.bCl>0?"#e2e8f0":"#3d3830",padding:"9px 14px" }}>{N(r.bCl,2)}</td>
-                    <td style={{ ...S,fontSize:"12px",color:r.bPr>0?"#e2e8f0":"#3d3830",padding:"9px 14px" }}>{N(r.bPr,2)}</td>
-                    <td style={{ padding:"9px 14px" }}>{pc(r.netCl)}</td>
-                    <td style={{ padding:"9px 14px" }}>{pc(r.netPr)}</td>
-                    <td style={{ padding:"9px 14px",minWidth:"120px" }}>{(r.oblClP+r.oblPrP)>0?<CovBar pct={r.covPct}/>:<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{fmtMWhc(r.aCl)}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{fmtMWhc(r.sCl)}</td>
-                  </>}
-                  {view==="pnl"&&<>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{fmtMWhc(r.aCl)}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{fmtMWhc(r.sCl)}</td>
-                    <td style={{ padding:"9px 14px" }}>{r.pnlCl!==0?pk(r.pnlCl):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{fmtMWhc(r.aPr)}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{fmtMWhc(r.sPr)}</td>
-                    <td style={{ padding:"9px 14px" }}>{r.pnlPr!==0?pk(r.pnlPr):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
-                    <td style={{ padding:"9px 14px" }}>{r.mtmCl!==0?pk(r.mtmCl):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
-                    <td style={{ padding:"9px 14px" }}>{r.mtmPr!==0?pk(r.mtmPr):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
-                    <td style={{ padding:"9px 14px" }}>{pk(r.pnlCl+r.pnlPr+r.mtmCl+r.mtmPr)}</td>
-                  </>}
-                  {view==="unpriced"&&<>
-                    <td style={{ ...S,fontSize:"12px",color:"#2563eb",padding:"9px 14px" }}>{N(r.oblClT,2)}</td>
-                    <td style={{ padding:"9px 14px" }}>{r.oblClU>0.01?<span style={{ ...S,fontSize:"12px",color:"#f87171",fontWeight:600 }}>{N(r.oblClU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#d4a843",padding:"9px 14px" }}>{N(r.oblPrT,2)}</td>
-                    <td style={{ padding:"9px 14px" }}>{r.oblPrU>0.01?<span style={{ ...S,fontSize:"12px",color:"#f87171",fontWeight:600 }}>{N(r.oblPrU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
-                    <td style={{ padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?<span style={{ ...S,fontSize:"12px",color:"#f87171",fontWeight:600 }}>{N(r.oblClU+r.oblPrU,2)}</span>:<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
-                    <td style={{ ...S,fontSize:"12px",color:r.unpricedBoughtCl>0?"#e2e8f0":"#3d3830",padding:"9px 14px" }}>{r.unpricedBoughtCl>0.01?N(r.unpricedBoughtCl,2):"—"}</td>
-                    <td style={{ padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?pc(r.unpricedBoughtCl+r.unpricedBoughtPr - r.oblClU - r.oblPrU):<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>—</span>}</td>
-                    <td style={{ ...S,fontSize:"12px",color:"#4a6080",padding:"9px 14px" }}>{(r.oblClU+r.oblPrU)>0.01?fK(r.oblClU*latestSpot.classique + r.oblPrU*latestSpot.precarite):"—"}</td>
-                  </>}
+
+                  {view === "position" && (
+                    <>
+                      <td style={{ ...S, fontSize: "12px", color: "#2563eb", padding: "9px 14px" }}>{N(r.oblClT, 2)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "#d4a843", padding: "9px 14px" }}>{N(r.oblPrT, 2)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: r.bCl > 0 ? "#e2e8f0" : "#3d3830", padding: "9px 14px" }}>{N(r.bCl, 2)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: r.bPr > 0 ? "#e2e8f0" : "#3d3830", padding: "9px 14px" }}>{N(r.bPr, 2)}</td>
+                      <td style={{ padding: "9px 14px" }}>{pc(r.netCl)}</td>
+                      <td style={{ padding: "9px 14px" }}>{pc(r.netPr)}</td>
+                      <td style={{ padding: "9px 14px", minWidth: "120px" }}>
+                        {(r.oblClT + r.oblPrT) > 0
+                          ? <CovBar pct={r.covPct} />
+                          : <span style={{ ...S, fontSize: "10px", color: "#1e2d45" }}>—</span>}
+                      </td>
+                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{fmtMWhc(r.aCl)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{fmtMWhc(r.sCl)}</td>
+                    </>
+                  )}
+
+                  {view === "pnl" && (
+                    <>
+                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{fmtMWhc(r.aClP)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{fmtMWhc(r.sClP)}</td>
+                      <td style={{ padding: "9px 14px" }}>{r.pnlCl !== 0 ? pk(r.pnlCl) : <span style={{ ...S, fontSize: "10px", color: "#1e2d45" }}>—</span>}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{fmtMWhc(r.aPrP)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{fmtMWhc(r.sPrP)}</td>
+                      <td style={{ padding: "9px 14px" }}>{r.pnlPr !== 0 ? pk(r.pnlPr) : <span style={{ ...S, fontSize: "10px", color: "#1e2d45" }}>—</span>}</td>
+                      <td style={{ padding: "9px 14px" }}>{r.mtmCl !== 0 ? pk(r.mtmCl) : <span style={{ ...S, fontSize: "10px", color: "#1e2d45" }}>—</span>}</td>
+                      <td style={{ padding: "9px 14px" }}>{r.mtmPr !== 0 ? pk(r.mtmPr) : <span style={{ ...S, fontSize: "10px", color: "#1e2d45" }}>—</span>}</td>
+                      <td style={{ padding: "9px 14px" }}>{pk(r.pnlCl + r.pnlPr + r.mtmCl + r.mtmPr)}</td>
+                    </>
+                  )}
+
+                  {view === "unpriced" && (
+                    <>
+                      <td style={{ ...S, fontSize: "12px", color: "#2563eb", padding: "9px 14px" }}>{N(r.oblClT, 2)}</td>
+                      <td style={{ padding: "9px 14px" }}>
+                        {r.oblClU > 0.01
+                          ? <span style={{ ...S, fontSize: "12px", color: "#f87171", fontWeight: 600 }}>{N(r.oblClU, 2)}</span>
+                          : <span style={{ ...S, fontSize: "10px", color: "#1e2d45" }}>—</span>}
+                      </td>
+                      <td style={{ ...S, fontSize: "12px", color: "#d4a843", padding: "9px 14px" }}>{N(r.oblPrT, 2)}</td>
+                      <td style={{ padding: "9px 14px" }}>
+                        {r.oblPrU > 0.01
+                          ? <span style={{ ...S, fontSize: "12px", color: "#f87171", fontWeight: 600 }}>{N(r.oblPrU, 2)}</span>
+                          : <span style={{ ...S, fontSize: "10px", color: "#1e2d45" }}>—</span>}
+                      </td>
+                      <td style={{ padding: "9px 14px" }}>
+                        {(r.oblClU + r.oblPrU) > 0.01
+                          ? <span style={{ ...S, fontSize: "12px", color: "#f87171", fontWeight: 600 }}>{N(r.oblClU + r.oblPrU, 2)}</span>
+                          : <span style={{ ...S, fontSize: "10px", color: "#1e2d45" }}>—</span>}
+                      </td>
+                      <td style={{ ...S, fontSize: "12px", color: r.unpricedBoughtCl > 0 ? "#e2e8f0" : "#3d3830", padding: "9px 14px" }}>
+                        {r.unpricedBoughtCl > 0.01 ? N(r.unpricedBoughtCl, 2) : "—"}
+                      </td>
+                      <td style={{ padding: "9px 14px" }}>
+                        {(r.oblClU + r.oblPrU) > 0.01
+                          ? pc(r.unpricedBoughtCl + r.unpricedBoughtPr - r.oblClU - r.oblPrU)
+                          : <span style={{ ...S, fontSize: "10px", color: "#1e2d45" }}>—</span>}
+                      </td>
+                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>
+                        {(r.oblClU + r.oblPrU) > 0.01
+                          ? fK(r.oblClU * latestSpot.classique + r.oblPrU * latestSpot.precarite)
+                          : "—"}
+                      </td>
+                    </>
+                  )}
                 </tr>
               );
             })}
-            <tr style={{ background:"#1e2d45",borderTop:"1px solid #2e2b24" }}>
-              <td style={{ ...S,fontSize:"10px",color:"#38bdf8",padding:"10px 14px",fontWeight:700,textTransform:"uppercase",letterSpacing:"0.1em" }}>Total 2026</td>
-              {view==="position"&&<><td style={{ ...S,fontSize:"12px",color:"#2563eb",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblCl,0)}</td><td style={{ ...S,fontSize:"12px",color:"#d4a843",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblPr,0)}</td><td style={{ ...S,fontSize:"12px",color:"#e2e8f0",padding:"10px 14px",fontWeight:700 }}>{N(tot.bCl,0)}</td><td style={{ ...S,fontSize:"12px",color:"#e2e8f0",padding:"10px 14px",fontWeight:700 }}>{N(tot.bPr,0)}</td><td colSpan={5}/></>}
-              {view==="pnl"&&<><td colSpan={2}/><td style={{ padding:"10px 14px" }}>{pk(tot.pnlCl)}</td><td colSpan={2}/><td style={{ padding:"10px 14px" }}>{pk(tot.pnlPr)}</td><td style={{ padding:"10px 14px" }}>{pk(tot.mtmCl)}</td><td style={{ padding:"10px 14px" }}>{pk(tot.mtmPr)}</td><td style={{ padding:"10px 14px" }}>{pk(tot.pnlCl+tot.pnlPr+tot.mtmCl+tot.mtmPr)}</td></>}
-              {view==="unpriced"&&<><td/><td style={{ ...S,fontSize:"12px",color:"#f87171",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblClU,0)}</td><td/><td style={{ ...S,fontSize:"12px",color:"#f87171",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblPrU,0)}</td><td style={{ ...S,fontSize:"13px",color:"#f87171",padding:"10px 14px",fontWeight:700 }}>{N(tot.oblClU+tot.oblPrU,0)}</td><td colSpan={3}/></>}
+
+            <tr style={{ background: "#1e2d45", borderTop: "1px solid #2e2b24" }}>
+              <td style={{ ...S, fontSize: "10px", color: "#38bdf8", padding: "10px 14px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                Total 2026
+              </td>
+
+              {view === "position" && (
+                <>
+                  <td style={{ ...S, fontSize: "12px", color: "#2563eb", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblCl, 0)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "#d4a843", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblPr, 0)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "#e2e8f0", padding: "10px 14px", fontWeight: 700 }}>{N(tot.bCl, 0)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "#e2e8f0", padding: "10px 14px", fontWeight: 700 }}>{N(tot.bPr, 0)}</td>
+                  <td colSpan={5} />
+                </>
+              )}
+
+              {view === "pnl" && (
+                <>
+                  <td colSpan={2} />
+                  <td style={{ padding: "10px 14px" }}>{pk(tot.pnlCl)}</td>
+                  <td colSpan={2} />
+                  <td style={{ padding: "10px 14px" }}>{pk(tot.pnlPr)}</td>
+                  <td style={{ padding: "10px 14px" }}>{pk(tot.mtmCl)}</td>
+                  <td style={{ padding: "10px 14px" }}>{pk(tot.mtmPr)}</td>
+                  <td style={{ padding: "10px 14px" }}>{pk(tot.pnlCl + tot.pnlPr + tot.mtmCl + tot.mtmPr)}</td>
+                </>
+              )}
+
+              {view === "unpriced" && (
+                <>
+                  <td />
+                  <td style={{ ...S, fontSize: "12px", color: "#f87171", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblClU, 0)}</td>
+                  <td />
+                  <td style={{ ...S, fontSize: "12px", color: "#f87171", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblPrU, 0)}</td>
+                  <td style={{ ...S, fontSize: "13px", color: "#f87171", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblClU + tot.oblPrU, 0)}</td>
+                  <td colSpan={3} />
+                </>
+              )}
             </tr>
           </tbody>
         </table>
