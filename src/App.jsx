@@ -1605,6 +1605,17 @@ function Tools({ curve }) {
     setPnlTool(prev => ({ ...prev, [field]: value }));
   };
 
+  const [convertTool, setConvertTool] = useState({
+  product: "CARBURANT",
+  classiqueMWhc: curve?.SPOT?.classique || 0,
+  precariteMWhc: curve?.SPOT?.precarite || 0,
+  useSpot: true,
+  });
+
+  const updateConvert = (field, value) => {
+    setConvertTool(prev => ({ ...prev, [field]: value }));
+  };
+
   const result = useMemo(() => {
     const productParams = PARAMS[pnlTool.product];
     const energyFactor = productParams.kwhc_per_m3;
@@ -1618,7 +1629,6 @@ function Tools({ curve }) {
     const maturityEstDate = new Date(MATURITY_DATES[pnlTool.maturityPeriod]);
 
     const volumeM3 = volumeGWhc * 1_000_000 / energyFactor / precaCoeff;
-
     const purchasePriceM3 = energyFactor * purchasePriceMWhc / 1000 * precaCoeff;
 
     const spotSellingPriceMWhc =
@@ -1630,7 +1640,6 @@ function Tools({ curve }) {
       pnlTool.sellingPriceMode === "manual"
         ? Number(pnlTool.sellingPriceMWhcManual) || 0
         : spotSellingPriceMWhc;
-        
 
     const sellingPriceM3 = energyFactor * sellingPriceMWhc / 1000 * precaCoeff;
 
@@ -1640,7 +1649,6 @@ function Tools({ curve }) {
     );
 
     const discountingFactor = numberOfDays / 365;
-
     const ceePurchasePriceMarket = purchasePriceM3;
 
     const ceePurchasePriceNpvM3 =
@@ -1661,6 +1669,7 @@ function Tools({ curve }) {
       precaCoeff,
       volumeM3,
       purchasePriceM3,
+      spotSellingPriceMWhc,
       sellingPriceMWhc,
       sellingPriceM3,
       maturityEstDate: MATURITY_DATES[pnlTool.maturityPeriod],
@@ -1676,6 +1685,42 @@ function Tools({ curve }) {
       netFinancingImpact,
     };
   }, [pnlTool, curve]);
+
+  const convertResult = useMemo(() => {
+    const productParams = PARAMS[convertTool.product];
+
+    const classiqueMWhc = convertTool.useSpot
+      ? curve?.SPOT?.classique || 0
+      : Number(convertTool.classiqueMWhc) || 0;
+
+    const precariteMWhc = convertTool.useSpot
+      ? curve?.SPOT?.precarite || 0
+      : Number(convertTool.precariteMWhc) || 0;
+
+    const classiqueEurM3 =
+      classiqueMWhc * productParams.kwhc_per_m3 / 1000;
+
+    const precariteEurM3 =
+      precariteMWhc *
+      productParams.kwhc_per_m3 /
+      1000 *
+      productParams.coeff_precarite *
+      productParams.coeff_correctif;
+
+    const totalEurM3 = classiqueEurM3 + precariteEurM3;
+
+    return {
+      productLabel: productParams.label,
+      kwhcPerM3: productParams.kwhc_per_m3,
+      coeffPrecarite: productParams.coeff_precarite,
+      coeffCorrectif: productParams.coeff_correctif,
+      classiqueMWhc,
+      precariteMWhc,
+      classiqueEurM3,
+      precariteEurM3,
+      totalEurM3,
+    };
+  }, [convertTool, curve]);
 
   const row = (label, value, highlight = false) => (
     <tr>
@@ -1734,26 +1779,11 @@ function Tools({ curve }) {
               <option value="FOD">FOD</option>
             </FS>
 
-            <FI
-              label="Volume GWhc"
-              type="number"
-              value={pnlTool.volumeGWhc}
-              onChange={e => update("volumeGWhc", e.target.value)}
-            />
+            <FI label="Volume GWhc" type="number" value={pnlTool.volumeGWhc} onChange={e => update("volumeGWhc", e.target.value)} />
 
-            <FI
-              label="Purchase Price - €/MWhc"
-              type="number"
-              step="0.01"
-              value={pnlTool.purchasePriceMWhc}
-              onChange={e => update("purchasePriceMWhc", e.target.value)}
-            />
+            <FI label="Purchase Price - €/MWhc" type="number" step="0.01" value={pnlTool.purchasePriceMWhc} onChange={e => update("purchasePriceMWhc", e.target.value)} />
 
-            <FS
-              label="Selling Price Mode"
-              value={pnlTool.sellingPriceMode}
-              onChange={e => update("sellingPriceMode", e.target.value)}
-            >
+            <FS label="Selling Price Mode" value={pnlTool.sellingPriceMode} onChange={e => update("sellingPriceMode", e.target.value)}>
               <option value="spot">Prix spot</option>
               <option value="manual">Entrée manuelle</option>
             </FS>
@@ -1762,42 +1792,22 @@ function Tools({ curve }) {
               label="Selling Price - €/MWhc"
               type="number"
               step="0.01"
-              value={
-                pnlTool.sellingPriceMode === "spot"
-                  ? (
-                      pnlTool.ceeType === "Classique"
-                        ? curve?.SPOT?.classique ?? ""
-                        : curve?.SPOT?.precarite ?? ""
-                    )
-                  : pnlTool.sellingPriceMWhcManual
-              }
+              value={pnlTool.sellingPriceMode === "spot"
+                ? (pnlTool.ceeType === "Classique" ? curve?.SPOT?.classique ?? "" : curve?.SPOT?.precarite ?? "")
+                : pnlTool.sellingPriceMWhcManual}
               disabled={pnlTool.sellingPriceMode === "spot"}
               onChange={e => update("sellingPriceMWhcManual", e.target.value)}
             />
 
-            <FS
-              label="Expected selling date"
-              value={pnlTool.expectedSellingDate}
-              onChange={e => update("expectedSellingDate", e.target.value)}
-            >
-              {MONTHS_LIST.map(m => (
-                <option key={m} value={`${m}-01`}>
-                  {ML(m)}
-                </option>
-              ))}
+            <FS label="Expected selling date" value={pnlTool.expectedSellingDate} onChange={e => update("expectedSellingDate", e.target.value)}>
+              {MONTHS_LIST.map(m => <option key={m} value={`${m}-01`}>{ML(m)}</option>)}
             </FS>
 
             <FS label="CEE purchase maturity" value={pnlTool.maturityPeriod} onChange={e => update("maturityPeriod", e.target.value)}>
               {MATURITY_TENORS.map(t => <option key={t} value={t}>{t}</option>)}
             </FS>
 
-            <FI
-              label="Discounting rate (%)"
-              type="number"
-              step="0.1"
-              value={pnlTool.discountingRate}
-              onChange={e => update("discountingRate", e.target.value)}
-            />
+            <FI label="Discounting rate (%)" type="number" step="0.1" value={pnlTool.discountingRate} onChange={e => update("discountingRate", e.target.value)} />
           </div>
         </div>
 
@@ -1826,6 +1836,60 @@ function Tools({ curve }) {
               {row("Net Financing Impact", N(result.netFinancingImpact, 2) + " €", true)}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div style={{ background:"#111827", border:"1px solid #252219", borderRadius:"2px", padding:"22px" }}>
+        <p style={{ ...S, fontSize:"9px", color:"#38bdf8", textTransform:"uppercase", letterSpacing:"0.18em", marginBottom:"8px" }}>
+          Conversion CEE
+        </p>
+
+        <h2 style={{ ...CG, fontSize:"22px", color:"#e2e8f0", marginBottom:"4px" }}>
+          Convertisseur €/MWhc → €/m³
+        </h2>
+
+        <p style={{ ...S, fontSize:"11px", color:"#3a5070", marginBottom:"18px" }}>
+          Conversion des prix CEE Classique et Précarité en impact produit €/m³ selon les facteurs Road Fuel / FOD.
+        </p>
+
+        <div style={{ display:"grid", gridTemplateColumns:"360px 1fr", gap:"16px" }}>
+          <div style={{ display:"grid", gap:"12px" }}>
+            <FS label="Produit" value={convertTool.product} onChange={e => updateConvert("product", e.target.value)}>
+              <option value="CARBURANT">Road Fuel</option>
+              <option value="FOD">FOD</option>
+            </FS>
+
+            <FS label="Source prix" value={convertTool.useSpot ? "spot" : "manual"} onChange={e => updateConvert("useSpot", e.target.value === "spot")}>
+              <option value="spot">Prix spot Supabase</option>
+              <option value="manual">Entrée manuelle</option>
+            </FS>
+
+            <FI label="Classique - €/MWhc" type="number" step="0.01" disabled={convertTool.useSpot} value={convertTool.useSpot ? curve?.SPOT?.classique || "" : convertTool.classiqueMWhc} onChange={e => updateConvert("classiqueMWhc", e.target.value)} />
+
+            <FI label="Précarité - €/MWhc" type="number" step="0.01" disabled={convertTool.useSpot} value={convertTool.useSpot ? curve?.SPOT?.precarite || "" : convertTool.precariteMWhc} onChange={e => updateConvert("precariteMWhc", e.target.value)} />
+          </div>
+
+          <div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"10px", marginBottom:"14px" }}>
+              <KPI label="Classique" value={N(convertResult.classiqueEurM3, 2) + " €/m³"} color="sky" />
+              <KPI label="Précarité" value={N(convertResult.precariteEurM3, 2) + " €/m³"} color="amber" />
+              <KPI label="Total CEE" value={N(convertResult.totalEurM3, 2) + " €/m³"} color="emerald" />
+            </div>
+
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <tbody>
+                {row("Produit", convertResult.productLabel)}
+                {row("Facteur énergétique", `${N(convertResult.kwhcPerM3, 0)} kWhc/m³`)}
+                {row("Coeff précarité", N(convertResult.coeffPrecarite, 3))}
+                {row("Coeff correctif", N(convertResult.coeffCorrectif, 3))}
+                {row("Prix Classique", `${N(convertResult.classiqueMWhc, 2)} €/MWhc`)}
+                {row("Prix Précarité", `${N(convertResult.precariteMWhc, 2)} €/MWhc`)}
+                {row("Impact Classique", `${N(convertResult.classiqueEurM3, 2)} €/m³`)}
+                {row("Impact Précarité", `${N(convertResult.precariteEurM3, 2)} €/m³`)}
+                {row("Impact total", `${N(convertResult.totalEurM3, 2)} €/m³`, true)}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
