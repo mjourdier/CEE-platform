@@ -465,7 +465,7 @@ function Reporting({ trades, obligations, prices, curve }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function PositionView({ trades, obligations, curve, prices }) {
   const [view, setView] = useState("position");
-  // latestSpot in €/GWhc (trade prices are €/GWhc; market prices are €/MWhc → ×1000)
+
   const latestSpot = useMemo(()=>{
     if(!prices.length) return { classique:(curve.SPOT?.classique??8.96)*1000, precarite:(curve.SPOT?.precarite??16.44)*1000 };
     const p=[...prices].sort((a,b)=>b.date.localeCompare(a.date))[0];
@@ -473,56 +473,84 @@ function PositionView({ trades, obligations, curve, prices }) {
   },[prices,curve]);
 
   const rows = useMemo(()=>MONTHS_LIST.map(month=>{
-    // Obligation volumes (priced = obligat. avec prix fixé; total = priced + non pricé)
     const oblClP = oblMonth(obligations,month,"CLASSIQUE",true);
     const oblPrP = oblMonth(obligations,month,"PRECARITE",true);
     const oblClT = oblMonth(obligations,month,"CLASSIQUE");
     const oblPrT = oblMonth(obligations,month,"PRECARITE");
-    // Achats PRICÉS (trade.priced===true) vs totaux
+
     const bClP = sumVol(trades,"CLASSIQUE",month,true);
     const bPrP = sumVol(trades,"PRECARITE",month,true);
-    const bCl  = sumVol(trades,"CLASSIQUE",month);      // tous (pour affichage total)
+    const bCl  = sumVol(trades,"CLASSIQUE",month);
     const bPr  = sumVol(trades,"PRECARITE",month);
-    // Prix moyens PRICÉS seulement pour PnL et MtM
+
     const aClP = wAvg(trades,"CLASSIQUE",month,true);
     const aPrP = wAvg(trades,"PRECARITE",month,true);
-    // Prix moyens totaux (pour info)
+
     const aCl  = wAvg(trades,"CLASSIQUE",month);
     const aPr  = wAvg(trades,"PRECARITE",month);
-    // Prix de vente moyen (avgSell des obligations pricées)
+
     const sCl = avgSellMonth(obligations,month,"CLASSIQUE");
     const sPr = avgSellMonth(obligations,month,"PRECARITE");
-    // Position nette PRICÉE
-    const netCl = bClP - oblClP;
-    const netPr = bPrP - oblPrP;
-    // Couverture sur base pricée
-    const covPct = (oblClP+oblPrP)>0 ? (bClP+bPrP)/(oblClP+oblPrP)*100 : 0;
-    // PnL = (avgSell - avgBuyPricé) × min(achetéPricé, oblPricée)
+
+    // ✅ CORRECTION ICI → NET basé sur TOTAL
+    const netCl = bCl - oblClT;
+    const netPr = bPr - oblPrT;
+
+    // ✅ CORRECTION ICI → couverture sur TOTAL
+    const covPct = (oblClT+oblPrT)>0 ? (bCl+bPr)/(oblClT+oblPrT)*100 : 0;
+
+    // PnL (inchangé)
     const matchCl = Math.min(bClP, oblClP);
     const matchPr = Math.min(bPrP, oblPrP);
     const pnlCl = (oblClP>0.001 && aClP>0 && sCl>0) ? (sCl - aClP) * matchCl : 0;
     const pnlPr = (oblPrP>0.001 && aPrP>0 && sPr>0) ? (sPr - aPrP) * matchPr : 0;
-    // MtM = (spot - avgBuyPricé) × position ouverte PRICÉE (achetéPricé > oblPricée)
-    const openCl = (oblClP>0.001 && netCl>0) ? netCl : 0;
-    const openPr = (oblPrP>0.001 && netPr>0) ? netPr : 0;
+
+    // MtM (inchangé)
+    const openCl = (oblClP>0.001 && (bClP-oblClP)>0) ? (bClP-oblClP) : 0;
+    const openPr = (oblPrP>0.001 && (bPrP-oblPrP)>0) ? (bPrP-oblPrP) : 0;
     const mtmCl = openCl > 0 ? openCl * (latestSpot.classique - aClP) : 0;
     const mtmPr = openPr > 0 ? openPr * (latestSpot.precarite - aPrP) : 0;
-    // Non pricés
+
     const oblClU = oblClT - oblClP;
     const oblPrU = oblPrT - oblPrP;
-    // Achats non pricés = achats totaux sur mois non pricés (trade.priced===false)
+
     const bClU = bCl - bClP;
     const bPrU = bPr - bPrP;
-    return { month, oblClP, oblPrP, oblClT, oblPrT,
-             bCl, bPr, bClP, bPrP, bClU, bPrU,
-             aCl, aPr, aClP, aPrP, sCl, sPr,
-             netCl, netPr, covPct, pnlCl, pnlPr, mtmCl, mtmPr,
-             oblClU, oblPrU,
-             unpricedBoughtCl:bClU, unpricedBoughtPr:bPrU };
+
+    return {
+      month,
+      oblClP, oblPrP,
+      oblClT, oblPrT,
+      bCl, bPr,
+      bClP, bPrP,
+      bClU, bPrU,
+      aCl, aPr,
+      aClP, aPrP,
+      sCl, sPr,
+      netCl, netPr,
+      covPct,
+      pnlCl, pnlPr,
+      mtmCl, mtmPr,
+      oblClU, oblPrU,
+      unpricedBoughtCl:bClU,
+      unpricedBoughtPr:bPrU
+    };
   }),[trades,obligations,latestSpot]);
 
-  const tot = useMemo(()=>({ oblCl:rows.reduce((s,r)=>s+r.oblClP,0), oblPr:rows.reduce((s,r)=>s+r.oblPrP,0), bCl:rows.reduce((s,r)=>s+r.bCl,0), bPr:rows.reduce((s,r)=>s+r.bPr,0), pnlCl:rows.reduce((s,r)=>s+r.pnlCl,0), pnlPr:rows.reduce((s,r)=>s+r.pnlPr,0), mtmCl:rows.reduce((s,r)=>s+r.mtmCl,0), mtmPr:rows.reduce((s,r)=>s+r.mtmPr,0), oblClU:rows.reduce((s,r)=>s+r.oblClU,0), oblPrU:rows.reduce((s,r)=>s+r.oblPrU,0) }),[rows]);
-
+  // ✅ TOTAL corrigé
+  const tot = useMemo(()=>({
+    oblCl:rows.reduce((s,r)=>s+r.oblClT,0),
+    oblPr:rows.reduce((s,r)=>s+r.oblPrT,0),
+    bCl:rows.reduce((s,r)=>s+r.bCl,0),
+    bPr:rows.reduce((s,r)=>s+r.bPr,0),
+    pnlCl:rows.reduce((s,r)=>s+r.pnlCl,0),
+    pnlPr:rows.reduce((s,r)=>s+r.pnlPr,0),
+    mtmCl:rows.reduce((s,r)=>s+r.mtmCl,0),
+    mtmPr:rows.reduce((s,r)=>s+r.mtmPr,0),
+    oblClU:rows.reduce((s,r)=>s+r.oblClU,0),
+    oblPrU:rows.reduce((s,r)=>s+r.oblPrU,0)
+  }),[rows]);
+  
   const VIEWS=[{id:"position",label:"Position & Couverture"},{id:"pnl",label:"PnL Réalisé & MtM"},{id:"unpriced",label:"Oblig. Non Pricées"}];
 
   const pc=(v,color)=>v!=null?(<span style={{ ...S,fontSize:"12px",color:v>0?CHART_COLORS.green:v<0?CHART_COLORS.red:"#3a5070",fontWeight:v!==0?600:400 }}>{v>0?"+":""}{N(v,2)}</span>):"—";
