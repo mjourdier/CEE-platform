@@ -19,6 +19,25 @@ const MONTHS_LIST = ["2026-01","2026-02","2026-03","2026-04","2026-05","2026-06"
                      "2026-07","2026-08","2026-09","2026-10","2026-11","2026-12"];
 const TENORS = ["SPOT","S1-26","S2-26","S1-27","S2-27","S1-28","S2-28"];
 
+
+const MATURITY_DATES = {
+  SPOT: "2026-02-01",
+  "S1-26": "2026-04-01",
+  "S2-26": "2026-10-01",
+  "S1-27": "2027-04-01",
+  "S2-27": "2027-10-01",
+  "S1-28": "2028-04-01",
+  "S2-28": "2028-10-01",
+  "S1-29": "2029-04-01",
+  "S2-29": "2029-10-01",
+  "S1-30": "2030-04-01",
+  "S2-30": "2030-10-01",
+};
+
+const MATURITY_TENORS = Object.keys(MATURITY_DATES);
+
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
 const SEED_CURVE = {
   SPOT:    { classique:8.96,  precarite:16.44 },
   "S1-26": { classique:8.96,  precarite:16.05 },
@@ -1568,6 +1587,251 @@ function AuditLog({ audit, users = USERS }) {
   );
 }
 
+function Tools({ curve }) {
+  const [pnlTool, setPnlTool] = useState({
+    cp: "ACT",
+    ceeType: "Classique",
+    product: "CARBURANT",
+    volumeGWhc: 3500000,
+    expectedSellingDate: "2026-12-01",
+    purchasePriceMWhc: 8.5,
+    maturityPeriod: "S2-28",
+    discountingRate: 4,
+    sellingPriceMode: "spot",
+    sellingPriceMWhcManual: 16.57,
+  });
+
+  const update = (field, value) => {
+    setPnlTool(prev => ({ ...prev, [field]: value }));
+  };
+
+  const result = useMemo(() => {
+    const productParams = PARAMS[pnlTool.product];
+    const energyFactor = productParams.kwhc_per_m3;
+    const precaCoeff = pnlTool.ceeType === "Preca" ? productParams.coeff_precarite : 1;
+
+    const volumeGWhc = Number(pnlTool.volumeGWhc) || 0;
+    const purchasePriceMWhc = Number(pnlTool.purchasePriceMWhc) || 0;
+    const discountingRate = (Number(pnlTool.discountingRate) || 0) / 100;
+
+    const expectedSellingDate = new Date(pnlTool.expectedSellingDate);
+    const maturityEstDate = new Date(MATURITY_DATES[pnlTool.maturityPeriod]);
+
+    const volumeM3 = volumeGWhc * 1_000_000 / energyFactor / precaCoeff;
+
+    const purchasePriceM3 = energyFactor * purchasePriceMWhc / 1000 * precaCoeff;
+
+    const spotSellingPriceMWhc =
+      pnlTool.ceeType === "Classique"
+        ? curve?.SPOT?.classique || 0
+        : curve?.SPOT?.precarite || 0;
+
+    const sellingPriceMWhc =
+      pnlTool.sellingPriceMode === "manual"
+        ? Number(pnlTool.sellingPriceMWhcManual) || 0
+        : spotSellingPriceMWhc;
+        
+
+    const sellingPriceM3 = energyFactor * sellingPriceMWhc / 1000 * precaCoeff;
+
+    const numberOfDays = Math.max(
+      0,
+      Math.round((maturityEstDate - expectedSellingDate) / MS_PER_DAY)
+    );
+
+    const discountingFactor = numberOfDays / 365;
+
+    const ceePurchasePriceMarket = purchasePriceM3;
+
+    const ceePurchasePriceNpvM3 =
+      ceePurchasePriceMarket / Math.pow(1 + discountingRate, discountingFactor);
+
+    const ceePurchasePriceNpvMWhc =
+      ceePurchasePriceNpvM3 / energyFactor * 1000 / precaCoeff;
+
+    const spreadNpvVsFacial = ceePurchasePriceMarket - ceePurchasePriceNpvM3;
+    const totalSpread = sellingPriceM3 - ceePurchasePriceNpvM3;
+
+    const pnlEur = totalSpread * volumeM3;
+    const pnlWithoutFinancing = (sellingPriceM3 - purchasePriceM3) * volumeM3;
+    const netFinancingImpact = pnlEur - pnlWithoutFinancing;
+
+    return {
+      energyFactor,
+      precaCoeff,
+      volumeM3,
+      purchasePriceM3,
+      sellingPriceMWhc,
+      sellingPriceM3,
+      maturityEstDate: MATURITY_DATES[pnlTool.maturityPeriod],
+      numberOfDays,
+      discountingFactor,
+      ceePurchasePriceMarket,
+      ceePurchasePriceNpvM3,
+      ceePurchasePriceNpvMWhc,
+      spreadNpvVsFacial,
+      totalSpread,
+      pnlEur,
+      pnlWithoutFinancing,
+      netFinancingImpact,
+    };
+  }, [pnlTool, curve]);
+
+  const row = (label, value, highlight = false) => (
+    <tr>
+      <td style={{ ...S, padding:"9px 12px", color:"#8aa0c0", borderBottom:"1px solid #1e2d45" }}>
+        {label}
+      </td>
+      <td style={{
+        ...S,
+        padding:"9px 12px",
+        color: highlight ? "#34d399" : "#e2e8f0",
+        fontWeight: highlight ? 700 : 500,
+        textAlign:"right",
+        borderBottom:"1px solid #1e2d45"
+      }}>
+        {value}
+      </td>
+    </tr>
+  );
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"18px" }}>
+      <div style={{ background:"#111827", border:"1px solid #252219", borderRadius:"2px", padding:"22px" }}>
+        <p style={{ ...S, fontSize:"9px", color:"#38bdf8", textTransform:"uppercase", letterSpacing:"0.18em", marginBottom:"8px" }}>
+          Outils CEE
+        </p>
+        <h2 style={{ ...CG, fontSize:"24px", color:"#e2e8f0", marginBottom:"4px" }}>
+          Calculatrice PNL C2E
+        </h2>
+        <p style={{ ...S, fontSize:"11px", color:"#3a5070" }}>
+          Simulation du PNL avec effet de financement selon le produit, le type CEE, le volume et la maturité.
+        </p>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"12px" }}>
+        <KPI label="PNL - EUR" value={N(result.pnlEur, 2) + " €"} color="emerald" large />
+        <KPI label="PNL without Financing" value={N(result.pnlWithoutFinancing, 2) + " €"} color="sky" large />
+        <KPI label="Net Financing Impact" value={N(result.netFinancingImpact, 2) + " €"} color={result.netFinancingImpact >= 0 ? "emerald" : "rose"} large />
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"360px 1fr", gap:"16px" }}>
+        <div style={{ background:"#111827", border:"1px solid #252219", borderRadius:"2px", padding:"18px" }}>
+          <p style={{ ...S, fontSize:"9px", color:"#38bdf8", textTransform:"uppercase", letterSpacing:"0.16em", marginBottom:"14px" }}>
+            Inputs
+          </p>
+
+          <div style={{ display:"grid", gap:"12px" }}>
+            <FI label="CP" value={pnlTool.cp} onChange={e => update("cp", e.target.value)} />
+
+            <FS label="CEE Type" value={pnlTool.ceeType} onChange={e => update("ceeType", e.target.value)}>
+              <option value="Classique">Classique</option>
+              <option value="Preca">Preca</option>
+            </FS>
+
+            <FS label="Product against" value={pnlTool.product} onChange={e => update("product", e.target.value)}>
+              <option value="CARBURANT">Road Fuel</option>
+              <option value="FOD">FOD</option>
+            </FS>
+
+            <FI
+              label="Volume GWhc"
+              type="number"
+              value={pnlTool.volumeGWhc}
+              onChange={e => update("volumeGWhc", e.target.value)}
+            />
+
+            <FI
+              label="Purchase Price - €/MWhc"
+              type="number"
+              step="0.01"
+              value={pnlTool.purchasePriceMWhc}
+              onChange={e => update("purchasePriceMWhc", e.target.value)}
+            />
+
+            <FS
+              label="Selling Price Mode"
+              value={pnlTool.sellingPriceMode}
+              onChange={e => update("sellingPriceMode", e.target.value)}
+            >
+              <option value="spot">Prix spot</option>
+              <option value="manual">Entrée manuelle</option>
+            </FS>
+
+            <FI
+              label="Selling Price - €/MWhc"
+              type="number"
+              step="0.01"
+              value={
+                pnlTool.sellingPriceMode === "spot"
+                  ? (
+                      pnlTool.ceeType === "Classique"
+                        ? curve?.SPOT?.classique ?? ""
+                        : curve?.SPOT?.precarite ?? ""
+                    )
+                  : pnlTool.sellingPriceMWhcManual
+              }
+              disabled={pnlTool.sellingPriceMode === "spot"}
+              onChange={e => update("sellingPriceMWhcManual", e.target.value)}
+            />
+
+            <FS
+              label="Expected selling date"
+              value={pnlTool.expectedSellingDate}
+              onChange={e => update("expectedSellingDate", e.target.value)}
+            >
+              {MONTHS_LIST.map(m => (
+                <option key={m} value={`${m}-01`}>
+                  {ML(m)}
+                </option>
+              ))}
+            </FS>
+
+            <FS label="CEE purchase maturity" value={pnlTool.maturityPeriod} onChange={e => update("maturityPeriod", e.target.value)}>
+              {MATURITY_TENORS.map(t => <option key={t} value={t}>{t}</option>)}
+            </FS>
+
+            <FI
+              label="Discounting rate (%)"
+              type="number"
+              step="0.1"
+              value={pnlTool.discountingRate}
+              onChange={e => update("discountingRate", e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div style={{ background:"#111827", border:"1px solid #252219", borderRadius:"2px", padding:"18px" }}>
+          <p style={{ ...S, fontSize:"9px", color:"#38bdf8", textTransform:"uppercase", letterSpacing:"0.16em", marginBottom:"14px" }}>
+            Résultats
+          </p>
+
+          <table style={{ width:"100%", borderCollapse:"collapse" }}>
+            <tbody>
+              {row("Product factor", `${N(result.energyFactor, 0)} kWhc/m³`)}
+              {row("Volume - m³", N(result.volumeM3, 2))}
+              {row("Purchase Price - €/m³", N(result.purchasePriceM3, 2))}
+              {row("Selling Price - €/m³", N(result.sellingPriceM3, 2))}
+              {row("Selling Price - €/MWhc", N(result.sellingPriceMWhc, 2))}
+              {row("CEE purchase Maturity Est-Date", result.maturityEstDate)}
+              {row("Number of days", N(result.numberOfDays, 0))}
+              {row("Discounting factor", N(result.discountingFactor, 2))}
+              {row("CEE Purchase Price (C2E Market)", N(result.ceePurchasePriceMarket, 2))}
+              {row("CEE Purchase Price NPV - €/m³", N(result.ceePurchasePriceNpvM3, 2))}
+              {row("CEE Purchase Price NPV - €/MWhc", N(result.ceePurchasePriceNpvMWhc, 2))}
+              {row("Spread NPV vs Facial", N(result.spreadNpvVsFacial, 2))}
+              {row("Total Spread", N(result.totalSpread, 2))}
+              {row("PNL - EUR", N(result.pnlEur, 2) + " €", true)}
+              {row("PNL without Financing", N(result.pnlWithoutFinancing, 2) + " €")}
+              {row("Net Financing Impact", N(result.netFinancingImpact, 2) + " €", true)}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ROOT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1941,6 +2205,7 @@ export default function App() {
     {id:"obligation", label:"Obligation"},
     {id:"curve",      label:"Courbe Forward"},
     {id:"prices",     label:"Prix Marché"},
+    {id:"tools",      label:"Outils"},
     {id:"audit",      label:"Audit Log"},
   ];
 
@@ -2029,8 +2294,10 @@ return(
       {tab==="obligation" && <ObligationTab obligations={obligations} onAdd={handleAddObligation} onDelete={id=>setObligations(os=>os.filter(o=>o.id!==id))}/>}
       {tab==="curve"      && <CurveTab      curve={curve} onUpdate={handleUpdateCurve} trades={trades}/>}
       {tab==="prices"     && <PricesTab     prices={prices} currentUser={currentUser} onAdd={handleAddPrice}/>}
+      {tab==="tools" && <Tools curve={curve} />}
       {tab==="audit"      && <AuditLog      audit={audit} users={users}/>}
     </div>
   </div>
 );
 }
+
