@@ -2088,7 +2088,7 @@ function Tools({ curve }) {
     cp: "ACT",
     ceeType: "Classique",
     product: "CARBURANT",
-    volumeGWhc: 3500000,
+    volumeGWhc: 1000,
     expectedSellingDate: "2026-12-01",
     purchasePriceMWhc: 8.5,
     maturityPeriod: "S2-28",
