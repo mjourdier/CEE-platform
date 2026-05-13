@@ -655,10 +655,10 @@ function PositionView({ trades, obligations, curve, prices }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "10px" }}>
         {view === "position" && (
           <>
-            <KPI label="Total Classique Obligation" value={N(tot.oblCl, 0) + " GWhc"} color="sky" />
-            <KPI label="Purchased Classique" value={N(tot.bCl, 0) + " GWhc"} color="sky" />
-            <KPI label="Total Précarité Obligation" value={N(tot.oblPr, 0) + " GWhc"} color="amber" />
-            <KPI label="Purchased Précarité" value={N(tot.bPr, 0) + " GWhc"} color="amber" />
+            <KPI label="Total Classique Annual Obligation" value={N(tot.oblCl, 0) + " GWhc"} color="sky" />
+            <KPI label="Total Purchase Classique" value={N(tot.bCl, 0) + " GWhc"} color="sky" />
+            <KPI label="Total Précarité Annual Obligation" value={N(tot.oblPr, 0) + " GWhc"} color="amber" />
+            <KPI label="TOTAL Purchase Précarité" value={N(tot.bPr, 0) + " GWhc"} color="amber" />
           </>
         )}
 
@@ -1270,7 +1270,21 @@ function Dashboard({ trades, obligations, prices, curve }) {
     return { classique: p.classique, precarite: p.precarite, date: p.date };
   }, [prices, curve]);
 
-  const spotCl = latest.classique, spotPr = latest.precarite;
+  const spotCl = latest.classique;
+  const spotPr = latest.precarite;
+
+  // Same methodology as the Tools converter, using Road Fuel by default
+  const spotProductParams = PARAMS.CARBURANT;
+
+  const spotClEurM3 =
+    spotCl * spotProductParams.kwhc_per_m3 / 1000;
+
+  const spotPrEurM3 =
+    spotPr *
+    spotProductParams.kwhc_per_m3 /
+    1000 *
+    spotProductParams.coeff_precarite *
+    spotProductParams.coeff_correctif;
 
   // ── Obligations ──
   // Priced = obligation with confirmed price
@@ -1530,8 +1544,8 @@ function Dashboard({ trades, obligations, prices, curve }) {
           PnL & Market Summary — 06/03/2026
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: "10px" }}>
-          <KPI label="Spot Classique" value={`${N(spotCl)} €/MWhc`} color="sky" sub="CEE spot price" />
-          <KPI label="Spot Précarité" value={`${N(spotPr)} €/MWhc`} color="amber" sub="CEE spot price" />
+          <KPI label="Spot Classique" value={`${N(spotCl)} €/MWhc`} color="sky"sub={`Road Fuel impact: ${N(spotClEurM3, 2)} €/m³`}/>
+          <KPI label="Spot Précarité" value={`${N(spotPr)} €/MWhc`} color="amber" sub={`Road Fuel impact: ${N(spotPrEurM3, 2)} €/m³`}/>
           <KPI label="Realized PnL YTD" value={fM(pnlClYTD + pnlPrYTD)} color={(pnlClYTD + pnlPrYTD) >= 0 ? "emerald" : "rose"} sub={`Classique: ${fK(pnlClYTD)} · Précarité: ${fK(pnlPrYTD)}`} />
           <KPI label="Open Position MtM" value={fK(mtmCl + mtmPr)} color={(mtmCl + mtmPr) >= 0 ? "emerald" : "rose"} sub={`Classique: ${fK(mtmCl)} · Précarité: ${fK(mtmPr)}`} />
           <KPI label="Net PnL+MtM YTD" value={fM(pnlClYTD + pnlPrYTD + mtmCl + mtmPr)} color={(pnlClYTD + pnlPrYTD + mtmCl + mtmPr) >= 0 ? "emerald" : "rose"} sub="Realized + MtM" />
