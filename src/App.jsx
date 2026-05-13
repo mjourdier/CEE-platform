@@ -2465,7 +2465,28 @@ export default function App() {
         emmyValidated: t.emmy_validated,
         createdBy: t.created_by,
         approvedBy: t.approved_by,
-        createdAt: t.created_at
+        createdAt: t.created_at,
+
+        // Extended Excel fields
+        year: t.year,
+        operationType: t.operation_type,
+        pricingMonth: t.pricing_month,
+        comments: t.comments,
+        sourcing: t.sourcing,
+        tolerancePct: t.tolerance_pct != null ? +t.tolerance_pct : null,
+        volumeM3Equivalent: t.volume_m3_equivalent != null ? +t.volume_m3_equivalent : null,
+        approval: t.approval,
+        contractYesNo: t.contract_yes_no,
+        contractSigned: t.contract_signed,
+        contractDate: t.contract_date,
+        paymentTerms: t.payment_terms,
+        volumeDeposited: t.volume_deposited != null ? +t.volume_deposited : null,
+        volumeRemainingToBeDeposited: t.volume_remaining_to_be_deposited != null ? +t.volume_remaining_to_be_deposited : null,
+        validated: t.validated,
+        validationDate: t.validation_date,
+        payment: t.payment,
+        paymentDate: t.payment_date,
+        cpRanking: t.cp_ranking
       }));
 
       const normO = (od || []).map(o => ({
@@ -2613,10 +2634,45 @@ export default function App() {
 
   const handleAddTrade=useCallback(async(t)=>{
     setTrades(ts=>[...ts,t]);
-    await persist("trades",{id:t.id,cee_type:t.ceeType,vendor:t.vendor,deal_type:t.dealType,
-      period:t.period,volume:t.volume,price:t.price,month:t.month,status:t.status,
-      priced:t.priced,statut:t.statut,ranking:t.ranking,emmy_validated:t.emmyValidated,
-      created_by:t.createdBy,approved_by:t.approvedBy,created_at:t.createdAt});
+    await persist("trades", {
+      id: t.id,
+      cee_type: t.ceeType,
+      vendor: t.vendor,
+      deal_type: t.dealType,
+      period: t.period,
+      volume: t.volume,
+      price: t.price,
+      month: t.month,
+      status: t.status,
+      priced: t.priced,
+      statut: t.statut,
+      ranking: t.ranking,
+      emmy_validated: t.emmyValidated,
+      created_by: t.createdBy,
+      approved_by: t.approvedBy,
+      created_at: t.createdAt,
+
+      // Extended Excel fields
+      year: t.year ?? null,
+      operation_type: t.operationType ?? null,
+      pricing_month: t.pricingMonth ?? null,
+      comments: t.comments ?? null,
+      sourcing: t.sourcing ?? null,
+      tolerance_pct: t.tolerancePct ?? null,
+      volume_m3_equivalent: t.volumeM3Equivalent ?? null,
+      approval: t.approval ?? null,
+      contract_yes_no: t.contractYesNo ?? null,
+      contract_signed: t.contractSigned ?? null,
+      contract_date: t.contractDate ?? null,
+      payment_terms: t.paymentTerms ?? null,
+      volume_deposited: t.volumeDeposited ?? null,
+      volume_remaining_to_be_deposited: t.volumeRemainingToBeDeposited ?? null,
+      validated: t.validated ?? null,
+      validation_date: t.validationDate ?? null,
+      payment: t.payment ?? null,
+      payment_date: t.paymentDate ?? null,
+      cp_ranking: t.cpRanking ?? null
+    });
     await addAudit({action:"TRADE_CREATED",entity:t.id,detail:`BUY ${N(t.volume,3)} GWhc ${t.ceeType} @ ${N(t.price,0)} — ${t.vendor}`});
   },[persist,addAudit]);
 
