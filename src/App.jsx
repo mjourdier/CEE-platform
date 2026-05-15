@@ -285,6 +285,7 @@ function Reporting({ trades, obligations, prices, curve }) {
     return monthlyData.map(d => { cum += d.pnl; return { month: d.month, pnl: d.pnl, cumPnl: cum }; });
   }, [monthlyData]);
 
+
   // Coverage donut data
   const totalOblP = MONTHS_LIST.reduce((s, m) => s + oblMonth(obligations, m, "CLASSIQUE", true) + oblMonth(obligations, m, "PRECARITE", true), 0);
   const totalBoughtP = sumVol(trades, "CLASSIQUE", null, true) + sumVol(trades, "PRECARITE", null, true);
@@ -292,11 +293,131 @@ function Reporting({ trades, obligations, prices, curve }) {
   const totalUnpriced = MONTHS_LIST.reduce((s, m) => s + oblMonth(obligations, m, "CLASSIQUE") + oblMonth(obligations, m, "PRECARITE"), 0) - totalOblP;
   const covPct = totalOblP > 0 ? Math.min(totalBoughtP / totalOblP * 100, 100) : 0;
 
+  // Operational monitoring datasets
+  const operationalTrades = useMemo(
+    () => trades.filter(t => t.priced === true),
+    [trades]
+  );
+
+  const contractStatusData = useMemo(() => {
+    const rows = {
+      Signed: { name: "Signed", volume: 0, count: 0 },
+      "Not signed": { name: "Not signed", volume: 0, count: 0 },
+      "N/A": { name: "N/A", volume: 0, count: 0 }
+    };
+
+    operationalTrades.forEach(t => {
+      const volume = Number(t.volume) || 0;
+
+      let key = "N/A";
+      if (t.contractSigned === true) key = "Signed";
+      else if (t.contractSigned === false || t.contractYesNo === false) key = "Not signed";
+
+      rows[key].volume += volume;
+      rows[key].count += 1;
+    });
+
+    return Object.values(rows).filter(r => r.volume > 0 || r.count > 0);
+  }, [operationalTrades]);
+
+  const validationByMonthData = useMemo(() => MONTHS_LIST.map(month => {
+    const monthTrades = operationalTrades.filter(t => t.month === month);
+
+    const validated = monthTrades
+      .filter(t => t.validated === true)
+      .reduce((s, t) => s + Number(t.volume || 0), 0);
+
+    const pending = monthTrades
+      .filter(t => t.validated === false)
+      .reduce((s, t) => s + Number(t.volume || 0), 0);
+
+    const unknown = monthTrades
+      .filter(t => t.validated == null)
+      .reduce((s, t) => s + Number(t.volume || 0), 0);
+
+    return {
+      month: MLS(month),
+      validated: Math.round(validated),
+      pending: Math.round(pending),
+      unknown: Math.round(unknown)
+    };
+  }), [operationalTrades]);
+
+  const paymentByMonthData = useMemo(() => MONTHS_LIST.map(month => {
+    const monthTrades = operationalTrades.filter(t => t.month === month);
+
+    const paid = monthTrades
+      .filter(t => t.payment === true)
+      .reduce((s, t) => s + Number(t.volume || 0), 0);
+
+    const unpaid = monthTrades
+      .filter(t => t.payment === false)
+      .reduce((s, t) => s + Number(t.volume || 0), 0);
+
+    const unknown = monthTrades
+      .filter(t => t.payment == null)
+      .reduce((s, t) => s + Number(t.volume || 0), 0);
+
+    return {
+      month: MLS(month),
+      paid: Math.round(paid),
+      unpaid: Math.round(unpaid),
+      unknown: Math.round(unknown)
+    };
+  }), [operationalTrades]);
+
+  const remainingDepositBySellerData = useMemo(() => {
+    const map = {};
+
+    operationalTrades.forEach(t => {
+      const remaining = Number(t.volumeRemainingToBeDeposited);
+      if (!Number.isFinite(remaining) || remaining <= 0) return;
+
+      const seller = t.vendor || "Unknown";
+      map[seller] = (map[seller] || 0) + remaining;
+    });
+
+    return Object.entries(map)
+      .map(([seller, volume]) => ({ seller, volume: Math.round(volume) }))
+      .sort((a, b) => b.volume - a.volume)
+      .slice(0, 10);
+  }, [operationalTrades]);
+
+  const operationalSummary = useMemo(() => {
+    const totalVolume = operationalTrades.reduce((s, t) => s + Number(t.volume || 0), 0);
+
+    const signedVolume = operationalTrades
+      .filter(t => t.contractSigned === true)
+      .reduce((s, t) => s + Number(t.volume || 0), 0);
+
+    const validatedVolume = operationalTrades
+      .filter(t => t.validated === true)
+      .reduce((s, t) => s + Number(t.volume || 0), 0);
+
+    const paidVolume = operationalTrades
+      .filter(t => t.payment === true)
+      .reduce((s, t) => s + Number(t.volume || 0), 0);
+
+    const remainingDeposit = operationalTrades.reduce((s, t) => {
+      const remaining = Number(t.volumeRemainingToBeDeposited);
+      return Number.isFinite(remaining) && remaining > 0 ? s + remaining : s;
+    }, 0);
+
+    return {
+      totalVolume,
+      signedPct: totalVolume > 0 ? signedVolume / totalVolume * 100 : 0,
+      validatedPct: totalVolume > 0 ? validatedVolume / totalVolume * 100 : 0,
+      paidPct: totalVolume > 0 ? paidVolume / totalVolume * 100 : 0,
+      remainingDeposit
+    };
+  }, [operationalTrades]);
+
   const REPORTS = [
-    { id: "executive", label: "Executive Summary" },
-    { id: "position",  label: "Position & Coverage" },
-    { id: "pnl",       label: "PnL & MtM" },
-    { id: "market",    label: "Market Prices" },
+    { id:"executive",   label:"Executive Summary" },
+    { id:"position",    label:"Position & Coverage" },
+    { id:"pnl",         label:"PnL & MtM" },
+    { id:"market",      label:"Market Prices" },
+    { id:"operational", label:"Operational Monitoring" },
   ];
 
   const SectionTitle = ({ children }) => <p style={{ ...S, fontSize: "9px", color: "#38bdf8", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: "14px", marginTop: "8px" }}>{children}</p>;
@@ -516,6 +637,102 @@ function Reporting({ trades, obligations, prices, curve }) {
                 <Line type="monotone" dataKey="pr" name="Précarité" stroke="#d4a843" strokeWidth={2} dot={{ fill: "#d4a843", r: 3 }} />
               </LineChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+      {/* ── OPERATIONAL MONITORING ── */}
+      {report==="operational" && (
+        <div style={{ display:"flex",flexDirection:"column",gap:"20px" }}>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px" }}>
+            <KPI
+              label="Contract signed ratio"
+              value={`${N(operationalSummary.signedPct,1)}%`}
+              color={operationalSummary.signedPct >= 95 ? "emerald" : operationalSummary.signedPct >= 80 ? "amber" : "rose"}
+              sub={`${N(operationalSummary.totalVolume,0)} GWhc monitored`}
+            />
+
+            <KPI
+              label="Validation ratio"
+              value={`${N(operationalSummary.validatedPct,1)}%`}
+              color={operationalSummary.validatedPct >= 95 ? "emerald" : operationalSummary.validatedPct >= 80 ? "amber" : "rose"}
+              sub="Validated volume / monitored volume"
+            />
+
+            <KPI
+              label="Payment ratio"
+              value={`${N(operationalSummary.paidPct,1)}%`}
+              color={operationalSummary.paidPct >= 95 ? "emerald" : operationalSummary.paidPct >= 80 ? "amber" : "rose"}
+              sub="Paid volume / monitored volume"
+            />
+
+            <KPI
+              label="Remaining to deposit"
+              value={`${N(operationalSummary.remainingDeposit,0)} GWhc`}
+              color={operationalSummary.remainingDeposit > 0 ? "rose" : "emerald"}
+              sub="Open delivery/deposit volume"
+            />
+          </div>
+
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px" }}>
+            <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+              <SectionTitle>Contract Status by Volume</SectionTitle>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={contractStatusData} barSize={34}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                  <XAxis dataKey="name" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={50}/>
+                  <Tooltip content={<ChartTip/>}/>
+                  <Bar dataKey="volume" name="Volume (GWhc)" fill="#38bdf8" radius={[1,1,0,0]}/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+              <SectionTitle>Remaining to Deposit by Seller</SectionTitle>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={remainingDepositBySellerData} layout="vertical" barSize={14}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" horizontal={false}/>
+                  <XAxis type="number" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                  <YAxis type="category" dataKey="seller" tick={{ ...S,fontSize:9,fill:"#4a6080" }} axisLine={false} tickLine={false} width={170}/>
+                  <Tooltip content={<ChartTip/>}/>
+                  <Bar dataKey="volume" name="Remaining (GWhc)" fill="#f87171" radius={[0,1,1,0]}/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px" }}>
+            <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+              <SectionTitle>Validation Status by Month (GWhc)</SectionTitle>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={validationByMonthData} barSize={18}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={44}/>
+                  <Tooltip content={<ChartTip/>}/>
+                  <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#4a6080" }}/>
+                  <Bar dataKey="validated" name="Validated" stackId="validation" fill="#34d399" radius={[1,1,0,0]}/>
+                  <Bar dataKey="pending" name="Pending" stackId="validation" fill="#d4a843" radius={[1,1,0,0]}/>
+                  <Bar dataKey="unknown" name="N/A" stackId="validation" fill="#3a5070" radius={[1,1,0,0]}/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
+              <SectionTitle>Payment Status by Month (GWhc)</SectionTitle>
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={paymentByMonthData} barSize={18}>
+                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
+                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
+                  <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={44}/>
+                  <Tooltip content={<ChartTip/>}/>
+                  <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#4a6080" }}/>
+                  <Bar dataKey="paid" name="Paid" stackId="payment" fill="#34d399" radius={[1,1,0,0]}/>
+                  <Bar dataKey="unpaid" name="Unpaid" stackId="payment" fill="#f87171" radius={[1,1,0,0]}/>
+                  <Bar dataKey="unknown" name="N/A" stackId="payment" fill="#3a5070" radius={[1,1,0,0]}/>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       )}
