@@ -2019,7 +2019,69 @@ function Dashboard({ trades, obligations, prices, curve }) {
     };
   };
 
+  // ── Operational Follow-up ──
   const pending = trades.filter(t => t.status === "PENDING").length;
+
+  const MATERIAL_TRADE_THRESHOLD = 50; // GWhc
+  const DEPOSIT_EPS = 0.001;
+
+  const operationalMetrics = useMemo(() => {
+    const relevantTrades = trades.filter(t => t.priced === true);
+
+    const materialTrades = relevantTrades.filter(t =>
+      Number(t.volume) >= MATERIAL_TRADE_THRESHOLD
+    );
+
+    const unsignedContracts = materialTrades.filter(t =>
+      t.contractYesNo === false || t.contractSigned === false
+    );
+
+    const pendingValidations = relevantTrades.filter(t =>
+      t.validated === false
+    );
+
+    const unpaidTrades = relevantTrades.filter(t =>
+      t.payment === false
+    );
+
+    const remainingDepositVolume = relevantTrades.reduce((s, t) => {
+      const remaining = Number(t.volumeRemainingToBeDeposited);
+      return Number.isFinite(remaining) && remaining > DEPOSIT_EPS
+        ? s + remaining
+        : s;
+    }, 0);
+
+    const overDepositedVolume = relevantTrades.reduce((s, t) => {
+      const remaining = Number(t.volumeRemainingToBeDeposited);
+      return Number.isFinite(remaining) && remaining < -DEPOSIT_EPS
+        ? s + Math.abs(remaining)
+        : s;
+    }, 0);
+
+    const missingCpRanking = materialTrades.filter(t =>
+      !t.cpRanking
+    );
+
+    return {
+      relevantCount: relevantTrades.length,
+      materialCount: materialTrades.length,
+
+      unsignedContractsCount: unsignedContracts.length,
+      unsignedContractsVolume: unsignedContracts.reduce((s, t) => s + Number(t.volume || 0), 0),
+
+      pendingValidationsCount: pendingValidations.length,
+      pendingValidationsVolume: pendingValidations.reduce((s, t) => s + Number(t.volume || 0), 0),
+
+      unpaidTradesCount: unpaidTrades.length,
+      unpaidTradesVolume: unpaidTrades.reduce((s, t) => s + Number(t.volume || 0), 0),
+
+      remainingDepositVolume,
+      overDepositedVolume,
+
+      missingCpRankingCount: missingCpRanking.length,
+      missingCpRankingVolume: missingCpRanking.reduce((s, t) => s + Number(t.volume || 0), 0),
+    };
+  }, [trades]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
@@ -2028,6 +2090,41 @@ function Dashboard({ trades, obligations, prices, curve }) {
           <span style={{ color: "#fbbf24", fontSize: "12px" }}>⚠</span>
           <span style={{ ...S, fontSize: "11px", color: "#fbbf24" }}>
             {pending} trade{pending > 1 ? "s" : ""} awaiting four-eyes approval
+          </span>
+        </div>
+      )}
+
+      {operationalMetrics.unsignedContractsCount > 0 && (
+        <div style={{
+          background:"#2a1f0a",
+          border:"1px solid #5a4000",
+          borderRadius:"2px",
+          padding:"10px 16px",
+          display:"flex",
+          alignItems:"center",
+          gap:"8px"
+        }}>
+          <span style={{ color:"#fbbf24",fontSize:"12px" }}>⚠</span>
+          <span style={{ ...S,fontSize:"11px",color:"#fbbf24" }}>
+            {operationalMetrics.unsignedContractsCount} material trade{operationalMetrics.unsignedContractsCount > 1 ? "s" : ""} without signed contract
+            {" "}({N(operationalMetrics.unsignedContractsVolume,0)} GWhc)
+          </span>
+        </div>
+      )}
+
+      {operationalMetrics.remainingDepositVolume > 0 && (
+        <div style={{
+          background:"#2a0a0a",
+          border:"1px solid #7f1d1d",
+          borderRadius:"2px",
+          padding:"10px 16px",
+          display:"flex",
+          alignItems:"center",
+          gap:"8px"
+        }}>
+          <span style={{ color:"#f87171",fontSize:"12px" }}>⚠</span>
+          <span style={{ ...S,fontSize:"11px",color:"#fca5a5" }}>
+            {N(operationalMetrics.remainingDepositVolume,0)} GWhc still to be deposited across priced trades
           </span>
         </div>
       )}
@@ -2126,6 +2223,57 @@ function Dashboard({ trades, obligations, prices, curve }) {
                 ? `Coverage: ${N(worstCoverageMonth.covPct, 1)}%`
                 : "No month below threshold"
             }
+          />
+        </div>
+      </div>
+
+      {/* ── Operational Follow-up ── */}
+      <div>
+        <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"10px" }}>
+          Operational Follow-up
+        </p>
+
+        <div style={{ display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:"10px" }}>
+          <KPI
+            label="Contracts not signed"
+            value={N(operationalMetrics.unsignedContractsCount,0)}
+            color={operationalMetrics.unsignedContractsCount > 0 ? "amber" : "emerald"}
+            sub={`${N(operationalMetrics.unsignedContractsVolume,0)} GWhc material volume`}
+          />
+
+          <KPI
+            label="Pending validation"
+            value={N(operationalMetrics.pendingValidationsCount,0)}
+            color={operationalMetrics.pendingValidationsCount > 0 ? "amber" : "emerald"}
+            sub={`${N(operationalMetrics.pendingValidationsVolume,0)} GWhc`}
+          />
+
+          <KPI
+            label="Unpaid trades"
+            value={N(operationalMetrics.unpaidTradesCount,0)}
+            color={operationalMetrics.unpaidTradesCount > 0 ? "rose" : "emerald"}
+            sub={`${N(operationalMetrics.unpaidTradesVolume,0)} GWhc`}
+          />
+
+          <KPI
+            label="Remaining to deposit"
+            value={`${N(operationalMetrics.remainingDepositVolume,0)} GWhc`}
+            color={operationalMetrics.remainingDepositVolume > 0 ? "rose" : "emerald"}
+            sub="Volume still to be deposited"
+          />
+
+          <KPI
+            label="Over-deposited"
+            value={`${N(operationalMetrics.overDepositedVolume,0)} GWhc`}
+            color={operationalMetrics.overDepositedVolume > 0 ? "amber" : "emerald"}
+            sub="Absolute excess volume"
+          />
+
+          <KPI
+            label="Missing CP ranking"
+            value={N(operationalMetrics.missingCpRankingCount,0)}
+            color={operationalMetrics.missingCpRankingCount > 0 ? "amber" : "emerald"}
+            sub={`${N(operationalMetrics.missingCpRankingVolume,0)} GWhc material volume`}
           />
         </div>
       </div>
@@ -3378,6 +3526,11 @@ export default function App() {
   );
 
   const pending=trades.filter(t=>t.status==="PENDING").length;
+
+  // ── Operational Follow-up ──
+  const MATERIAL_TRADE_THRESHOLD = 50; // GWhc
+  const DEPOSIT_EPS = 0.001;
+
 
   const TABS=[
     {id:"dashboard",  label:"Dashboard"},
