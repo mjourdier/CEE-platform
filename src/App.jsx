@@ -2961,9 +2961,10 @@ export default function App() {
   const [loading,setLoading]        =useState(true);
   const [error,setError]            =useState(null);
 
-  async function loadAll() {
+  async function loadAll({ silent = false } = {}) {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
+      setError(null);
 
       const [
         { data: ud, error: e1 },
@@ -3074,13 +3075,13 @@ export default function App() {
     } catch (e) {
       setError(e.message);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
   useEffect(() => {
-    async function initAuth() {
-      setAuthLoading(true);
+    async function initAuth(silent = false) {
+      if (!silent) setAuthLoading(true);
 
       const { data: sessionData } = await supabase.auth.getSession();
       const currentSession = sessionData?.session || null;
@@ -3091,9 +3092,9 @@ export default function App() {
         setCurrentUser(null);
 
         // Optional: still load data
-        await loadAll();
+        await loadAll({ silent });
 
-        setAuthLoading(false);
+        if (!silent) setAuthLoading(false);
         return;
       }
 
@@ -3109,7 +3110,7 @@ export default function App() {
         console.error("User mapping error:", error);
         setCurrentUser(null);
 
-        await loadAll(); // safe fallback
+        await loadAll({ silent }); // safe fallback
 
         setAuthLoading(false);
         return;
@@ -3125,15 +3126,23 @@ export default function App() {
       });
 
       // Load after auth
-      await loadAll();
+      await loadAll({ silent });
 
       setAuthLoading(false);
     }
 
     initAuth();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(() => {
-      initAuth();
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
+        setCurrentUser(null);
+        setSession(null);
+        return;
+      }
+
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
+        initAuth(true);
+      }
     });
 
     return () => {
