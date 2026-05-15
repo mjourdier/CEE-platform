@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } from "recharts";
 import * as XLSX from "xlsx";
@@ -925,6 +925,19 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
   const [filterMonth, setFilterMonth] = useState("ALL");
   const [filterVendor, setFilterVendor] = useState("ALL");
   const [filterPriced, setFilterPriced] = useState("ALL");
+  
+  const topScrollRef = useRef(null);
+  const tableScrollRef = useRef(null);
+
+  const BLOTTER_TABLE_WIDTH = "2050px";
+
+  // Operational filters
+  const [filterContract, setFilterContract] = useState("ALL");
+  const [filterPayment, setFilterPayment] = useState("ALL");
+  const [filterValidation, setFilterValidation] = useState("ALL");
+  const [filterDeposit, setFilterDeposit] = useState("ALL");
+  const [filterCpRanking, setFilterCpRanking] = useState("ALL");
+
   const [sortKey, setSortKey] = useState("createdAt");
   const [sortDir, setSortDir] = useState("desc");
   const [showModal, setShowModal] = useState(false);
@@ -942,6 +955,43 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
     [trades]
   );
 
+  const cpRankings = useMemo(
+    () => ["ALL", ...new Set(trades.map(t => t.cpRanking).filter(Boolean))].sort(),
+    [trades]
+  );
+  
+  const EPS = 0.001;
+
+  const getContractStatus = (t) => {
+    if (t.contractSigned === true) return { label: "Signed", color: "green" };
+    if (t.contractYesNo === true && t.contractSigned !== true) return { label: "To sign", color: "amber" };
+    if (t.contractYesNo === false) return { label: "No contract", color: "red" };
+    return { label: "N/A", color: "gray" };
+  };
+
+  const getPaymentStatus = (t) => {
+    if (t.payment === true) return { label: "Paid", color: "green" };
+    if (t.payment === false) return { label: "Unpaid", color: "red" };
+    return { label: "N/A", color: "gray" };
+  };
+
+  const getValidationStatus = (t) => {
+    if (t.validated === true) return { label: "Validated", color: "green" };
+    if (t.validated === false) return { label: "Pending", color: "amber" };
+    return { label: "N/A", color: "gray" };
+  };
+
+  const getDepositStatus = (t) => {
+    const remaining = Number(t.volumeRemainingToBeDeposited);
+    const deposited = Number(t.volumeDeposited);
+
+    if (!Number.isFinite(remaining)) return { label: "N/A", color: "gray" };
+    if (remaining < -EPS) return { label: "Over", color: "purple" };
+    if (Math.abs(remaining) <= EPS) return { label: "Full", color: "green" };
+    if (deposited > EPS && remaining > EPS) return { label: "Partial", color: "amber" };
+    return { label: "Open", color: "red" };
+  };
+
   const filtered = useMemo(() => {
     let l = [...trades];
 
@@ -953,6 +1003,38 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
     if (filterMonth !== "ALL") l = l.filter(t => t.month === filterMonth);
     if (filterVendor !== "ALL") l = l.filter(t => t.vendor === filterVendor);
     if (filterPriced !== "ALL") l = l.filter(t => String(t.priced) === filterPriced);
+
+    if (filterContract !== "ALL") {
+      l = l.filter(t => {
+        const s = getContractStatus(t).label;
+        return s === filterContract;
+      });
+    }
+
+    if (filterPayment !== "ALL") {
+      l = l.filter(t => {
+        const s = getPaymentStatus(t).label;
+        return s === filterPayment;
+      });
+    }
+
+    if (filterValidation !== "ALL") {
+      l = l.filter(t => {
+        const s = getValidationStatus(t).label;
+        return s === filterValidation;
+      });
+    }
+
+    if (filterDeposit !== "ALL") {
+      l = l.filter(t => {
+        const s = getDepositStatus(t).label;
+        return s === filterDeposit;
+      });
+    }
+
+    if (filterCpRanking !== "ALL") {
+      l = l.filter(t => t.cpRanking === filterCpRanking);
+    }
 
     l.sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
@@ -967,7 +1049,20 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
     });
 
     return l;
-  }, [trades, filter, filterMonth, filterVendor, filterPriced, sortKey, sortDir]);
+  }, [
+    trades,
+    filter,
+    filterMonth,
+    filterVendor,
+    filterPriced,
+    filterContract,
+    filterPayment,
+    filterValidation,
+    filterDeposit,
+    filterCpRanking,
+    sortKey,
+    sortDir
+  ]);
 
   const exportBlotterToExcel = () => {
     const data = filtered.map(t => ({
@@ -1016,103 +1111,470 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
     return f;
   };
 
+  const syncTopScroll = () => {
+    if (tableScrollRef.current && topScrollRef.current) {
+      tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+    }
+  };
+
+  const syncTableScroll = () => {
+    if (tableScrollRef.current && topScrollRef.current) {
+      topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+    }
+  };
+
   return (
     <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
-      <div style={{ display:"flex",flexWrap:"wrap",justifyContent:"space-between",alignItems:"center",gap:"10px" }}>
-        <div style={{ display:"flex",flexWrap:"wrap",gap:"5px" }}>
-          {["ALL", "PENDING", "APPROVED", "CLASSIQUE", "PRECARITE"].map(f => (
+      <div style={{
+        background: "#111827",
+        border: "1px solid #1e2d45",
+        borderRadius: "2px",
+        padding: "14px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "12px"
+      }}>
+        {/* Row 1 — Main status filters + actions */}
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "12px",
+          flexWrap: "wrap"
+        }}>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {["ALL", "PENDING", "APPROVED", "CLASSIQUE", "PRECARITE"].map(f => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                style={{
+                  ...S,
+                  fontSize: "10px",
+                  padding: "6px 12px",
+                  borderRadius: "2px",
+                  border: "1px solid",
+                  cursor: "pointer",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  background: filter === f ? "#38bdf8" : "transparent",
+                  color: filter === f ? "#0a0e1a" : "#3a5070",
+                  borderColor: filter === f ? "#38bdf8" : "#1e2d45"
+                }}
+              >
+                {filterLabel(f)}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <button
-              key={f}
-              onClick={() => setFilter(f)}
+              onClick={exportBlotterToExcel}
               style={{
                 ...S,
-                fontSize: "10px",
-                padding: "5px 10px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                background: "linear-gradient(135deg, #0f2e1a, #123d24)",
+                color: "#34d399",
+                border: "1px solid #1d6b3a",
                 borderRadius: "2px",
-                border: "1px solid",
-                cursor: "pointer",
-                letterSpacing: "0.08em",
+                fontSize: "10px",
+                fontWeight: 600,
+                letterSpacing: "0.09em",
                 textTransform: "uppercase",
-                background: filter === f ? "#38bdf8" : "transparent",
-                color: filter === f ? "#0a0e1a" : "#3a5070",
-                borderColor: filter === f ? "#38bdf8" : "#1e2d45"
+                padding: "8px 14px",
+                cursor: "pointer",
+                boxShadow: "0 0 0 1px rgba(52, 211, 153, 0.08) inset"
               }}
             >
-              {filterLabel(f)}
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "16px",
+                  height: "16px",
+                  borderRadius: "2px",
+                  background: "#166534",
+                  color: "#dcfce7",
+                  fontSize: "10px",
+                  fontWeight: 800,
+                  lineHeight: 1
+                }}
+              >
+                X
+              </span>
+              Export Excel
             </button>
-          ))}
 
-          <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#4a6080",borderRadius:"2px",padding:"5px 8px",fontSize:"10px",outline:"none" }}>
-            {months.map(m => <option key={m} value={m}>{m === "ALL" ? "All months" : ML(m)}</option>)}
+            {currentUser?.role === "trader" && (
+              <GoldBtn onClick={() => setShowModal(true)}>+ New Purchase</GoldBtn>
+            )}
+          </div>
+        </div>
+
+        {/* Row 2 — Business / operational filters */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+          gap: "8px"
+        }}>
+          <select
+            value={filterMonth}
+            onChange={e => setFilterMonth(e.target.value)}
+            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
+          >
+            {months.map(m => (
+              <option key={m} value={m}>
+                {m === "ALL" ? "All months" : ML(m)}
+              </option>
+            ))}
           </select>
 
-          <select value={filterVendor} onChange={e => setFilterVendor(e.target.value)} style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#4a6080",borderRadius:"2px",padding:"5px 8px",fontSize:"10px",outline:"none",maxWidth:"180px" }}>
-            {vendors.map(v => <option key={v} value={v}>{v === "ALL" ? "All sellers" : v}</option>)}
+          <select
+            value={filterVendor}
+            onChange={e => setFilterVendor(e.target.value)}
+            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
+          >
+            {vendors.map(v => (
+              <option key={v} value={v}>
+                {v === "ALL" ? "All sellers" : v}
+              </option>
+            ))}
           </select>
 
-          <select value={filterPriced} onChange={e => setFilterPriced(e.target.value)} style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#4a6080",borderRadius:"2px",padding:"5px 8px",fontSize:"10px",outline:"none" }}>
+          <select
+            value={filterPriced}
+            onChange={e => setFilterPriced(e.target.value)}
+            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
+          >
             <option value="ALL">Priced / unpriced</option>
             <option value="true">Priced</option>
             <option value="false">Unpriced</option>
           </select>
 
-          <select value={sortKey} onChange={e => setSortKey(e.target.value)} style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#4a6080",borderRadius:"2px",padding:"5px 8px",fontSize:"10px",outline:"none" }}>
-            <option value="createdAt">Sort by creation date</option>
-            <option value="month">Sort by month</option>
-            <option value="vendor">Sort by seller</option>
-            <option value="volume">Sort by volume</option>
-            <option value="price">Sort by price</option>
-            <option value="status">Sort by status</option>
+          <select
+            value={filterContract}
+            onChange={e => setFilterContract(e.target.value)}
+            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
+          >
+            <option value="ALL">All contracts</option>
+            <option value="Signed">Signed</option>
+            <option value="To sign">To sign</option>
+            <option value="No contract">No contract</option>
+            <option value="N/A">N/A</option>
           </select>
 
-          <button onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")} style={{ ...S,fontSize:"10px",padding:"5px 10px",borderRadius:"2px",border:"1px solid #1e2d45",cursor:"pointer",background:"transparent",color:"#3a5070" }}>
-            {sortDir === "asc" ? "↑ ASC" : "↓ DESC"}
-          </button>
+          <select
+            value={filterValidation}
+            onChange={e => setFilterValidation(e.target.value)}
+            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
+          >
+            <option value="ALL">All validations</option>
+            <option value="Validated">Validated</option>
+            <option value="Pending">Pending validation</option>
+            <option value="N/A">N/A</option>
+          </select>
+
+          <select
+            value={filterPayment}
+            onChange={e => setFilterPayment(e.target.value)}
+            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
+          >
+            <option value="ALL">All payments</option>
+            <option value="Paid">Paid</option>
+            <option value="Unpaid">Unpaid</option>
+            <option value="N/A">N/A</option>
+          </select>
+
+          <select
+            value={filterDeposit}
+            onChange={e => setFilterDeposit(e.target.value)}
+            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
+          >
+            <option value="ALL">All deposits</option>
+            <option value="Full">Fully deposited</option>
+            <option value="Partial">Partially deposited</option>
+            <option value="Open">Open deposit</option>
+            <option value="Over">Over-deposited</option>
+            <option value="N/A">N/A</option>
+          </select>
+
+          <select
+            value={filterCpRanking}
+            onChange={e => setFilterCpRanking(e.target.value)}
+            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
+          >
+            {cpRankings.map(r => (
+              <option key={r} value={r}>
+                {r === "ALL" ? "All CP rankings" : r}
+              </option>
+            ))}
+          </select>
         </div>
 
-        <div style={{ display:"flex",gap:"8px",alignItems:"center" }}>
-          <GhostBtn onClick={exportBlotterToExcel}>Export Excel</GhostBtn>
-          {currentUser?.role === "trader" && (
-            <GoldBtn onClick={()=>setShowModal(true)}>+ New Purchase</GoldBtn>
-          )}
+        {/* Row 3 — Sort controls + result count */}
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "10px",
+          flexWrap: "wrap",
+          borderTop: "1px solid #1e2d45",
+          paddingTop: "10px"
+        }}>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <select
+              value={sortKey}
+              onChange={e => setSortKey(e.target.value)}
+              style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
+            >
+              <option value="createdAt">Sort by creation date</option>
+              <option value="month">Sort by month</option>
+              <option value="vendor">Sort by seller</option>
+              <option value="volume">Sort by volume</option>
+              <option value="price">Sort by price</option>
+              <option value="status">Sort by approval</option>
+            </select>
+
+            <button
+              onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}
+              style={{
+                ...S,
+                fontSize: "10px",
+                padding: "7px 12px",
+                borderRadius: "2px",
+                border: "1px solid #1e2d45",
+                cursor: "pointer",
+                background: "transparent",
+                color: "#3a5070"
+              }}
+            >
+              {sortDir === "asc" ? "↑ ASC" : "↓ DESC"}
+            </button>
+          </div>
+
+          <span style={{ ...S, fontSize: "10px", color: "#3a5070" }}>
+            {filtered.length} trade{filtered.length > 1 ? "s" : ""} displayed / {trades.length} total
+          </span>
         </div>
       </div>
 
-      <div style={{ overflowX:"auto",border:"1px solid #1e1c18",borderRadius:"2px" }}>
-        <table style={{ width:"100%",borderCollapse:"collapse" }}>
-          <thead>
-            <tr>
-              {["Type","Seller","Deal Type","Period","Volume (GWhc)","Price (€/GWhc)","Month","Priced","Contract Status","Ranking","EMMY","Approval","Actions"].map(h=><TH key={h}>{h}</TH>)}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(t=>{
-              const can=currentUser.role==="approver"&&t.status==="PENDING"&&t.createdBy!==currentUser.id;
-              const bg="#111827";
-              return(
-                <tr key={t.id} style={{ borderBottom:"1px solid #1a1815",background:bg }} onMouseEnter={e=>e.currentTarget.style.background="#0d1526"} onMouseLeave={e=>e.currentTarget.style.background=bg}>
-                  <td style={{ padding:"9px 14px" }}><Badge color={t.ceeType==="CLASSIQUE"?"sky":"amber"}>{t.ceeType === "PRECARITE" ? "PRÉCARITÉ" : t.ceeType}</Badge></td>
-                  <td style={{ ...CG,fontSize:"14px",color:"#e2e8f0",padding:"9px 14px",maxWidth:"180px" }}>{t.vendor}</td>
-                  <td style={{ ...S,fontSize:"10px",color:"#4a6080",padding:"9px 14px" }}>{t.dealType}</td>
-                  <td style={{ ...S,fontSize:"10px",color:"#3a5070",padding:"9px 14px" }}>{t.period}</td>
-                  <td style={{ ...S,fontSize:"12px",color:"#e2e8f0",padding:"9px 14px" }}>{N(t.volume,3)}</td>
-                  <td style={{ ...S,fontSize:"12px",color:"#e2e8f0",padding:"9px 14px" }}>{N(t.price,0)}</td>
-                  <td style={{ ...S,fontSize:"11px",color:"#4a6080",padding:"9px 14px",whiteSpace:"nowrap" }}>{ML(t.month)}</td>
-                  <td style={{ padding:"9px 14px" }}><Badge color={t.priced===true?"emerald":"gray"}>{t.priced===true?"✓ Yes":"No"}</Badge></td>
-                  <td style={{ padding:"9px 14px" }}><Badge color={t.statut==="Attribué"?"green":"amber"}>{t.statut === "Attribué" ? "Allocated" : t.statut}</Badge></td>
-                  <td style={{ ...S,fontSize:"10px",color:"#38bdf8",padding:"9px 14px" }}>{t.ranking||"—"}</td>
-                  <td style={{ padding:"9px 14px" }}><Badge color={t.emmyValidated?"green":"gray"}>{t.emmyValidated?"✓ EMMY":"Pending"}</Badge></td>
-                  <td style={{ padding:"9px 14px" }}>{SB(t.status)}</td>
-                  <td style={{ padding:"9px 14px" }}>
-                    {can&&<div style={{ display:"flex",gap:"5px" }}><button onClick={()=>onApprove(t.id,currentUser.id)} style={{ ...S,fontSize:"10px",padding:"4px 8px",background:"#0a2a1a",color:"#34d399",border:"1px solid #1d4a2a",borderRadius:"2px",cursor:"pointer" }}>✓ OK</button><button onClick={()=>onReject(t.id)} style={{ ...S,fontSize:"10px",padding:"4px 8px",background:"#2a0a0a",color:"#f87171",border:"1px solid #4a1c1c",borderRadius:"2px",cursor:"pointer" }}>✗</button></div>}
-                    {t.status==="PENDING"&&!can&&<span style={{ ...S,fontSize:"10px",color:"#1e2d45" }}>Awaiting approver</span>}
-                    {currentUser?.role==="approver"&&<button onClick={()=>{if(window.confirm(`Delete this trade?`)) onDelete(t.id)}} style={{ ...S,fontSize:"9px",padding:"3px 7px",background:"none",color:"#3a5070",border:"1px solid #2e2b24",borderRadius:"2px",cursor:"pointer",marginTop:"4px" }}>🗑</button>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div>
+        <div
+          ref={topScrollRef}
+          onScroll={syncTopScroll}
+          style={{
+            overflowX: "auto",
+            overflowY: "hidden",
+            height: "14px",
+            marginBottom: "6px",
+            border: "1px solid #1e2d45",
+            borderRadius: "2px",
+            background: "#0d1526"
+          }}
+        >
+          <div style={{ width: BLOTTER_TABLE_WIDTH, height: "1px" }} />
+        </div>
+
+        <div
+          ref={tableScrollRef}
+          onScroll={syncTableScroll}
+          style={{
+            overflowX: "auto",
+            border: "1px solid #1e1c18",
+            borderRadius: "2px"
+          }}
+        >
+          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:BLOTTER_TABLE_WIDTH }}>
+            <thead>
+              <tr>
+                {[
+                  "Type",
+                  "Seller",
+                  "Deal Type",
+                  "Period",
+                  "Month",
+                  "Pricing Month",
+                  "Volume (GWhc)",
+                  "Price (€/GWhc)",
+                  "Priced",
+                  "Sourcing",
+                  "Contract",
+                  "Validated",
+                  "Payment",
+                  "Deposited (GWhc)",
+                  "Remaining (GWhc)",
+                  "CP Ranking",
+                  "Approval",
+                  "Actions"
+                ].map(h => <TH key={h}>{h}</TH>)}
+              </tr>
+            </thead>
+
+            <tbody>
+              {filtered.map(t => {
+                const can = currentUser.role === "approver" && t.status === "PENDING" && t.createdBy !== currentUser.id;
+                const bg = "#111827";
+
+                return (
+                  <tr
+                    key={t.id}
+                    style={{ borderBottom:"1px solid #1a1815", background:bg }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#0d1526"}
+                    onMouseLeave={e => e.currentTarget.style.background = bg}
+                  >
+                    <td
+                      style={{
+                        padding:"9px 14px",
+                        minWidth:"130px",
+                        whiteSpace:"nowrap"
+                      }}
+                    >
+                      <Badge color={t.ceeType === "CLASSIQUE" ? "sky" : "amber"}>
+                        {t.ceeType === "PRECARITE" ? "PRÉCARITÉ" : t.ceeType}
+                      </Badge>
+                    </td>
+
+                    <td style={{ ...CG, fontSize:"14px", color:"#e2e8f0", padding:"9px 14px", maxWidth:"180px" }}>
+                      {t.vendor}
+                    </td>
+
+                    <td style={{ ...S, fontSize:"10px", color:"#4a6080", padding:"9px 14px" }}>
+                      {t.dealType}
+                    </td>
+
+                    <td style={{ ...S, fontSize:"10px", color:"#3a5070", padding:"9px 14px" }}>
+                      {t.period}
+                    </td>
+
+                    <td style={{ ...S, fontSize:"11px", color:"#4a6080", padding:"9px 14px", whiteSpace:"nowrap" }}>
+                      {t.month ? ML(t.month) : "—"}
+                    </td>
+
+                    <td style={{ ...S, fontSize:"11px", color:"#4a6080", padding:"9px 14px", whiteSpace:"nowrap" }}>
+                      {t.pricingMonth ? ML(t.pricingMonth) : "—"}
+                    </td>
+
+                    <td style={{ ...S, fontSize:"12px", color:"#e2e8f0", padding:"9px 14px" }}>
+                      {N(t.volume, 3)}
+                    </td>
+
+                    <td style={{ ...S, fontSize:"12px", color:"#e2e8f0", padding:"9px 14px" }}>
+                      {N(t.price, 0)}
+                    </td>
+
+                    <td style={{ padding:"9px 14px" }}>
+                      <Badge color={t.priced === true ? "green" : "gray"}>
+                        {t.priced === true ? "Priced" : "Unpriced"}
+                      </Badge>
+                    </td>
+
+                    <td style={{ ...S, fontSize:"10px", color:"#4a6080", padding:"9px 14px", maxWidth:"170px" }}>
+                      {t.sourcing || "—"}
+                    </td>
+
+                    <td style={{ padding:"9px 14px" }}>
+                      {(() => {
+                        const s = getContractStatus(t);
+                        return <Badge color={s.color}>{s.label}</Badge>;
+                      })()}
+                    </td>
+
+                    <td style={{ padding:"9px 14px" }}>
+                      {(() => {
+                        const s = getValidationStatus(t);
+                        return <Badge color={s.color}>{s.label}</Badge>;
+                      })()}
+                    </td>
+
+                    <td style={{ padding:"9px 14px" }}>
+                      {(() => {
+                        const s = getPaymentStatus(t);
+                        return <Badge color={s.color}>{s.label}</Badge>;
+                      })()}
+                    </td>
+
+                    <td style={{ ...S, fontSize:"11px", color:"#4a6080", padding:"9px 14px" }}>
+                      {t.volumeDeposited != null ? N(t.volumeDeposited, 3) : "—"}
+                    </td>
+
+                    <td style={{ padding:"9px 14px" }}>
+                      {(() => {
+                        const s = getDepositStatus(t);
+                        const remaining = t.volumeRemainingToBeDeposited;
+
+                        return (
+                          <div style={{ display:"flex", flexDirection:"column", gap:"3px" }}>
+                            <Badge color={s.color}>{s.label}</Badge>
+                            <span
+                              style={{
+                                ...S,
+                                fontSize:"10px",
+                                color: remaining < -EPS ? "#b07ee8" : remaining > EPS ? "#f87171" : "#4a6080"
+                              }}
+                            >
+                              {remaining != null ? N(remaining, 3) : "—"}
+                            </span>
+                          </div>
+                        );
+                      })()}
+                    </td>
+
+                    <td style={{ padding:"9px 14px" }}>
+                      {t.cpRanking
+                        ? (
+                          <Badge color={t.cpRanking === "AAA" ? "green" : t.cpRanking?.includes("A") ? "sky" : "amber"}>
+                            {t.cpRanking}
+                          </Badge>
+                        )
+                        : <span style={{ ...S, fontSize:"10px", color:"#3d3830" }}>—</span>}
+                    </td>
+
+                    <td style={{ padding:"9px 14px" }}>
+                      {SB(t.status)}
+                    </td>
+
+                    <td style={{ padding:"9px 14px" }}>
+                      {can && (
+                        <div style={{ display:"flex", gap:"5px" }}>
+                          <button
+                            onClick={() => onApprove(t.id, currentUser.id)}
+                            style={{ ...S, fontSize:"10px", padding:"4px 8px", background:"#0a2a1a", color:"#34d399", border:"1px solid #1d4a2a", borderRadius:"2px", cursor:"pointer" }}
+                          >
+                            ✓ OK
+                          </button>
+
+                          <button
+                            onClick={() => onReject(t.id)}
+                            style={{ ...S, fontSize:"10px", padding:"4px 8px", background:"#2a0a0a", color:"#f87171", border:"1px solid #4a1c1c", borderRadius:"2px", cursor:"pointer" }}
+                          >
+                            ✗
+                          </button>
+                        </div>
+                      )}
+
+                      {t.status === "PENDING" && !can && (
+                        <span style={{ ...S, fontSize:"10px", color:"#1e2d45" }}>
+                          Awaiting approver
+                        </span>
+                      )}
+
+                      {currentUser?.role === "approver" && (
+                        <button
+                          onClick={() => { if (window.confirm(`Delete this trade?`)) onDelete(t.id); }}
+                          style={{ ...S, fontSize:"9px", padding:"3px 7px", background:"none", color:"#3a5070", border:"1px solid #2e2b24", borderRadius:"2px", cursor:"pointer", marginTop:"4px" }}
+                        >
+                          🗑
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            </table>
+        </div>
       </div>
 
       {showModal&&(
