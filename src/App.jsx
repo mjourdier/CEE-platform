@@ -1231,7 +1231,7 @@ function PositionView({ trades, obligations, curve, prices }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // BLOTTER
 // ─────────────────────────────────────────────────────────────────────────────
-function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) {
+function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete, onUpdate }) {
   const [filter, setFilter] = useState("ALL");
   const [filterMonth, setFilterMonth] = useState("ALL");
   const [filterVendor, setFilterVendor] = useState("ALL");
@@ -1252,8 +1252,32 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
   const [sortKey, setSortKey] = useState("createdAt");
   const [sortDir, setSortDir] = useState("desc");
   const [showModal, setShowModal] = useState(false);
+  const [tradesDraft, setTradesDraft] = useState({});
 
-  const blank = { ceeType:"CLASSIQUE", vendor:"", dealType:"Fixed Price", period:"P6", volume:"", price:"", month:"", ranking:"", statut:"Attribué" };
+  const blank = {
+    ceeType: "CLASSIQUE",
+    vendor: "",
+    dealType: "Fixed Price",
+    period: "P6",
+    volume: "",
+    price: "",
+    month: "",
+    priced: true,
+
+    sourcing: "Secondary",
+    contractYesNo: true,
+    contractSigned: false,
+    contractDate: "",
+    paymentTerms: "After Delivery",
+    volumeDeposited: "0",
+    validated: false,
+    payment: false,
+    cpRanking: "",
+    comments: "",
+
+    ranking: "",
+    statut: "Pas encore contracté"
+  };
   const [form, setForm] = useState(blank);
 
   const months = useMemo(
@@ -1405,10 +1429,82 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
     XLSX.writeFile(workbook, `CEE_Blotter_${new Date().toISOString().slice(0,10)}.xlsx`);
   };
 
-  const handleSubmit=()=>{
-    if(!form.vendor||!form.volume||!form.price||!form.month) return;
-    onAdd({...form,id:"t"+uid(),volume:parseFloat(form.volume),price:parseFloat(form.price),status:"PENDING",createdBy:currentUser.id,approvedBy:null,createdAt:new Date().toISOString(),emmyValidated:false});
-    setShowModal(false); setForm(blank);
+  const handleSubmit = () => {
+    if (!form.vendor || !form.volume || !form.price || !form.month) {
+      alert("Merci de renseigner au minimum le seller, le volume, le prix et le mois.");
+      return;
+    }
+
+    const volume = Number(form.volume);
+    const price = Number(form.price);
+    const deposited = Number(form.volumeDeposited || 0);
+
+    if (!Number.isFinite(volume) || volume <= 0) {
+      alert("Merci de saisir un volume valide.");
+      return;
+    }
+
+    if (!Number.isFinite(price) || price < 0) {
+      alert("Merci de saisir un prix valide.");
+      return;
+    }
+
+    if (!Number.isFinite(deposited) || deposited < 0) {
+      alert("Merci de saisir un volume déposé valide.");
+      return;
+    }
+
+    const remaining = volume - deposited;
+    const now = new Date().toISOString();
+    const today = now.slice(0, 10);
+
+    const newTrade = {
+      id: "t" + uid(),
+
+      ceeType: form.ceeType,
+      vendor: form.vendor,
+      dealType: form.dealType,
+      period: form.period,
+      volume,
+      price,
+      month: form.month,
+      status: "PENDING",
+      priced: form.priced,
+      statut: form.contractSigned ? "Contrat signé" : form.statut,
+      ranking: form.ranking || form.cpRanking || null,
+      emmyValidated: false,
+      createdBy: currentUser.id,
+      approvedBy: null,
+      createdAt: now,
+
+      year: Number(String(form.month).slice(0, 4)) || null,
+      operationType: "Achat",
+      pricingMonth: null,
+      comments: form.comments || null,
+      sourcing: form.sourcing || null,
+      tolerancePct: null,
+      volumeM3Equivalent: null,
+
+      contractYesNo: form.contractYesNo,
+      contractSigned: form.contractSigned,
+      contractDate: form.contractDate || null,
+      paymentTerms: form.paymentTerms || null,
+
+      volumeDeposited: deposited,
+      volumeRemainingToBeDeposited: remaining,
+
+      validated: form.validated,
+      validationDate: form.validated ? today : null,
+
+      payment: form.payment,
+      paymentDate: form.payment ? today : null,
+
+      cpRanking: form.cpRanking || null
+    };
+
+    onAdd(newTrade);
+    setShowModal(false);
+    setForm(blank);
   };
 
   const SB=s=>s==="APPROVED"?<Badge color="green">Approved</Badge>:s==="PENDING"?<Badge color="amber">Pending</Badge>:<Badge color="red">Rejected</Badge>;
@@ -1432,6 +1528,64 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
     if (tableScrollRef.current && topScrollRef.current) {
       topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
     }
+  };
+
+  const togglePriced = (t) => {
+    onUpdate(t.id, {
+      priced: !t.priced
+    });
+  };
+
+  const toggleContract = (t) => {
+    const nextSigned = !t.contractSigned;
+
+    onUpdate(t.id, {
+      contractSigned: nextSigned,
+      contractYesNo: nextSigned ? true : t.contractYesNo
+    });
+  };
+
+  const toggleValidation = (t) => {
+    const nextValidated = !t.validated;
+
+    onUpdate(t.id, {
+      validated: nextValidated,
+      validationDate: nextValidated ? new Date().toISOString().slice(0, 10) : null
+    });
+  };
+
+  const togglePayment = (t) => {
+    const nextPayment = !t.payment;
+
+    onUpdate(t.id, {
+      payment: nextPayment,
+      paymentDate: nextPayment ? new Date().toISOString().slice(0, 10) : null
+    });
+  };
+
+  const toggleApproval = (t) => {
+    const nextStatus = t.status === "APPROVED" ? "PENDING" : "APPROVED";
+
+    onUpdate(t.id, {
+      status: nextStatus,
+      approvedBy: nextStatus === "APPROVED" ? currentUser.id : null
+    });
+  };
+
+  const updateDeposited = (t, value) => {
+    const deposited = Number(value);
+
+    if (!Number.isFinite(deposited) || deposited < 0) {
+      alert("Merci de saisir un volume déposé valide.");
+      return;
+    }
+
+    const remaining = Number(t.volume || 0) - deposited;
+
+    onUpdate(t.id, {
+      volumeDeposited: deposited,
+      volumeRemainingToBeDeposited: remaining
+    });
   };
 
   return (
@@ -1776,9 +1930,15 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
                     </td>
 
                     <td style={{ padding:"9px 14px" }}>
-                      <Badge color={t.priced === true ? "green" : "gray"}>
-                        {t.priced === true ? "Priced" : "Unpriced"}
-                      </Badge>
+                      <button
+                        onClick={() => togglePriced(t)}
+                        style={{ background:"none", border:"none", padding:0, cursor:"pointer" }}
+                        title="Toggle priced status"
+                      >
+                        <Badge color={t.priced === true ? "green" : "gray"}>
+                          {t.priced === true ? "Priced" : "Unpriced"}
+                        </Badge>
+                      </button>
                     </td>
 
                     <td style={{ ...S, fontSize:"10px", color:"#4a6080", padding:"9px 14px", maxWidth:"170px" }}>
@@ -1786,28 +1946,80 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
                     </td>
 
                     <td style={{ padding:"9px 14px" }}>
-                      {(() => {
-                        const s = getContractStatus(t);
-                        return <Badge color={s.color}>{s.label}</Badge>;
-                      })()}
+                      <button
+                        onClick={() => toggleContract(t)}
+                        style={{ background:"none", border:"none", padding:0, cursor:"pointer" }}
+                        title="Toggle contract signed"
+                      >
+                        {(() => {
+                          const s = getContractStatus(t);
+                          return <Badge color={s.color}>{s.label}</Badge>;
+                        })()}
+                      </button>
                     </td>
 
                     <td style={{ padding:"9px 14px" }}>
-                      {(() => {
-                        const s = getValidationStatus(t);
-                        return <Badge color={s.color}>{s.label}</Badge>;
-                      })()}
+                      <button
+                        onClick={() => toggleValidation(t)}
+                        style={{ background:"none", border:"none", padding:0, cursor:"pointer" }}
+                        title="Toggle validation status"
+                      >
+                        {(() => {
+                          const s = getValidationStatus(t);
+                          return <Badge color={s.color}>{s.label}</Badge>;
+                        })()}
+                      </button>
                     </td>
 
                     <td style={{ padding:"9px 14px" }}>
-                      {(() => {
-                        const s = getPaymentStatus(t);
-                        return <Badge color={s.color}>{s.label}</Badge>;
-                      })()}
+                      <button
+                        onClick={() => togglePayment(t)}
+                        style={{ background:"none", border:"none", padding:0, cursor:"pointer" }}
+                        title="Toggle payment status"
+                      >
+                        {(() => {
+                          const s = getPaymentStatus(t);
+                          return <Badge color={s.color}>{s.label}</Badge>;
+                        })()}
+                      </button>
                     </td>
 
-                    <td style={{ ...S, fontSize:"11px", color:"#4a6080", padding:"9px 14px" }}>
-                      {t.volumeDeposited != null ? N(t.volumeDeposited, 3) : "—"}
+                    <td style={{ padding:"9px 14px" }}>
+                      <input
+                        type="number"
+                        step="0.001"
+                        value={tradesDraft[t.id] ?? t.volumeDeposited ?? ""}
+                        onChange={e => {
+                          setTradesDraft(prev => ({
+                            ...prev,
+                            [t.id]: e.target.value
+                          }));
+                        }}
+                        onBlur={e => {
+                          updateDeposited(t, e.target.value);
+                          setTradesDraft(prev => {
+                            const next = { ...prev };
+                            delete next[t.id];
+                            return next;
+                          });
+                        }}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") {
+                            e.currentTarget.blur();
+                          }
+                        }}
+                        style={{
+                          ...S,
+                          width:"82px",
+                          background:"#0d1526",
+                          border:"1px solid #2e2b24",
+                          color:"#e2e8f0",
+                          borderRadius:"2px",
+                          padding:"5px 7px",
+                          fontSize:"10px",
+                          outline:"none"
+                        }}
+                      />
                     </td>
 
                     <td style={{ padding:"9px 14px" }}>
@@ -1843,7 +2055,13 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
                     </td>
 
                     <td style={{ padding:"9px 14px" }}>
-                      {SB(t.status)}
+                      <button
+                        onClick={() => toggleApproval(t)}
+                        style={{ background:"none", border:"none", padding:0, cursor:"pointer" }}
+                        title="Toggle approval status"
+                      >
+                        {SB(t.status)}
+                      </button>
                     </td>
 
                     <td style={{ padding:"9px 14px" }}>
@@ -1888,20 +2106,167 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete }) 
         </div>
       </div>
 
-      {showModal&&(
-        <Modal title="New CEE Purchase" onClose={()=>setShowModal(false)} wide>
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"13px" }}>
-            <FS label="CEE Type" value={form.ceeType} onChange={e=>setForm(f=>({...f,ceeType:e.target.value}))}><option value="CLASSIQUE">Classique</option><option value="PRECARITE">Précarité</option></FS>
-            <FI label="Seller" placeholder="ACT (Mandate 2026)…" value={form.vendor} onChange={e=>setForm(f=>({...f,vendor:e.target.value}))}/>
-            <FS label="Deal Type" value={form.dealType} onChange={e=>setForm(f=>({...f,dealType:e.target.value}))}><option value="Fixed Price">Fixed Price</option><option value="Floating">Floating</option></FS>
-            <FS label="Period" value={form.period} onChange={e=>setForm(f=>({...f,period:e.target.value}))}><option value="P6">P6</option><option value="P5">P5</option></FS>
-            <FI label="Volume (GWhc)" type="number" step="0.001" placeholder="0.000" value={form.volume} onChange={e=>setForm(f=>({...f,volume:e.target.value}))}/>
-            <FI label="Price (€/GWhc)" type="number" step="1" placeholder="9000" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))}/>
-            <FI label="Month" type="month" value={form.month} onChange={e=>setForm(f=>({...f,month:e.target.value}))}/>
-            <FS label="Status" value={form.statut} onChange={e=>setForm(f=>({...f,statut:e.target.value}))}><option value="Attribué">Allocated</option><option value="Pas encore contracté">Not contracted yet</option><option value="Contrat signé">Contract signed</option></FS>
-            <FS label="Ranking" value={form.ranking} onChange={e=>setForm(f=>({...f,ranking:e.target.value}))}><option value="">—</option>{["AAA","AA","A+","BBB","BB","B+"].map(r=><option key={r}>{r}</option>)}</FS>
+      {showModal && (
+        <Modal title="New CEE Purchase" onClose={() => setShowModal(false)} wide>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"13px" }}>
+            <FS label="CEE Type" value={form.ceeType} onChange={e => setForm(f => ({ ...f, ceeType:e.target.value }))}>
+              <option value="CLASSIQUE">Classique</option>
+              <option value="PRECARITE">Précarité</option>
+            </FS>
+
+            <FI
+              label="Seller"
+              placeholder="ACT France, OTC, Eco-Environnement..."
+              value={form.vendor}
+              onChange={e => setForm(f => ({ ...f, vendor:e.target.value }))}
+            />
+
+            <FS label="Deal Type" value={form.dealType} onChange={e => setForm(f => ({ ...f, dealType:e.target.value }))}>
+              <option value="Fixed Price">Fixed Price</option>
+              <option value="Floating">Floating</option>
+            </FS>
+
+            <FS label="Period" value={form.period} onChange={e => setForm(f => ({ ...f, period:e.target.value }))}>
+              <option value="P6">P6</option>
+              <option value="P5">P5</option>
+            </FS>
+
+            <FI
+              label="Month"
+              type="month"
+              value={form.month}
+              onChange={e => setForm(f => ({ ...f, month:e.target.value }))}
+            />
+
+            <FS
+              label="Priced"
+              value={String(form.priced)}
+              onChange={e => setForm(f => ({ ...f, priced:e.target.value === "true" }))}
+            >
+              <option value="true">Priced</option>
+              <option value="false">Unpriced</option>
+            </FS>
+
+            <FI
+              label="Volume (GWhc)"
+              type="number"
+              step="0.001"
+              placeholder="0.000"
+              value={form.volume}
+              onChange={e => setForm(f => ({ ...f, volume:e.target.value }))}
+            />
+
+            <FI
+              label="Price (€/GWhc)"
+              type="number"
+              step="1"
+              placeholder="9000"
+              value={form.price}
+              onChange={e => setForm(f => ({ ...f, price:e.target.value }))}
+            />
+
+            <FI
+              label="Deposited (GWhc)"
+              type="number"
+              step="0.001"
+              placeholder="0.000"
+              value={form.volumeDeposited}
+              onChange={e => setForm(f => ({ ...f, volumeDeposited:e.target.value }))}
+            />
+
+            <FS label="Sourcing" value={form.sourcing} onChange={e => setForm(f => ({ ...f, sourcing:e.target.value }))}>
+              <option value="">—</option>
+              <option value="Primary">Primary</option>
+              <option value="Secondary">Secondary</option>
+              <option value="Program">Program</option>
+              <option value="Authorized representative">Authorized representative</option>
+            </FS>
+
+            <FS
+              label="Contract expected"
+              value={String(form.contractYesNo)}
+              onChange={e => setForm(f => ({ ...f, contractYesNo:e.target.value === "true" }))}
+            >
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </FS>
+
+            <FS
+              label="Contract signed"
+              value={String(form.contractSigned)}
+              onChange={e => setForm(f => ({ ...f, contractSigned:e.target.value === "true" }))}
+            >
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </FS>
+
+            <FI
+              label="Contract date"
+              type="date"
+              value={form.contractDate}
+              onChange={e => setForm(f => ({ ...f, contractDate:e.target.value }))}
+            />
+
+            <FS label="Payment terms" value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms:e.target.value }))}>
+              <option value="After Delivery">After Delivery</option>
+              <option value="Prepayment">Prepayment</option>
+            </FS>
+
+            <FS
+              label="Validated"
+              value={String(form.validated)}
+              onChange={e => setForm(f => ({ ...f, validated:e.target.value === "true" }))}
+            >
+              <option value="false">Pending</option>
+              <option value="true">Validated</option>
+            </FS>
+
+            <FS
+              label="Payment"
+              value={String(form.payment)}
+              onChange={e => setForm(f => ({ ...f, payment:e.target.value === "true" }))}
+            >
+              <option value="false">Unpaid</option>
+              <option value="true">Paid</option>
+            </FS>
+
+            <FS label="CP Ranking" value={form.cpRanking} onChange={e => setForm(f => ({ ...f, cpRanking:e.target.value }))}>
+              <option value="">—</option>
+              {["AAA","AA","A+","A","BBB","BB","B+"].map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </FS>
+
+            <FI
+              label="Comments"
+              placeholder="Optional comment"
+              value={form.comments}
+              onChange={e => setForm(f => ({ ...f, comments:e.target.value }))}
+            />
           </div>
-          <div style={{ display:"flex",justifyContent:"flex-end",gap:"10px",marginTop:"16px" }}><GhostBtn onClick={()=>setShowModal(false)}>Cancel</GhostBtn><GoldBtn onClick={handleSubmit}>Submit</GoldBtn></div>
+
+          <div style={{
+            marginTop:"14px",
+            padding:"10px 12px",
+            background:"#0d1526",
+            border:"1px solid #1e2d45",
+            borderRadius:"2px"
+          }}>
+            <p style={{ ...S, fontSize:"10px", color:"#3a5070" }}>
+              Remaining to deposit will be calculated automatically:
+              {" "}
+              <span style={{ color:"#38bdf8" }}>
+                {Number.isFinite(Number(form.volume)) && Number.isFinite(Number(form.volumeDeposited || 0))
+                  ? `${N(Number(form.volume) - Number(form.volumeDeposited || 0), 3)} GWhc`
+                  : "—"}
+              </span>
+            </p>
+          </div>
+
+          <div style={{ display:"flex", justifyContent:"flex-end", gap:"10px", marginTop:"16px" }}>
+            <GhostBtn onClick={() => setShowModal(false)}>Cancel</GhostBtn>
+            <GoldBtn onClick={handleSubmit}>Submit</GoldBtn>
+          </div>
         </Modal>
       )}
     </div>
@@ -3656,26 +4021,25 @@ export default function App() {
       approved_by: t.approvedBy,
       created_at: t.createdAt,
 
-      // Extended Excel fields
-      year: t.year ?? null,
-      operation_type: t.operationType ?? null,
-      pricing_month: t.pricingMonth ?? null,
-      comments: t.comments ?? null,
-      sourcing: t.sourcing ?? null,
+      year: t.year ?? (Number(String(t.month || "").slice(0, 4)) || null),
+      operation_type: t.operationType || "Achat",
+      pricing_month: t.pricingMonth || null,
+      comments: t.comments || null,
+      sourcing: t.sourcing || null,
       tolerance_pct: t.tolerancePct ?? null,
       volume_m3_equivalent: t.volumeM3Equivalent ?? null,
-      approval: t.approval ?? null,
-      contract_yes_no: t.contractYesNo ?? null,
-      contract_signed: t.contractSigned ?? null,
-      contract_date: t.contractDate ?? null,
-      payment_terms: t.paymentTerms ?? null,
-      volume_deposited: t.volumeDeposited ?? null,
-      volume_remaining_to_be_deposited: t.volumeRemainingToBeDeposited ?? null,
-      validated: t.validated ?? null,
-      validation_date: t.validationDate ?? null,
-      payment: t.payment ?? null,
-      payment_date: t.paymentDate ?? null,
-      cp_ranking: t.cpRanking ?? null
+      approval: t.approval || null,
+      contract_yes_no: t.contractYesNo,
+      contract_signed: t.contractSigned,
+      contract_date: t.contractDate || null,
+      payment_terms: t.paymentTerms || null,
+      volume_deposited: t.volumeDeposited ?? 0,
+      volume_remaining_to_be_deposited: t.volumeRemainingToBeDeposited ?? Number(t.volume || 0),
+      validated: t.validated,
+      validation_date: t.validationDate || null,
+      payment: t.payment,
+      payment_date: t.paymentDate || null,
+      cp_ranking: t.cpRanking || null
     });
     await addAudit({action:"TRADE_CREATED",entity:t.id,detail:`BUY ${N(t.volume,3)} GWhc ${t.ceeType} @ ${N(t.price,0)} — ${t.vendor}`});
   },[persist,addAudit]);
@@ -3750,6 +4114,51 @@ export default function App() {
       detail: tradeToDelete
         ? `Trade deleted — ${tradeToDelete.vendor} · ${tradeToDelete.ceeType} · ${N(tradeToDelete.volume,3)} GWhc @ ${N(tradeToDelete.price,0)} €/GWhc · ${ML(tradeToDelete.month)}`
         : `Trade permanently deleted — id: ${id}`
+    });
+  }, [trades, addAudit]);
+
+  const handleUpdateTrade = useCallback(async (id, patch) => {
+    const tradeBefore = trades.find(t => t.id === id);
+
+    setTrades(ts => ts.map(t =>
+      t.id === id ? { ...t, ...patch } : t
+    ));
+
+    const dbPatch = {};
+
+    if ("priced" in patch) dbPatch.priced = patch.priced;
+    if ("contractSigned" in patch) dbPatch.contract_signed = patch.contractSigned;
+    if ("contractYesNo" in patch) dbPatch.contract_yes_no = patch.contractYesNo;
+    if ("validated" in patch) dbPatch.validated = patch.validated;
+    if ("validationDate" in patch) dbPatch.validation_date = patch.validationDate;
+    if ("payment" in patch) dbPatch.payment = patch.payment;
+    if ("paymentDate" in patch) dbPatch.payment_date = patch.paymentDate;
+    if ("status" in patch) dbPatch.status = patch.status;
+    if ("status" in patch) dbPatch.status = patch.status;
+    if ("approvedBy" in patch) dbPatch.approved_by = patch.approvedBy;
+    if ("volumeDeposited" in patch) dbPatch.volume_deposited = patch.volumeDeposited;
+    if ("volumeRemainingToBeDeposited" in patch) {
+      dbPatch.volume_remaining_to_be_deposited = patch.volumeRemainingToBeDeposited;
+    }
+
+    const { error } = await supabase
+      .from("trades")
+      .update(dbPatch)
+      .eq("id", id);
+
+    if (error) {
+      console.error("Trade update error:", error.message);
+      alert("Erreur lors de la mise à jour du trade.");
+      await loadAll({ silent: true });
+      return;
+    }
+
+    await addAudit({
+      action: "TRADE_UPDATED",
+      entity: id,
+      detail: tradeBefore
+        ? `Trade updated — ${tradeBefore.vendor} · ${tradeBefore.ceeType} · ${N(tradeBefore.volume,3)} GWhc`
+        : `Trade updated — id: ${id}`
     });
   }, [trades, addAudit]);
 
@@ -3936,7 +4345,17 @@ export default function App() {
         {tab==="dashboard"  && <Dashboard     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
         {tab==="reporting"  && <Reporting     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
         {tab==="position"   && <PositionView  trades={trades} obligations={obligations} curve={curve} prices={prices}/>}
-        {tab==="blotter"    && <Blotter       trades={trades} currentUser={currentUser} onAdd={handleAddTrade} onApprove={handleApproveTrade} onReject={handleRejectTrade} onDelete={handleDeleteTrade}/>}
+        {tab==="blotter" && (
+          <Blotter
+            trades={trades}
+            currentUser={currentUser}
+            onAdd={handleAddTrade}
+            onApprove={handleApproveTrade}
+            onReject={handleRejectTrade}
+            onDelete={handleDeleteTrade}
+            onUpdate={handleUpdateTrade}
+          />
+        )}
         {tab==="obligation" && <ObligationTab obligations={obligations} onAdd={handleAddObligation} onDelete={id=>setObligations(os=>os.filter(o=>o.id!==id))}/>}
         {tab==="curve"      && <CurveTab      curve={curve} onUpdate={handleUpdateCurve} trades={trades}/>}
         {tab==="prices"     && <PricesTab     prices={prices} currentUser={currentUser} onAdd={handleAddPrice}/>}
