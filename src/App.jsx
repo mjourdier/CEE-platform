@@ -234,11 +234,21 @@ function Reporting({ trades, obligations, prices, curve }) {
   const monthlyData = useMemo(() => MONTHS_LIST.map(month => {
     const oblCl = oblMonth(obligations, month, "CLASSIQUE"); const oblPr = oblMonth(obligations, month, "PRECARITE");
     const oblClP = oblMonth(obligations, month, "CLASSIQUE", true); const oblPrP = oblMonth(obligations, month, "PRECARITE", true);
-    // Priced purchases for PnL and MtM; total purchases for coverage information
-    const bClP = sumVol(trades, "CLASSIQUE", month, true); const bPrP = sumVol(trades, "PRECARITE", month, true);
-    const bCl = sumVol(trades, "CLASSIQUE", month);        const bPr = sumVol(trades, "PRECARITE", month);
-    const aClP = wAvg(trades, "CLASSIQUE", month, true);    const aPrP = wAvg(trades, "PRECARITE", month, true);
-    const sCl = avgSellMonth(obligations, month, "CLASSIQUE"); const sPr = avgSellMonth(obligations, month, "PRECARITE");
+    // Business view: include imported priced trades even if still pending four-eyes approval
+    const bClP = sumVol(trades, "CLASSIQUE", month, true, false);
+    const bPrP = sumVol(trades, "PRECARITE", month, true, false);
+
+    // Total purchases, also business view
+    const bCl = sumVol(trades, "CLASSIQUE", month, false, false);
+    const bPr = sumVol(trades, "PRECARITE", month, false, false);
+
+    // Excel-aligned priced average buy for PnL / MtM
+    const aClP = pnlBuyAvg(trades, "CLASSIQUE", month);
+    const aPrP = pnlBuyAvg(trades, "PRECARITE", month);
+
+    // Priced sell average only
+    const sCl = avgSellMonth(obligations, month, "CLASSIQUE", true);
+    const sPr = avgSellMonth(obligations, month, "PRECARITE", true);
     // PnL = (sell - priced avg buy) × min(priced bought, priced obligation)
     const matchCl = Math.min(bClP, oblClP); const matchPr = Math.min(bPrP, oblPrP);
     const pnlCl = (oblClP > 0.001 && aClP > 0 && sCl > 0) ? (sCl - aClP) * matchCl : 0;
@@ -248,8 +258,13 @@ function Reporting({ trades, obligations, prices, curve }) {
     const openPr = (oblPrP > 0.001 && bPrP > oblPrP) ? bPrP - oblPrP : 0;
     const mtmCl = openCl > 0 ? openCl * (latestSpot.classique * 1000 - aClP) : 0;
     const mtmPr = openPr > 0 ? openPr * (latestSpot.precarite * 1000 - aPrP) : 0;
-    // Priced coverage
-    const covPct = (oblClP + oblPrP) > 0 ? (bClP + bPrP) / (oblClP + oblPrP) * 100 : 0;
+    // Priced coverage: null when no priced obligation, to avoid showing false 0% coverage
+    const pricedObligation = oblClP + oblPrP;
+    const pricedBought = bClP + bPrP;
+
+    const covPct = pricedObligation > 0
+      ? pricedBought / pricedObligation * 100
+      : null;
     return {
       month: MLS(month),
       oblCl: Math.round(oblCl),
@@ -264,7 +279,10 @@ function Reporting({ trades, obligations, prices, curve }) {
       pnlPr: Math.round(pnlPr / 1000),
       pnl: Math.round((pnlCl + pnlPr) / 1000),
       mtm: Math.round((mtmCl + mtmPr) / 1000),
-      covPct: Math.round(covPct),
+      covPct: covPct == null ? null : Math.round(covPct),
+      covPctChart: covPct == null ? null : Math.min(Math.round(covPct), 150),
+      nnetClP: Math.round(bClP - oblClP),
+      netPrP: Math.round(bPrP - oblPrP),
       netPos: Math.round(bClP + bPrP - oblClP - oblPrP)
     };
   }), [trades, obligations, latestSpot]);
@@ -288,8 +306,13 @@ function Reporting({ trades, obligations, prices, curve }) {
 
   // Coverage donut data
   const totalOblP = MONTHS_LIST.reduce((s, m) => s + oblMonth(obligations, m, "CLASSIQUE", true) + oblMonth(obligations, m, "PRECARITE", true), 0);
-  const totalBoughtP = sumVol(trades, "CLASSIQUE", null, true) + sumVol(trades, "PRECARITE", null, true);
-  const totalBought = sumVol(trades, "CLASSIQUE") + sumVol(trades, "PRECARITE");
+  const totalBoughtP =
+    sumVol(trades, "CLASSIQUE", null, true, false) +
+    sumVol(trades, "PRECARITE", null, true, false);
+
+  const totalBought =
+    sumVol(trades, "CLASSIQUE", null, false, false) +
+    sumVol(trades, "PRECARITE", null, false, false);
   const totalUnpriced = MONTHS_LIST.reduce((s, m) => s + oblMonth(obligations, m, "CLASSIQUE") + oblMonth(obligations, m, "PRECARITE"), 0) - totalOblP;
   const covPct = totalOblP > 0 ? Math.min(totalBoughtP / totalOblP * 100, 100) : 0;
 
@@ -524,24 +547,95 @@ function Reporting({ trades, obligations, prices, curve }) {
                 <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
                 <Bar dataKey="oblClP" name="Total Classique Obligation" fill="#1a3848" radius={[1, 1, 0, 0]} stackId="obl" />
                 <Bar dataKey="oblPrP" name="Total Précarité Obligation" fill="#2e2410" radius={[1, 1, 0, 0]} stackId="obl" />
-                <Bar dataKey="bCl"    name="Purchased Classique"        fill="#2563eb" radius={[1, 1, 0, 0]} stackId="buy" fillOpacity={0.85} />
-                <Bar dataKey="bPr"    name="Purchased Précarité"        fill="#d4a843" radius={[1, 1, 0, 0]} stackId="buy" fillOpacity={0.85} />
+                <Bar dataKey="bClP" name="Purchased Classique Priced" fill="#2563eb" radius={[1, 1, 0, 0]} stackId="buy" fillOpacity={0.85} />
+                <Bar dataKey="bPrP" name="Purchased Précarité Priced" fill="#d4a843" radius={[1, 1, 0, 0]} stackId="buy" fillOpacity={0.85} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
           <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
-            <SectionTitle>% Coverage by Month</SectionTitle>
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={40} unit="%" />
-                <Tooltip content={<ChartTip />} />
-                <ReferenceLine y={100} stroke="#34d399" strokeDasharray="4 2" label={{ value: "100%", fill: "#34d399", fontSize: 9, ...S }} />
-                <Area type="monotone" dataKey="covPct" name="Coverage %" stroke="#2563eb" fill="#5bc2e711" strokeWidth={2} />
-              </AreaChart>
-            </ResponsiveContainer>
+            <SectionTitle>Priced Coverage Control — Monthly Detail</SectionTitle>
+
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px" }}>
+                <thead>
+                  <tr>
+                    {[
+                      "Month",
+                      "Priced Obligation",
+                      "Priced Purchases",
+                      "Net Position",
+                      "Coverage",
+                      "Status"
+                    ].map(h => (
+                      <TH key={h}>{h}</TH>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {monthlyData
+                    .filter(d => (d.oblClP + d.oblPrP + d.bClP + d.bPrP) > 0)
+                    .map(d => {
+                      const obligation = d.oblClP + d.oblPrP;
+                      const purchased = d.bClP + d.bPrP;
+                      const net = d.netPos;
+                      const coverage = d.covPct;
+
+                      let status = { label: "N/A", color: "gray" };
+
+                      if (obligation > 0) {
+                        if (coverage >= 150) {
+                          status = { label: "Overcovered", color: "sky" };
+                        } else if (coverage >= 100) {
+                          status = { label: "OK", color: "green" };
+                        } else if (coverage >= 80) {
+                          status = { label: "Watch", color: "amber" };
+                        } else {
+                          status = { label: "Undercovered", color: "red" };
+                        }
+                      }
+
+                      return (
+                        <tr key={d.month} style={{ borderBottom: "1px solid #1a1815" }}>
+                          <td style={{ ...S, fontSize: "11px", color: "#e2e8f0", padding: "10px 14px", whiteSpace: "nowrap" }}>
+                            {d.month}
+                          </td>
+
+                          <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "10px 14px" }}>
+                            {N(obligation, 0)} GWhc
+                          </td>
+
+                          <td style={{ ...S, fontSize: "11px", color: "#e2e8f0", padding: "10px 14px" }}>
+                            {N(purchased, 0)} GWhc
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              fontSize: "11px",
+                              padding: "10px 14px",
+                              color: net >= 0 ? "#34d399" : "#f87171",
+                              fontWeight: 600
+                            }}
+                          >
+                            {net >= 0 ? "+" : ""}
+                            {N(net, 0)} GWhc
+                          </td>
+
+                          <td style={{ ...S, fontSize: "11px", color: "#38bdf8", padding: "10px 14px", fontWeight: 600 }}>
+                            {coverage == null ? "—" : coverage > 150 ? ">150%" : `${N(coverage, 0)}%`}
+                          </td>
+
+                          <td style={{ padding: "10px 14px" }}>
+                            <Badge color={status.color}>{status.label}</Badge>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
