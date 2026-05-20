@@ -3101,170 +3101,824 @@ function Dashboard({ trades, obligations, prices, curve }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// CURVE + PRICES (compact versions)
-// ─────────────────────────────────────────────────────────────────────────────
-function CurveTab({ curve, onUpdate, trades }) {
-  const [editing, setEditing] = useState(null);
-  const [draft, setDraft] = useState({ classique: "", precarite: "" });
+function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve }) {
+  const [view, setView] = useState("spot");
+  const [showPriceModal, setShowPriceModal] = useState(false);
+  const [editingTenor, setEditingTenor] = useState(null);
+  const [draftCurve, setDraftCurve] = useState({ classique: "", precarite: "" });
 
-  const mtm = tenor => {
-    const fp = curve[tenor];
-    if (!fp) return null;
-
-    const cl = trades.filter(t => t.status === "APPROVED" && t.ceeType === "CLASSIQUE");
-    const pr = trades.filter(t => t.status === "APPROVED" && t.ceeType === "PRECARITE");
-
-    const vCl = cl.reduce((s, t) => s + t.volume, 0);
-    const vPr = pr.reduce((s, t) => s + t.volume, 0);
-    const aCl = vCl > 0 ? cl.reduce((s, t) => s + t.price * t.volume, 0) / vCl : 0;
-    const aPr = vPr > 0 ? pr.reduce((s, t) => s + t.price * t.volume, 0) / vPr : 0;
-    const mCl = (fp.classique - aCl / 1000) * vCl;
-    const mPr = (fp.precarite - aPr / 1000) * vPr;
-
-    return { mCl, mPr, tot: mCl + mPr };
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-      <div style={{ overflowX: "auto", border: "1px solid #1e1c18", borderRadius: "2px" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              {["Tenor", "Classique (€/MWhc)", "Précarité (€/MWhc)", "MtM Classique", "MtM Précarité", "Total MtM", ""].map(h => <TH key={h}>{h}</TH>)}
-            </tr>
-          </thead>
-          <tbody>
-            {TENORS.map(t => {
-              const fp = curve[t], m = mtm(t), isE = editing === t, bg = "#111827";
-              return (
-                <tr key={t} style={{ borderBottom: "1px solid #1a1815", background: bg }} onMouseEnter={e => e.currentTarget.style.background = "#0d1526"} onMouseLeave={e => e.currentTarget.style.background = bg}>
-                  <td style={{ padding: "9px 14px" }}><Badge color={t === "SPOT" ? "gold" : "gray"}>{t}</Badge></td>
-
-                  {isE ? (
-                    <>
-                      <td style={{ padding: "7px 14px" }}>
-                        <input value={draft.classique} onChange={e => setDraft(d => ({ ...d, classique: e.target.value }))} style={{ ...S, background: "#0d1526", border: "1px solid #b8973a", color: "#e2e8f0", borderRadius: "2px", padding: "5px 8px", fontSize: "12px", width: "80px", outline: "none" }} />
-                      </td>
-                      <td style={{ padding: "7px 14px" }}>
-                        <input value={draft.precarite} onChange={e => setDraft(d => ({ ...d, precarite: e.target.value }))} style={{ ...S, background: "#0d1526", border: "1px solid #b8973a", color: "#e2e8f0", borderRadius: "2px", padding: "5px 8px", fontSize: "12px", width: "80px", outline: "none" }} />
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td style={{ ...S, fontSize: "13px", color: "#2563eb", padding: "9px 14px", fontWeight: 500 }}>{fp ? N(fp.classique) : "—"}</td>
-                      <td style={{ ...S, fontSize: "13px", color: "#d4a843", padding: "9px 14px", fontWeight: 500 }}>{fp ? N(fp.precarite) : "—"}</td>
-                    </>
-                  )}
-
-                  <td style={{ ...S, fontSize: "12px", padding: "9px 14px", color: m && m.mCl >= 0 ? "#34d399" : "#f87171" }}>{m ? fK(m.mCl) : "—"}</td>
-                  <td style={{ ...S, fontSize: "12px", padding: "9px 14px", color: m && m.mPr >= 0 ? "#34d399" : "#f87171" }}>{m ? fK(m.mPr) : "—"}</td>
-                  <td style={{ ...S, fontSize: "13px", padding: "9px 14px", fontWeight: 700, color: m && m.tot >= 0 ? "#34d399" : "#f87171" }}>{m ? fK(m.tot) : "—"}</td>
-
-                  <td style={{ padding: "9px 14px" }}>
-                    {isE ? (
-                      <button
-                        onClick={() => {
-                          onUpdate(t, { classique: parseFloat(draft.classique), precarite: parseFloat(draft.precarite) });
-                          setEditing(null);
-                        }}
-                        style={{ ...S, fontSize: "10px", padding: "4px 10px", background: "#38bdf8", color: "#0a0e1a", border: "none", borderRadius: "2px", cursor: "pointer" }}
-                      >
-                        ✓
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setEditing(t);
-                          setDraft({ classique: String(fp?.classique ?? ""), precarite: String(fp?.precarite ?? "") });
-                        }}
-                        style={{ ...S, fontSize: "10px", padding: "4px 10px", background: "transparent", color: "#3a5070", border: "1px solid #2e2b24", borderRadius: "2px", cursor: "pointer" }}
-                      >
-                        Edit
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function PricesTab({ prices, currentUser, onAdd }) {
-  const [showModal, setShowModal] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({ date: today, classique: "", precarite: "" });
 
-  const handleAdd = () => {
-    if (!form.date || !form.classique || !form.precarite) {
+  const [priceForm, setPriceForm] = useState({
+    date: today,
+    classique: "",
+    precarite: ""
+  });
+
+  const [npvParams, setNpvParams] = useState({
+    product: "CARBURANT",
+    discountRate: 4
+  });
+
+  const sortedPrices = useMemo(
+    () => [...prices].sort((a, b) => b.date.localeCompare(a.date)),
+    [prices]
+  );
+
+  const latestPrice = sortedPrices[0] || null;
+
+  const priceHistory = useMemo(
+    () => [...prices]
+      .filter(p => p.classique != null && p.precarite != null)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(p => ({
+        date: p.date?.slice(5) || p.date,
+        classique: Number(p.classique),
+        precarite: Number(p.precarite)
+      })),
+    [prices]
+  );
+
+  const curveData = useMemo(
+    () => TENORS.map(tenor => ({
+      tenor,
+      classique: curve[tenor]?.classique ?? null,
+      precarite: curve[tenor]?.precarite ?? null
+    })),
+    [curve]
+  );
+
+  const spotCurve = curve?.SPOT || latestPrice || { classique: 0, precarite: 0 };
+
+  const npvData = useMemo(() => {
+    const productParams = PARAMS[npvParams.product];
+    const discountRate = (Number(npvParams.discountRate) || 0) / 100;
+    const todayDate = new Date();
+    const MS_PER_DAY_LOCAL = 24 * 60 * 60 * 1000;
+
+    return TENORS
+      .map(tenor => {
+        const c = curve[tenor];
+        if (!c) return null;
+
+        const maturityDateRaw = MATURITY_DATES?.[tenor] || null;
+        const maturityDate = maturityDateRaw ? new Date(maturityDateRaw) : todayDate;
+
+        const days = Math.max(
+          0,
+          Math.round((maturityDate - todayDate) / MS_PER_DAY_LOCAL)
+        );
+
+        const discountFactor = days / 365;
+
+        const classique = Number(c.classique) || 0;
+        const precarite = Number(c.precarite) || 0;
+
+        const spotCl = Number(spotCurve.classique) || 0;
+        const spotPr = Number(spotCurve.precarite) || 0;
+
+        const npvCl = classique / Math.pow(1 + discountRate, discountFactor);
+        const npvPr = precarite / Math.pow(1 + discountRate, discountFactor);
+
+        const spreadCl = classique - spotCl;
+        const spreadPr = precarite - spotPr;
+
+        const impactClM3 =
+          spreadCl * productParams.kwhc_per_m3 / 1000;
+
+        const impactPrM3 =
+          spreadPr *
+          productParams.kwhc_per_m3 /
+          1000 *
+          productParams.coeff_precarite *
+          productParams.coeff_correctif;
+
+        const totalImpactM3 = impactClM3 + impactPrM3;
+
+        return {
+          tenor,
+          maturityDate: maturityDateRaw || "—",
+          days,
+          classique,
+          precarite,
+          spotCl,
+          spotPr,
+          spreadCl,
+          spreadPr,
+          npvCl,
+          npvPr,
+          impactClM3,
+          impactPrM3,
+          totalImpactM3
+        };
+      })
+      .filter(Boolean);
+  }, [curve, spotCurve, npvParams]);
+
+  const handleAddPrice = () => {
+    if (!priceForm.date || !priceForm.classique || !priceForm.precarite) {
       alert("Please fill in all fields.");
       return;
     }
 
-    onAdd({
+    const classique = Number(priceForm.classique);
+    const precarite = Number(priceForm.precarite);
+
+    if (!Number.isFinite(classique) || !Number.isFinite(precarite)) {
+      alert("Please enter valid prices.");
+      return;
+    }
+
+    onAddPrice({
       id: "p" + uid(),
-      date: form.date,
-      classique: parseFloat(form.classique),
-      precarite: parseFloat(form.precarite),
+      date: priceForm.date,
+      classique,
+      precarite,
       enteredBy: currentUser.id,
       enteredAt: new Date().toISOString()
     });
 
-    setShowModal(false);
-    setForm({ date: today, classique: "", precarite: "" });
+    setShowPriceModal(false);
+    setPriceForm({ date: today, classique: "", precarite: "" });
   };
 
-  const sorted = [...prices].sort((a, b) => b.date.localeCompare(a.date));
+  const handleSaveCurve = (tenor) => {
+    const classique = Number(draftCurve.classique);
+    const precarite = Number(draftCurve.precarite);
+
+    if (!Number.isFinite(classique) || !Number.isFinite(precarite)) {
+      alert("Please enter valid curve prices.");
+      return;
+    }
+
+    onUpdateCurve(tenor, { classique, precarite });
+    setEditingTenor(null);
+  };
+
+  const ViewButton = ({ id, children }) => (
+    <button
+      onClick={() => setView(id)}
+      style={{
+        ...S,
+        fontSize: "10px",
+        padding: "7px 14px",
+        borderRadius: "2px",
+        border: "1px solid",
+        cursor: "pointer",
+        letterSpacing: "0.08em",
+        textTransform: "uppercase",
+        background: view === id ? "#38bdf8" : "transparent",
+        color: view === id ? "#0a0e1a" : "#3a5070",
+        borderColor: view === id ? "#38bdf8" : "#1e2d45"
+      }}
+    >
+      {children}
+    </button>
+  );
+
+  const SectionTitle = ({ children }) => (
+    <p style={{
+      ...S,
+      fontSize: "9px",
+      color: "#38bdf8",
+      textTransform: "uppercase",
+      letterSpacing: "0.18em",
+      marginBottom: "14px",
+      marginTop: "4px"
+    }}>
+      {children}
+    </p>
+  );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
-        <GoldBtn onClick={() => setShowModal(true)}>+ Add Price</GoldBtn>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+      <div style={{
+        background: "#111827",
+        border: "1px solid #1e2d45",
+        borderRadius: "2px",
+        padding: "16px 18px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: "14px",
+        flexWrap: "wrap"
+      }}>
+        <div>
+          <p style={{
+            ...S,
+            fontSize: "9px",
+            color: "#38bdf8",
+            textTransform: "uppercase",
+            letterSpacing: "0.16em",
+            marginBottom: "6px"
+          }}>
+            Market & Curves
+          </p>
+
+          <p style={{ ...S, fontSize: "11px", color: "#4a6080", lineHeight: 1.6 }}>
+            Spot market prices, CEE forward curve and spot-vs-forward analysis.
+            Prices are expressed in €/MWhc.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <ViewButton id="spot">Spot Market Prices</ViewButton>
+          <ViewButton id="curve">CEE Forward Curve</ViewButton>
+          <ViewButton id="npv">Spot vs Forward / NPV</ViewButton>
+        </div>
       </div>
 
-      <div style={{ border: "1px solid #1e1c18", borderRadius: "2px", overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              {["Date", "Classique (€/MWhc)", "Précarité (€/MWhc)", "Entered by", "Timestamp"].map(h => <TH key={h}>{h}</TH>)}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((p, i) => {
-              const user = USERS.find(u => u.id === p.enteredBy);
-              const bg = i === 0 ? "#0d1526" : "#111827";
-              return (
-                <tr key={p.id} style={{ borderBottom: "1px solid #1a1815", background: bg }}>
-                  <td style={{ ...S, fontSize: "12px", color: "#e2e8f0", padding: "10px 14px", fontWeight: 500 }}>
-                    {p.date}{i === 0 && <span style={{ marginLeft: "8px", fontSize: "9px", color: "#38bdf8" }}>LATEST</span>}
-                  </td>
-                  <td style={{ ...S, fontSize: "13px", color: "#2563eb", padding: "10px 14px" }}>{N(p.classique)}</td>
-                  <td style={{ ...S, fontSize: "13px", color: "#d4a843", padding: "10px 14px" }}>{N(p.precarite)}</td>
-                  <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "10px 14px" }}>{user?.name ?? p.enteredBy}</td>
-                  <td style={{ ...S, fontSize: "10px", color: "#3d3830", padding: "10px 14px" }}>{new Date(p.enteredAt).toLocaleString("fr-FR")}</td>
+      {view === "spot" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "10px" }}>
+            <KPI
+              label="Latest Classique"
+              value={latestPrice ? `${N(latestPrice.classique, 2)} €/MWhc` : "—"}
+              color="sky"
+              sub={latestPrice ? `As of ${latestPrice.date}` : "No market price"}
+            />
+
+            <KPI
+              label="Latest Précarité"
+              value={latestPrice ? `${N(latestPrice.precarite, 2)} €/MWhc` : "—"}
+              color="amber"
+              sub={latestPrice ? `As of ${latestPrice.date}` : "No market price"}
+            />
+
+            <KPI
+              label="Price records"
+              value={N(prices.length, 0)}
+              color="emerald"
+              sub="Historical market price entries"
+            />
+          </div>
+
+          <div style={{
+            background: "#111827",
+            border: "1px solid #252219",
+            borderRadius: "2px",
+            padding: "18px"
+          }}>
+            <SectionTitle>Spot Market Price History — Classique vs Précarité</SectionTitle>
+
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={priceHistory}>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={44}
+                  domain={["auto", "auto"]}
+                />
+                <Tooltip content={<ChartTip />} />
+                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
+                <Line
+                  type="monotone"
+                  dataKey="classique"
+                  name="Classique (€/MWhc)"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  dot={{ fill: "#2563eb", r: 3 }}
+                  activeDot={{ r: 5 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="precarite"
+                  name="Précarité (€/MWhc)"
+                  stroke="#d4a843"
+                  strokeWidth={2}
+                  dot={{ fill: "#d4a843", r: 3 }}
+                  activeDot={{ r: 5 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <GoldBtn onClick={() => setShowPriceModal(true)}>+ Add Market Price</GoldBtn>
+          </div>
+
+          <div style={{ border: "1px solid #1e1c18", borderRadius: "2px", overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  {["Date", "Classique (€/MWhc)", "Précarité (€/MWhc)", "Entered by", "Timestamp"].map(h => (
+                    <TH key={h}>{h}</TH>
+                  ))}
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+              </thead>
 
-      {showModal && (
-        <Modal title="Add Market Price" onClose={() => setShowModal(false)}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "13px" }}>
-            <FI label="Date" type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
-            <FI label="Classique (€/MWhc)" type="number" step="0.01" placeholder="8.96" value={form.classique} onChange={e => setForm(f => ({ ...f, classique: e.target.value }))} />
-            <FI label="Précarité (€/MWhc)" type="number" step="0.01" placeholder="16.44" value={form.precarite} onChange={e => setForm(f => ({ ...f, precarite: e.target.value }))} />
+              <tbody>
+                {sortedPrices.map((p, i) => {
+                  const user = USERS.find(u => u.id === p.enteredBy);
+                  const bg = i === 0 ? "#0d1526" : "#111827";
+
+                  return (
+                    <tr key={p.id} style={{ borderBottom: "1px solid #1a1815", background: bg }}>
+                      <td style={{ ...S, fontSize: "12px", color: "#e2e8f0", padding: "10px 14px", fontWeight: 500 }}>
+                        {p.date}
+                        {i === 0 && (
+                          <span style={{ marginLeft: "8px", fontSize: "9px", color: "#38bdf8" }}>
+                            LATEST
+                          </span>
+                        )}
+                      </td>
+
+                      <td style={{ ...S, fontSize: "13px", color: "#2563eb", padding: "10px 14px" }}>
+                        {N(p.classique, 2)}
+                      </td>
+
+                      <td style={{ ...S, fontSize: "13px", color: "#d4a843", padding: "10px 14px" }}>
+                        {N(p.precarite, 2)}
+                      </td>
+
+                      <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "10px 14px" }}>
+                        {user?.name ?? p.enteredBy}
+                      </td>
+
+                      <td style={{ ...S, fontSize: "10px", color: "#3d3830", padding: "10px 14px" }}>
+                        {p.enteredAt ? new Date(p.enteredAt).toLocaleString("fr-FR") : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px" }}>
-            <GhostBtn onClick={() => setShowModal(false)}>Cancel</GhostBtn>
-            <GoldBtn onClick={handleAdd}>Save</GoldBtn>
+
+          {showPriceModal && (
+            <Modal title="Add Market Price" onClose={() => setShowPriceModal(false)}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "13px" }}>
+                <FI
+                  label="Date"
+                  type="date"
+                  value={priceForm.date}
+                  onChange={e => setPriceForm(f => ({ ...f, date: e.target.value }))}
+                />
+
+                <FI
+                  label="Classique (€/MWhc)"
+                  type="number"
+                  step="0.01"
+                  placeholder="8.96"
+                  value={priceForm.classique}
+                  onChange={e => setPriceForm(f => ({ ...f, classique: e.target.value }))}
+                />
+
+                <FI
+                  label="Précarité (€/MWhc)"
+                  type="number"
+                  step="0.01"
+                  placeholder="16.44"
+                  value={priceForm.precarite}
+                  onChange={e => setPriceForm(f => ({ ...f, precarite: e.target.value }))}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px" }}>
+                <GhostBtn onClick={() => setShowPriceModal(false)}>Cancel</GhostBtn>
+                <GoldBtn onClick={handleAddPrice}>Save</GoldBtn>
+              </div>
+            </Modal>
+          )}
+        </div>
+      )}
+
+      {view === "curve" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{
+            background: "#111827",
+            border: "1px solid #1e2d45",
+            borderRadius: "2px",
+            padding: "14px 16px"
+          }}>
+            <p style={{ ...S, fontSize: "11px", color: "#4a6080", lineHeight: 1.6 }}>
+              The CEE forward curve shows Classique and Précarité prices by maturity.
+              It is used as a market reference for forward pricing, spot/term comparison and valuation analysis.
+            </p>
           </div>
-        </Modal>
+
+          <div style={{
+            background: "#111827",
+            border: "1px solid #252219",
+            borderRadius: "2px",
+            padding: "18px"
+          }}>
+            <SectionTitle>CEE Forward Curve — Classique vs Précarité by Maturity</SectionTitle>
+
+            <ResponsiveContainer width="100%" height={320}>
+              <LineChart data={curveData}>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
+                <XAxis
+                  dataKey="tenor"
+                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={44}
+                  domain={["auto", "auto"]}
+                />
+                <Tooltip content={<ChartTip />} />
+                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
+                <Line
+                  type="monotone"
+                  dataKey="classique"
+                  name="Classique Forward (€/MWhc)"
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  dot={{ fill: "#2563eb", r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="precarite"
+                  name="Précarité Forward (€/MWhc)"
+                  stroke="#d4a843"
+                  strokeWidth={2}
+                  dot={{ fill: "#d4a843", r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div style={{ overflowX: "auto", border: "1px solid #1e1c18", borderRadius: "2px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  {["Tenor", "Classique Forward (€/MWhc)", "Précarité Forward (€/MWhc)", "Actions"].map(h => (
+                    <TH key={h}>{h}</TH>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {TENORS.map(t => {
+                  const fp = curve[t];
+                  const isEditing = editingTenor === t;
+                  const bg = "#111827";
+
+                  return (
+                    <tr
+                      key={t}
+                      style={{ borderBottom: "1px solid #1a1815", background: bg }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#0d1526"}
+                      onMouseLeave={e => e.currentTarget.style.background = bg}
+                    >
+                      <td style={{ padding: "9px 14px" }}>
+                        <Badge color={t === "SPOT" ? "gold" : "gray"}>{t}</Badge>
+                      </td>
+
+                      {isEditing ? (
+                        <>
+                          <td style={{ padding: "7px 14px" }}>
+                            <input
+                              value={draftCurve.classique}
+                              onChange={e => setDraftCurve(d => ({ ...d, classique: e.target.value }))}
+                              style={{
+                                ...S,
+                                background: "#0d1526",
+                                border: "1px solid #b8973a",
+                                color: "#e2e8f0",
+                                borderRadius: "2px",
+                                padding: "5px 8px",
+                                fontSize: "12px",
+                                width: "90px",
+                                outline: "none"
+                              }}
+                            />
+                          </td>
+
+                          <td style={{ padding: "7px 14px" }}>
+                            <input
+                              value={draftCurve.precarite}
+                              onChange={e => setDraftCurve(d => ({ ...d, precarite: e.target.value }))}
+                              style={{
+                                ...S,
+                                background: "#0d1526",
+                                border: "1px solid #b8973a",
+                                color: "#e2e8f0",
+                                borderRadius: "2px",
+                                padding: "5px 8px",
+                                fontSize: "12px",
+                                width: "90px",
+                                outline: "none"
+                              }}
+                            />
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ ...S, fontSize: "13px", color: "#2563eb", padding: "9px 14px", fontWeight: 500 }}>
+                            {fp ? N(fp.classique, 2) : "—"}
+                          </td>
+
+                          <td style={{ ...S, fontSize: "13px", color: "#d4a843", padding: "9px 14px", fontWeight: 500 }}>
+                            {fp ? N(fp.precarite, 2) : "—"}
+                          </td>
+                        </>
+                      )}
+
+                      <td style={{ padding: "9px 14px" }}>
+                        {isEditing ? (
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              onClick={() => handleSaveCurve(t)}
+                              style={{
+                                ...S,
+                                fontSize: "10px",
+                                padding: "4px 10px",
+                                background: "#38bdf8",
+                                color: "#0a0e1a",
+                                border: "none",
+                                borderRadius: "2px",
+                                cursor: "pointer"
+                              }}
+                            >
+                              ✓ Save
+                            </button>
+
+                            <button
+                              onClick={() => setEditingTenor(null)}
+                              style={{
+                                ...S,
+                                fontSize: "10px",
+                                padding: "4px 10px",
+                                background: "transparent",
+                                color: "#3a5070",
+                                border: "1px solid #2e2b24",
+                                borderRadius: "2px",
+                                cursor: "pointer"
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setEditingTenor(t);
+                              setDraftCurve({
+                                classique: String(fp?.classique ?? ""),
+                                precarite: String(fp?.precarite ?? "")
+                              });
+                            }}
+                            style={{
+                              ...S,
+                              fontSize: "10px",
+                              padding: "4px 10px",
+                              background: "transparent",
+                              color: "#3a5070",
+                              border: "1px solid #2e2b24",
+                              borderRadius: "2px",
+                              cursor: "pointer"
+                            }}
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {view === "npv" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{
+            background: "#111827",
+            border: "1px solid #1e2d45",
+            borderRadius: "2px",
+            padding: "14px 16px"
+          }}>
+            <p style={{ ...S, fontSize: "11px", color: "#4a6080", lineHeight: 1.6 }}>
+              This section compares spot prices with forward prices by maturity, applies a simple discounting logic,
+              and translates forward-vs-spot spreads into €/m³ impact using product parameters.
+            </p>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "10px" }}>
+            <KPI
+              label="Spot Classique"
+              value={`${N(spotCurve.classique, 2)} €/MWhc`}
+              color="sky"
+              sub="Reference spot level"
+            />
+
+            <KPI
+              label="Spot Précarité"
+              value={`${N(spotCurve.precarite, 2)} €/MWhc`}
+              color="amber"
+              sub="Reference spot level"
+            />
+
+            <KPI
+              label="Discount rate"
+              value={`${N(Number(npvParams.discountRate) || 0, 2)}%`}
+              color="emerald"
+              sub="Used for NPV analysis"
+            />
+          </div>
+
+          <div style={{
+            background: "#111827",
+            border: "1px solid #252219",
+            borderRadius: "2px",
+            padding: "18px"
+          }}>
+            <SectionTitle>Analysis Parameters</SectionTitle>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+              <FS
+                label="Product"
+                value={npvParams.product}
+                onChange={e => setNpvParams(p => ({ ...p, product: e.target.value }))}
+              >
+                <option value="CARBURANT">Road Fuel</option>
+                <option value="FOD">FOD</option>
+              </FS>
+
+              <FI
+                label="Discount rate (%)"
+                type="number"
+                step="0.1"
+                value={npvParams.discountRate}
+                onChange={e => setNpvParams(p => ({ ...p, discountRate: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div style={{
+            background: "#111827",
+            border: "1px solid #252219",
+            borderRadius: "2px",
+            padding: "18px"
+          }}>
+            <SectionTitle>Forward vs Spot Spread by Maturity (€/MWhc)</SectionTitle>
+
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={npvData} barGap={3}>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
+                <XAxis
+                  dataKey="tenor"
+                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={44}
+                />
+                <Tooltip content={<ChartTip />} />
+                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
+                <ReferenceLine y={0} stroke="#1e2d45" />
+                <Bar
+                  dataKey="spreadCl"
+                  name="Classique Forward - Spot"
+                  fill="#2563eb"
+                  radius={[1, 1, 0, 0]}
+                />
+                <Bar
+                  dataKey="spreadPr"
+                  name="Précarité Forward - Spot"
+                  fill="#d4a843"
+                  radius={[1, 1, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div style={{
+            background: "#111827",
+            border: "1px solid #252219",
+            borderRadius: "2px",
+            padding: "18px"
+          }}>
+            <SectionTitle>Forward Impact by Maturity — Product Equivalent (€/m³)</SectionTitle>
+
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={npvData} barGap={3}>
+                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
+                <XAxis
+                  dataKey="tenor"
+                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={44}
+                />
+                <Tooltip content={<ChartTip />} />
+                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
+                <ReferenceLine y={0} stroke="#1e2d45" />
+                <Bar
+                  dataKey="impactClM3"
+                  name="Classique impact €/m³"
+                  fill="#2563eb"
+                  radius={[1, 1, 0, 0]}
+                />
+                <Bar
+                  dataKey="impactPrM3"
+                  name="Précarité impact €/m³"
+                  fill="#d4a843"
+                  radius={[1, 1, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div style={{ overflowX: "auto", border: "1px solid #1e1c18", borderRadius: "2px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "1100px" }}>
+              <thead>
+                <tr>
+                  {[
+                    "Tenor",
+                    "Maturity date",
+                    "Days",
+                    "Fwd CL",
+                    "Fwd PR",
+                    "Spread CL vs Spot",
+                    "Spread PR vs Spot",
+                    "NPV CL",
+                    "NPV PR",
+                    "Total impact €/m³"
+                  ].map(h => (
+                    <TH key={h}>{h}</TH>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {npvData.map(d => (
+                  <tr key={d.tenor} style={{ borderBottom: "1px solid #1a1815", background: "#111827" }}>
+                    <td style={{ padding: "9px 14px" }}>
+                      <Badge color={d.tenor === "SPOT" ? "gold" : "gray"}>{d.tenor}</Badge>
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "9px 14px" }}>
+                      {d.maturityDate}
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "9px 14px" }}>
+                      {N(d.days, 0)}
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: "#2563eb", padding: "9px 14px" }}>
+                      {N(d.classique, 2)}
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: "#d4a843", padding: "9px 14px" }}>
+                      {N(d.precarite, 2)}
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: d.spreadCl >= 0 ? "#34d399" : "#f87171", padding: "9px 14px" }}>
+                      {d.spreadCl >= 0 ? "+" : ""}
+                      {N(d.spreadCl, 2)}
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: d.spreadPr >= 0 ? "#34d399" : "#f87171", padding: "9px 14px" }}>
+                      {d.spreadPr >= 0 ? "+" : ""}
+                      {N(d.spreadPr, 2)}
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: "#2563eb", padding: "9px 14px" }}>
+                      {N(d.npvCl, 2)}
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: "#d4a843", padding: "9px 14px" }}>
+                      {N(d.npvPr, 2)}
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: d.totalImpactM3 >= 0 ? "#34d399" : "#f87171", padding: "9px 14px", fontWeight: 700 }}>
+                      {d.totalImpactM3 >= 0 ? "+" : ""}
+                      {N(d.totalImpactM3, 3)} €/m³
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -4258,8 +4912,7 @@ export default function App() {
     {id:"position",   label:"CEE Position"},
     {id:"blotter",    label:`Blotter${pending>0?` (${pending})`:""}`},
     {id:"obligation", label:"Obligation"},
-    {id:"curve",      label:"Forward Curve"},
-    {id:"prices",     label:"Market Prices"},
+    { id:"market", label:"Market & Curves" },
     {id:"tools",      label:"Tools"},
     {id:"audit",      label:"Audit Log"},
   ];
@@ -4357,8 +5010,15 @@ export default function App() {
           />
         )}
         {tab==="obligation" && <ObligationTab obligations={obligations} onAdd={handleAddObligation} onDelete={id=>setObligations(os=>os.filter(o=>o.id!==id))}/>}
-        {tab==="curve"      && <CurveTab      curve={curve} onUpdate={handleUpdateCurve} trades={trades}/>}
-        {tab==="prices"     && <PricesTab     prices={prices} currentUser={currentUser} onAdd={handleAddPrice}/>}
+        {tab === "market" && (
+          <MarketCurvesTab
+            prices={prices}
+            curve={curve}
+            currentUser={currentUser}
+            onAddPrice={handleAddPrice}
+            onUpdateCurve={handleUpdateCurve}
+          />
+        )}
         {tab==="tools"      && <Tools curve={curve} />}
         {tab==="audit"      && <AuditLog audit={audit} users={users}/>}
       </div>
