@@ -279,6 +279,8 @@ function Reporting({ trades, obligations, prices, curve }) {
       pnlCl: Math.round(pnlCl / 1000),
       pnlPr: Math.round(pnlPr / 1000),
       pnl: Math.round((pnlCl + pnlPr) / 1000),
+      mtmCl: Math.round(mtmCl / 1000),
+      mtmPr: Math.round(mtmPr / 1000),
       mtm: Math.round((mtmCl + mtmPr) / 1000),
       covPct: covPct == null ? null : Math.round(covPct),
       covPctChart: covPct == null ? null : Math.min(Math.round(covPct), 150),
@@ -302,6 +304,23 @@ function Reporting({ trades, obligations, prices, curve }) {
   const cumPnlData = useMemo(() => {
     let cum = 0;
     return monthlyData.map(d => { cum += d.pnl; return { month: d.month, pnl: d.pnl, cumPnl: cum }; });
+  }, [monthlyData]);
+
+  const pnlBridgeData = useMemo(() => {
+    const realizedCl = monthlyData.reduce((s, d) => s + d.pnlCl, 0);
+    const realizedPr = monthlyData.reduce((s, d) => s + d.pnlPr, 0);
+    const mtmCl = monthlyData.reduce((s, d) => s + d.mtmCl, 0);
+    const mtmPr = monthlyData.reduce((s, d) => s + d.mtmPr, 0);
+
+    const netTotal = realizedCl + realizedPr + mtmCl + mtmPr;
+
+    return [
+      { name: "Realized CL", value: realizedCl },
+      { name: "Realized PR", value: realizedPr },
+      { name: "MtM CL", value: mtmCl },
+      { name: "MtM PR", value: mtmPr },
+      { name: "Net Total", value: netTotal }
+    ];
   }, [monthlyData]);
 
 
@@ -1063,45 +1082,136 @@ function Reporting({ trades, obligations, prices, curve }) {
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
             <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
-              <SectionTitle>Monthly Realized PnL (k€)</SectionTitle>
-              <ResponsiveContainer width="100%" height={220}>
+              <SectionTitle>Monthly Realized PnL by Type (k€)</SectionTitle>
+
+              <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={monthlyData} barGap={3}>
                   <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                  <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={44} />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={44}
+                  />
                   <Tooltip content={<ChartTip />} />
+                  <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
                   <ReferenceLine y={0} stroke="#1e2d45" />
-                  <Bar dataKey="pnlCl" name="PnL Classique (k€)" fill="#2563eb" radius={[1, 1, 0, 0]} />
-                  <Bar dataKey="pnlPr" name="PnL Précarité (k€)" fill="#d4a843" radius={[1, 1, 0, 0]} />
+                  <Bar dataKey="pnlCl" name="Realized PnL Classique (k€)" fill="#2563eb" radius={[1, 1, 0, 0]} />
+                  <Bar dataKey="pnlPr" name="Realized PnL Précarité (k€)" fill="#d4a843" radius={[1, 1, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
+
             <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
-              <SectionTitle>Monthly Open Position MtM (k€)</SectionTitle>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={monthlyData}>
+              <SectionTitle>Open Position MtM by Month (k€)</SectionTitle>
+
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={monthlyData} barGap={3}>
                   <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                  <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={44} />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={44}
+                  />
                   <Tooltip content={<ChartTip />} />
+                  <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
                   <ReferenceLine y={0} stroke="#1e2d45" />
-                  <Bar dataKey="mtm" name="MtM (k€)" fill="#38bdf8" radius={[1, 1, 0, 0]} />
+                  <Bar dataKey="mtmCl" name="MtM Classique (k€)" fill="#38bdf8" radius={[1, 1, 0, 0]} />
+                  <Bar dataKey="mtmPr" name="MtM Précarité (k€)" fill="#f59e0b" radius={[1, 1, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
+
           <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
-            <SectionTitle>Cumulative YTD PnL (k€)</SectionTitle>
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={cumPnlData}>
+            <SectionTitle>YTD PnL Bridge — Realized to Net PnL + MtM (k€)</SectionTitle>
+
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={pnlBridgeData} barSize={46}>
                 <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={50} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={54}
+                />
                 <Tooltip content={<ChartTip />} />
                 <ReferenceLine y={0} stroke="#1e2d45" />
-                <Area type="monotone" dataKey="cumPnl" name="Cumulative PnL (k€)" stroke="#34d399" fill="#6db87a22" strokeWidth={2} />
-              </AreaChart>
+                <Bar dataKey="value" name="Contribution (k€)" radius={[1, 1, 0, 0]}>
+                  {pnlBridgeData.map((entry, index) => (
+                    <Cell
+                      key={`bridge-cell-${entry.name}`}
+                      fill={
+                        entry.name === "Net Total"
+                          ? "#34d399"
+                          : entry.value >= 0
+                            ? "#38bdf8"
+                            : "#f87171"
+                      }
+                    />
+                  ))}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
+
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(5,1fr)",
+              gap: "10px",
+              marginTop: "14px"
+            }}>
+              {pnlBridgeData.map(d => (
+                <div
+                  key={d.name}
+                  style={{
+                    background: "#0d1526",
+                    border: "1px solid #1e2d45",
+                    borderRadius: "2px",
+                    padding: "10px 12px"
+                  }}
+                >
+                  <p style={{
+                    ...S,
+                    fontSize: "8px",
+                    color: "#3a5070",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.12em",
+                    marginBottom: "4px"
+                  }}>
+                    {d.name}
+                  </p>
+
+                  <p style={{
+                    ...CG,
+                    fontSize: "17px",
+                    color: d.value >= 0 ? "#34d399" : "#f87171",
+                    fontWeight: 700
+                  }}>
+                    {d.value >= 0 ? "+" : ""}
+                    {N(d.value, 0)} k€
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
