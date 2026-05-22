@@ -5334,36 +5334,111 @@ export default function App() {
 
   const handleUpdateTrade = useCallback(async (id, patch) => {
     const tradeBefore = trades.find(t => t.id === id);
+    const updatedAt = new Date().toISOString();
 
-    setTrades(ts => ts.map(t =>
-      t.id === id ? { ...t, ...patch } : t
-    ));
+    // Optimistic update immédiat pour recalcul dashboard/reporting sans attendre Supabase
+    setTrades(ts => ts.map(t => {
+      if (t.id !== id) return t;
+
+      const next = {
+        ...t,
+        ...patch,
+        updatedAt
+      };
+
+      // Synchronisation des alias métier / technique
+      if ("volumeCredited" in patch) {
+        next.volumeDeposited = patch.volumeCredited;
+      }
+
+      if ("volumeDeposited" in patch) {
+        next.volumeCredited = patch.volumeDeposited;
+      }
+
+      if ("volumeRemainingToBeCredited" in patch) {
+        next.volumeRemainingToBeDeposited = patch.volumeRemainingToBeCredited;
+      }
+
+      if ("volumeRemainingToBeDeposited" in patch) {
+        next.volumeRemainingToBeCredited = patch.volumeRemainingToBeDeposited;
+      }
+
+      return next;
+    }));
 
     const dbPatch = {};
 
+    // Core trade fields
+    if ("ceeType" in patch) dbPatch.cee_type = patch.ceeType;
+    if ("vendor" in patch) dbPatch.vendor = patch.vendor;
+    if ("dealType" in patch) dbPatch.deal_type = patch.dealType;
+    if ("period" in patch) dbPatch.period = patch.period;
+    if ("volume" in patch) dbPatch.volume = patch.volume;
+    if ("price" in patch) dbPatch.price = patch.price;
+    if ("month" in patch) dbPatch.month = patch.month;
+    if ("status" in patch) dbPatch.status = patch.status;
     if ("priced" in patch) dbPatch.priced = patch.priced;
-    if ("contractSigned" in patch) dbPatch.contract_signed = patch.contractSigned;
+    if ("statut" in patch) dbPatch.statut = patch.statut;
+    if ("ranking" in patch) dbPatch.ranking = patch.ranking;
+    if ("emmyValidated" in patch) dbPatch.emmy_validated = patch.emmyValidated;
+
+    // Extended Excel fields
+    if ("year" in patch) dbPatch.year = patch.year;
+    if ("operationType" in patch) dbPatch.operation_type = patch.operationType;
+    if ("pricingMonth" in patch) dbPatch.pricing_month = patch.pricingMonth;
+    if ("comments" in patch) dbPatch.comments = patch.comments;
+    if ("sourcing" in patch) dbPatch.sourcing = patch.sourcing;
+    if ("tolerancePct" in patch) dbPatch.tolerance_pct = patch.tolerancePct;
+    if ("volumeM3Equivalent" in patch) dbPatch.volume_m3_equivalent = patch.volumeM3Equivalent;
+    if ("approval" in patch) dbPatch.approval = patch.approval;
     if ("contractYesNo" in patch) dbPatch.contract_yes_no = patch.contractYesNo;
-    if ("validated" in patch) dbPatch.validated = patch.validated;
-    if ("validationDate" in patch) dbPatch.validation_date = patch.validationDate;
-    if ("payment" in patch) dbPatch.payment = patch.payment;
-    if ("paymentDate" in patch) dbPatch.payment_date = patch.paymentDate;
-    if ("status" in patch) dbPatch.status = patch.status;
-    if ("status" in patch) dbPatch.status = patch.status;
-    if ("approvedBy" in patch) dbPatch.approved_by = patch.approvedBy;
-    if ("volumeDeposited" in patch) dbPatch.volume_deposited = patch.volumeDeposited;
+    if ("contractSigned" in patch) dbPatch.contract_signed = patch.contractSigned;
+    if ("contractDate" in patch) dbPatch.contract_date = patch.contractDate;
+    if ("paymentTerms" in patch) dbPatch.payment_terms = patch.paymentTerms;
+
+    // Business wording = credited on EMMY
+    // Technical DB column kept = volume_deposited
+    if ("volumeDeposited" in patch) {
+      dbPatch.volume_deposited = patch.volumeDeposited;
+    }
+
+    if ("volumeCredited" in patch) {
+      dbPatch.volume_deposited = patch.volumeCredited;
+    }
+
     if ("volumeRemainingToBeDeposited" in patch) {
       dbPatch.volume_remaining_to_be_deposited = patch.volumeRemainingToBeDeposited;
     }
 
-    const { error } = await supabase
+    if ("volumeRemainingToBeCredited" in patch) {
+      dbPatch.volume_remaining_to_be_deposited = patch.volumeRemainingToBeCredited;
+    }
+
+    if ("validated" in patch) dbPatch.validated = patch.validated;
+    if ("validationDate" in patch) dbPatch.validation_date = patch.validationDate;
+    if ("payment" in patch) dbPatch.payment = patch.payment;
+    if ("paymentDate" in patch) dbPatch.payment_date = patch.paymentDate;
+    if ("cpRanking" in patch) dbPatch.cp_ranking = patch.cpRanking;
+    if ("riskPerformanceMt" in patch) dbPatch.risk_performance_mt = patch.riskPerformanceMt;
+
+    if ("createdBy" in patch) dbPatch.created_by = patch.createdBy;
+    if ("approvedBy" in patch) dbPatch.approved_by = patch.approvedBy;
+
+    dbPatch.updated_at = updatedAt;
+
+    const { data, error } = await supabase
       .from("trades")
       .update(dbPatch)
-      .eq("id", id);
+      .eq("id", id)
+      .select("id, priced, updated_at")
+      .maybeSingle();
 
-    if (error) {
-      console.error("Trade update error:", error.message);
-      alert("Erreur lors de la mise à jour du trade.");
+
+    if (error || !data) {
+      console.error("Trade update error:", error);
+      alert(
+        "Erreur lors de la mise à jour du trade. La ligne n'a probablement pas été modifiée en base."
+      );
       await loadAll({ silent: true });
       return;
     }
@@ -5372,10 +5447,10 @@ export default function App() {
       action: "TRADE_UPDATED",
       entity: id,
       detail: tradeBefore
-        ? `Trade updated — ${tradeBefore.vendor} · ${tradeBefore.ceeType} · ${N(tradeBefore.volume,3)} GWhc`
+        ? `Trade updated — ${tradeBefore.vendor} · ${tradeBefore.ceeType} · ${N(tradeBefore.volume, 3)} GWhc`
         : `Trade updated — id: ${id}`
     });
-  }, [trades, addAudit]);
+  }, [trades, addAudit, loadAll]);
 
   const handleAddObligation=useCallback(async(o)=>{
     setObligations(os=>[...os,o]);
