@@ -223,6 +223,7 @@ function ChartTip({ active, payload, label }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function Reporting({ trades, obligations, prices, curve }) {
   const [report, setReport] = useState("executive");
+  const [regulatoryType, setRegulatoryType] = useState("CLASSIQUE");
 
   const latestSpot = useMemo(() => {
     if (!prices.length) return { classique: curve.SPOT?.classique ?? 8.96, precarite: curve.SPOT?.precarite ?? 16.44 };
@@ -435,15 +436,419 @@ function Reporting({ trades, obligations, prices, curve }) {
     };
   }, [operationalTrades]);
 
+  const regulatoryBaseTrades = useMemo(
+    () => trades.filter(t => t.priced === true),
+    [trades]
+  );
+
+  const buildRegulatoryMetrics = (ceeType) => {
+    const rows = regulatoryBaseTrades.filter(t => t.ceeType === ceeType);
+
+    const totalPurchased = rows.reduce((s, t) => s + Number(t.volume || 0), 0);
+
+    const volume = (predicate) =>
+      rows
+        .filter(predicate)
+        .reduce((s, t) => s + Number(t.volume || 0), 0);
+
+    const creditedVolume = rows.reduce((s, t) => {
+      const credited = Number(t.volumeCredited ?? t.volumeDeposited ?? 0);
+      const vol = Number(t.volume || 0);
+      return s + Math.max(0, Math.min(credited, vol));
+    }, 0);
+
+    const validatedVolume = volume(t => t.validated === true);
+
+    const creditedAndValidatedVolume = rows.reduce((s, t) => {
+      if (t.validated !== true) return s;
+
+      const credited = Number(t.volumeCredited ?? t.volumeDeposited ?? 0);
+      const vol = Number(t.volume || 0);
+
+      return s + Math.max(0, Math.min(credited, vol));
+    }, 0);
+
+    const paidVolume = volume(t => t.payment === true);
+
+    const paidCreditedNotValidatedVolume = rows.reduce((s, t) => {
+      if (t.payment !== true || t.validated === true) return s;
+
+      const credited = Number(t.volumeCredited ?? t.volumeDeposited ?? 0);
+      const vol = Number(t.volume || 0);
+
+      if (credited <= 0.001) return s;
+
+      return s + Math.max(0, Math.min(credited, vol));
+    }, 0);
+
+    const paidNotCreditedVolume = rows.reduce((s, t) => {
+      if (t.payment !== true) return s;
+
+      const credited = Number(t.volumeCredited ?? t.volumeDeposited ?? 0);
+      const vol = Number(t.volume || 0);
+
+      return credited <= 0.001 ? s + vol : s;
+    }, 0);
+
+    const paidNotCreditedExposure = rows.reduce((s, t) => {
+      if (t.payment !== true) return s;
+
+      const credited = Number(t.volumeCredited ?? t.volumeDeposited ?? 0);
+
+      if (credited > 0.001) return s;
+
+      const explicitRisk = Number(t.riskPerformanceMt);
+
+      if (Number.isFinite(explicitRisk)) {
+        return s + explicitRisk;
+      }
+
+      return s + Number(t.volume || 0) * Number(t.price || 0);
+    }, 0);
+
+    const pendingApprovalRows = rows
+      .filter(t => t.status !== "APPROVED")
+      .map(t => ({
+        id: t.id,
+        vendor: t.vendor || "Unknown",
+        volume: Number(t.volume || 0),
+        price: Number(t.price || 0),
+        month: t.month,
+        status: t.status
+      }))
+      .sort((a, b) => b.volume - a.volume);
+
+    const ratingMap = {};
+
+    rows.forEach(t => {
+      const rating = t.cpRanking || "N/A";
+      ratingMap[rating] = (ratingMap[rating] || 0) + Number(t.volume || 0);
+    });
+
+    const ratingData = Object.entries(ratingMap)
+      .map(([rating, volume]) => ({
+        rating,
+        volume: Math.round(volume)
+      }))
+      .sort((a, b) => b.volume - a.volume);
+
+    const cpRiskMap = {};
+
+    rows.forEach(t => {
+      const credited = Number(t.volumeCredited ?? t.volumeDeposited ?? 0);
+      const vol = Number(t.volume || 0);
+      const price = Number(t.price || 0);
+      const vendor = t.vendor || "Unknown";
+      const rating = t.cpRanking || "N/A";
+
+      const paidNotCreditedVolume =
+        t.payment === true && credited <= 0.001 ? vol : 0;
+
+      const creditedNotValidatedVolume =
+        t.payment === true && credited > 0.001 && t.validated !== true
+          ? Math.max(0, Math.min(credited, vol))
+          : 0;
+
+      const explicitRisk = Number(t.riskPerformanceMt);
+
+      const exposure =
+        Number.isFinite(explicitRisk)
+          ? explicitRisk
+          : paidNotCreditedVolume * price;
+
+      if (!cpRiskMap[vendor]) {
+        cpRiskMap[vendor] = {
+          vendor,
+          rating,
+          paidNotCreditedVolume: 0,
+          creditedNotValidatedVolume: 0,
+          exposure: 0
+        };
+      }
+
+      cpRiskMap[vendor].paidNotCreditedVolume += paidNotCreditedVolume;
+      cpRiskMap[vendor].creditedNotValidatedVolume += creditedNotValidatedVolume;
+      cpRiskMap[vendor].exposure += exposure;
+    });
+
+    const counterpartyRiskData = Object.values(cpRiskMap)
+      .filter(r =>
+        Math.abs(r.paidNotCreditedVolume) > 0.001 ||
+        Math.abs(r.creditedNotValidatedVolume) > 0.001 ||
+        Math.abs(r.exposure) > 0.001
+      )
+      .sort((a, b) => Math.abs(b.exposure) - Math.abs(a.exposure));
+
+    const pct = (num, denom = totalPurchased) =>
+      denom > 0 ? num / denom * 100 : 0;
+
+    return {
+      ceeType,
+      rows,
+      totalPurchased,
+
+      approvedPct: pct(volume(t => t.status === "APPROVED")),
+      signedContractPct: pct(volume(t => t.contractSigned === true)),
+      creditedPct: pct(creditedVolume),
+      validatedPct: pct(validatedVolume),
+      creditedAndValidatedPct: pct(creditedAndValidatedVolume),
+
+      paidPct: pct(paidVolume),
+      paidCreditedNotValidatedPct: pct(paidCreditedNotValidatedVolume, paidVolume),
+      paidNotCreditedPct: pct(paidNotCreditedVolume, paidVolume),
+      paidNotCreditedExposure,
+
+      pendingApprovalRows,
+      ratingData,
+      counterpartyRiskData
+    };
+  };
+
+  const regulatoryClassique = useMemo(
+    () => buildRegulatoryMetrics("CLASSIQUE"),
+    [regulatoryBaseTrades]
+  );
+
+  const regulatoryPrecarite = useMemo(
+    () => buildRegulatoryMetrics("PRECARITE"),
+    [regulatoryBaseTrades]
+  );
+
+  const activeRegulatoryData =
+  regulatoryType === "CLASSIQUE" ? regulatoryClassique : regulatoryPrecarite;
+
+  const activeRegulatoryTitle =
+    regulatoryType === "CLASSIQUE" ? "Classique" : "Précarité";
+
   const REPORTS = [
     { id:"executive",   label:"Executive Summary" },
     { id:"position",    label:"Position & Coverage" },
     { id:"pnl",         label:"PnL & MtM" },
-    { id:"market",      label:"Market Prices" },
-    { id:"operational", label:"Operational Monitoring" },
+    { id:"regulatory",  label:"Regulatory & Performance Risk" },
   ];
 
   const SectionTitle = ({ children }) => <p style={{ ...S, fontSize: "9px", color: "#38bdf8", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: "14px", marginTop: "8px" }}>{children}</p>;
+  
+  const RegulatoryBlock = ({ title, data }) => (
+    <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+      <div style={{
+        background: "#111827",
+        border: "1px solid #1e2d45",
+        borderRadius: "2px",
+        padding: "18px"
+      }}>
+        <p style={{
+          ...S,
+          fontSize: "9px",
+          color: "#38bdf8",
+          textTransform: "uppercase",
+          letterSpacing: "0.18em",
+          marginBottom: "8px"
+        }}>
+          {title}
+        </p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "10px" }}>
+          <KPI
+            label={`Total ${title} Purchased`}
+            value={`${N(data.totalPurchased, 0)} GWhc`}
+            color="sky"
+            sub="Priced purchased volume"
+          />
+
+          <KPI
+            label="Approved internally"
+            value={`${N(data.approvedPct, 1)}%`}
+            color={data.approvedPct >= 95 ? "emerald" : data.approvedPct >= 80 ? "amber" : "rose"}
+            sub="Approved / purchased"
+          />
+
+          <KPI
+            label="Signed contract"
+            value={`${N(data.signedContractPct, 1)}%`}
+            color={data.signedContractPct >= 95 ? "emerald" : data.signedContractPct >= 80 ? "amber" : "rose"}
+            sub="Contract signed / purchased"
+          />
+
+          <KPI
+            label="Paid"
+            value={`${N(data.paidPct, 1)}%`}
+            color={data.paidPct >= 95 ? "emerald" : data.paidPct >= 80 ? "amber" : "rose"}
+            sub="Paid / purchased"
+          />
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+        <div style={{ background:"#111827", border:"1px solid #252219", borderRadius:"2px", padding:"18px" }}>
+          <SectionTitle>Regulatory Risk</SectionTitle>
+
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"10px", marginBottom:"16px" }}>
+            <KPI
+              label="Credited on EMMY"
+              value={`${N(data.creditedPct, 1)}%`}
+              color={data.creditedPct >= 95 ? "emerald" : data.creditedPct >= 80 ? "amber" : "rose"}
+            />
+
+            <KPI
+              label="Validated on EMMY"
+              value={`${N(data.validatedPct, 1)}%`}
+              color={data.validatedPct >= 95 ? "emerald" : data.validatedPct >= 80 ? "amber" : "rose"}
+            />
+
+            <KPI
+              label="Credited & validated"
+              value={`${N(data.creditedAndValidatedPct, 1)}%`}
+              color={data.creditedAndValidatedPct >= 95 ? "emerald" : data.creditedAndValidatedPct >= 80 ? "amber" : "rose"}
+            />
+          </div>
+
+          <p style={{
+            ...S,
+            fontSize:"9px",
+            color:"#38bdf8",
+            textTransform:"uppercase",
+            letterSpacing:"0.14em",
+            marginBottom:"8px"
+          }}>
+            Pending approval volumes
+          </p>
+
+          <div style={{ maxHeight:"220px", overflowY:"auto", border:"1px solid #1e1c18" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead>
+                <tr>
+                  {["Counterparty", "Month", "Volume", "Status"].map(h => (
+                    <TH key={h}>{h}</TH>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {data.pendingApprovalRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} style={{ ...S, padding:"10px 14px", color:"#4a6080" }}>
+                      No pending approval.
+                    </td>
+                  </tr>
+                ) : data.pendingApprovalRows.map(r => (
+                  <tr key={r.id} style={{ borderBottom:"1px solid #1a1815" }}>
+                    <td style={{ ...S, padding:"9px 14px", color:"#e2e8f0" }}>{r.vendor}</td>
+                    <td style={{ ...S, padding:"9px 14px", color:"#4a6080" }}>{r.month ? ML(r.month) : "—"}</td>
+                    <td style={{ ...S, padding:"9px 14px", color:"#e2e8f0" }}>{N(r.volume, 2)} GWhc</td>
+                    <td style={{ padding:"9px 14px" }}>
+                      <Badge color="amber">{r.status}</Badge>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style={{ background:"#111827", border:"1px solid #252219", borderRadius:"2px", padding:"18px" }}>
+          <SectionTitle>Performance Risk</SectionTitle>
+
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"10px", marginBottom:"16px" }}>
+            <KPI
+              label="Paid credited not validated"
+              value={`${N(data.paidCreditedNotValidatedPct, 1)}%`}
+              color={data.paidCreditedNotValidatedPct > 0 ? "amber" : "emerald"}
+              sub="Of paid volume"
+            />
+
+            <KPI
+              label="Paid not credited"
+              value={`${N(data.paidNotCreditedPct, 1)}%`}
+              color={data.paidNotCreditedPct > 0 ? "rose" : "emerald"}
+              sub="Of paid volume"
+            />
+
+            <KPI
+              label="Financial exposure"
+              value={fM(data.paidNotCreditedExposure)}
+              color={data.paidNotCreditedExposure > 0 ? "rose" : "emerald"}
+              sub="Paid but not credited"
+            />
+          </div>
+
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={data.counterpartyRiskData} layout="vertical" barSize={14}>
+              <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" horizontal={false} />
+              <XAxis type="number" tick={{ ...S, fontSize:9, fill:"#3a5070" }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="vendor" tick={{ ...S, fontSize:9, fill:"#4a6080" }} axisLine={false} tickLine={false} width={170} />
+              <Tooltip content={<ChartTip />} />
+              <Bar dataKey="exposure" name="Current performance risk (€)" fill="#f87171" radius={[0,1,1,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px" }}>
+        <div style={{ background:"#111827", border:"1px solid #252219", borderRadius:"2px", padding:"18px" }}>
+          <SectionTitle>Volumes by Counterparty Rating</SectionTitle>
+
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={data.ratingData} barSize={24}>
+              <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
+              <XAxis dataKey="rating" tick={{ ...S, fontSize:9, fill:"#3a5070" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ ...S, fontSize:9, fill:"#3a5070" }} axisLine={false} tickLine={false} width={50} />
+              <Tooltip content={<ChartTip />} />
+              <Bar dataKey="volume" name="Volume (GWhc)" fill="#38bdf8" radius={[1,1,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={{ background:"#111827", border:"1px solid #252219", borderRadius:"2px", padding:"18px" }}>
+          <SectionTitle>Performance Risk by Counterparty</SectionTitle>
+
+          <div style={{ maxHeight:"240px", overflowY:"auto", border:"1px solid #1e1c18" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead>
+                <tr>
+                  {["Counterparty", "Rating", "Paid not credited", "Credited not validated", "Exposure"].map(h => (
+                    <TH key={h}>{h}</TH>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {data.counterpartyRiskData.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ ...S, padding:"10px 14px", color:"#4a6080" }}>
+                      No current performance risk.
+                    </td>
+                  </tr>
+                ) : data.counterpartyRiskData.map(r => (
+                  <tr key={r.vendor} style={{ borderBottom:"1px solid #1a1815" }}>
+                    <td style={{ ...S, padding:"9px 14px", color:"#e2e8f0" }}>{r.vendor}</td>
+
+                    <td style={{ padding:"9px 14px" }}>
+                      <Badge color={r.rating === "AAA" ? "green" : r.rating === "N/A" ? "gray" : "amber"}>
+                        {r.rating}
+                      </Badge>
+                    </td>
+
+                    <td style={{ ...S, padding:"9px 14px", color:"#f87171" }}>
+                      {N(r.paidNotCreditedVolume, 2)} GWhc
+                    </td>
+
+                    <td style={{ ...S, padding:"9px 14px", color:"#d4a843" }}>
+                      {N(r.creditedNotValidatedVolume, 2)} GWhc
+                    </td>
+
+                    <td style={{ ...S, padding:"9px 14px", color:"#f87171", fontWeight:700 }}>
+                      {fM(r.exposure)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -700,134 +1105,82 @@ function Reporting({ trades, obligations, prices, curve }) {
           </div>
         </div>
       )}
+      {/* ── REGULATORY & PERFORMANCE RISK ── */}
+      {report === "regulatory" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:"18px" }}>
+          <div style={{
+            background:"#111827",
+            border:"1px solid #1e2d45",
+            borderRadius:"2px",
+            padding:"14px 16px",
+            display:"flex",
+            justifyContent:"space-between",
+            alignItems:"center",
+            gap:"12px",
+            flexWrap:"wrap"
+          }}>
+            <div>
+              <p style={{
+                ...S,
+                fontSize:"9px",
+                color:"#38bdf8",
+                textTransform:"uppercase",
+                letterSpacing:"0.18em",
+                marginBottom:"6px"
+              }}>
+                Regulatory & Performance Risk
+              </p>
 
-      {/* ── MARKET PRICES ── */}
-      {report === "market" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
-            <SectionTitle>CEE Market Price History — Classique vs Précarité (€/MWhc)</SectionTitle>
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={priceHistory}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                <XAxis dataKey="date" tick={{ ...S, fontSize: 8, fill: "#3a5070" }} axisLine={false} tickLine={false} interval={3} />
-                <YAxis tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={40} domain={["auto", "auto"]} />
-                <Tooltip content={<ChartTip />} />
-                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
-                <Line type="monotone" dataKey="cl" name="Classique (€/MWhc)" stroke="#2563eb" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="pr" name="Précarité (€/MWhc)" stroke="#d4a843" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
-            <SectionTitle>Forward Curve (€/MWhc)</SectionTitle>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={TENORS.map(t => ({ tenor: t, cl: curve[t]?.classique, pr: curve[t]?.precarite }))}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                <XAxis dataKey="tenor" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={40} domain={["auto", "auto"]} />
-                <Tooltip content={<ChartTip />} />
-                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
-                <Line type="monotone" dataKey="cl" name="Classique" stroke="#2563eb" strokeWidth={2} dot={{ fill: "#2563eb", r: 3 }} />
-                <Line type="monotone" dataKey="pr" name="Précarité" stroke="#d4a843" strokeWidth={2} dot={{ fill: "#d4a843", r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-      {/* ── OPERATIONAL MONITORING ── */}
-      {report==="operational" && (
-        <div style={{ display:"flex",flexDirection:"column",gap:"20px" }}>
-          <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"10px" }}>
-            <KPI
-              label="Contract signed ratio"
-              value={`${N(operationalSummary.signedPct,1)}%`}
-              color={operationalSummary.signedPct >= 95 ? "emerald" : operationalSummary.signedPct >= 80 ? "amber" : "rose"}
-              sub={`${N(operationalSummary.totalVolume,0)} GWhc monitored`}
-            />
-
-            <KPI
-              label="Validation ratio"
-              value={`${N(operationalSummary.validatedPct,1)}%`}
-              color={operationalSummary.validatedPct >= 95 ? "emerald" : operationalSummary.validatedPct >= 80 ? "amber" : "rose"}
-              sub="Validated volume / monitored volume"
-            />
-
-            <KPI
-              label="Payment ratio"
-              value={`${N(operationalSummary.paidPct,1)}%`}
-              color={operationalSummary.paidPct >= 95 ? "emerald" : operationalSummary.paidPct >= 80 ? "amber" : "rose"}
-              sub="Paid volume / monitored volume"
-            />
-
-            <KPI
-              label="Remaining to deposit"
-              value={`${N(operationalSummary.remainingDeposit,0)} GWhc`}
-              color={operationalSummary.remainingDeposit > 0 ? "rose" : "emerald"}
-              sub="Open delivery/deposit volume"
-            />
-          </div>
-
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px" }}>
-            <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
-              <SectionTitle>Contract Status by Volume</SectionTitle>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={contractStatusData} barSize={34}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
-                  <XAxis dataKey="name" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
-                  <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={50}/>
-                  <Tooltip content={<ChartTip/>}/>
-                  <Bar dataKey="volume" name="Volume (GWhc)" fill="#38bdf8" radius={[1,1,0,0]}/>
-                </BarChart>
-              </ResponsiveContainer>
+              <p style={{ ...S, fontSize:"11px", color:"#4a6080", lineHeight:1.5 }}>
+                Follow-up of internal approval, contracts, EMMY crediting, EMMY validation, payment and counterparty performance risk.
+              </p>
             </div>
 
-            <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
-              <SectionTitle>Remaining to Deposit by Seller</SectionTitle>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={remainingDepositBySellerData} layout="vertical" barSize={14}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" horizontal={false}/>
-                  <XAxis type="number" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
-                  <YAxis type="category" dataKey="seller" tick={{ ...S,fontSize:9,fill:"#4a6080" }} axisLine={false} tickLine={false} width={170}/>
-                  <Tooltip content={<ChartTip/>}/>
-                  <Bar dataKey="volume" name="Remaining (GWhc)" fill="#f87171" radius={[0,1,1,0]}/>
-                </BarChart>
-              </ResponsiveContainer>
+            <div style={{ display:"flex", gap:"8px" }}>
+              <button
+                onClick={() => setRegulatoryType("CLASSIQUE")}
+                style={{
+                  ...S,
+                  fontSize:"10px",
+                  padding:"7px 14px",
+                  borderRadius:"2px",
+                  border:"1px solid",
+                  cursor:"pointer",
+                  letterSpacing:"0.08em",
+                  textTransform:"uppercase",
+                  background: regulatoryType === "CLASSIQUE" ? "#38bdf8" : "transparent",
+                  color: regulatoryType === "CLASSIQUE" ? "#0a0e1a" : "#3a5070",
+                  borderColor: regulatoryType === "CLASSIQUE" ? "#38bdf8" : "#1e2d45"
+                }}
+              >
+                Classique
+              </button>
+
+              <button
+                onClick={() => setRegulatoryType("PRECARITE")}
+                style={{
+                  ...S,
+                  fontSize:"10px",
+                  padding:"7px 14px",
+                  borderRadius:"2px",
+                  border:"1px solid",
+                  cursor:"pointer",
+                  letterSpacing:"0.08em",
+                  textTransform:"uppercase",
+                  background: regulatoryType === "PRECARITE" ? "#d4a843" : "transparent",
+                  color: regulatoryType === "PRECARITE" ? "#0a0e1a" : "#3a5070",
+                  borderColor: regulatoryType === "PRECARITE" ? "#d4a843" : "#1e2d45"
+                }}
+              >
+                Précarité
+              </button>
             </div>
           </div>
 
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:"16px" }}>
-            <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
-              <SectionTitle>Validation Status by Month (GWhc)</SectionTitle>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={validationByMonthData} barSize={18}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
-                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
-                  <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={44}/>
-                  <Tooltip content={<ChartTip/>}/>
-                  <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#4a6080" }}/>
-                  <Bar dataKey="validated" name="Validated" stackId="validation" fill="#34d399" radius={[1,1,0,0]}/>
-                  <Bar dataKey="pending" name="Pending" stackId="validation" fill="#d4a843" radius={[1,1,0,0]}/>
-                  <Bar dataKey="unknown" name="N/A" stackId="validation" fill="#3a5070" radius={[1,1,0,0]}/>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div style={{ background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"18px" }}>
-              <SectionTitle>Payment Status by Month (GWhc)</SectionTitle>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={paymentByMonthData} barSize={18}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false}/>
-                  <XAxis dataKey="month" tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false}/>
-                  <YAxis tick={{ ...S,fontSize:9,fill:"#3a5070" }} axisLine={false} tickLine={false} width={44}/>
-                  <Tooltip content={<ChartTip/>}/>
-                  <Legend iconSize={8} wrapperStyle={{ ...S,fontSize:10,color:"#4a6080" }}/>
-                  <Bar dataKey="paid" name="Paid" stackId="payment" fill="#34d399" radius={[1,1,0,0]}/>
-                  <Bar dataKey="unpaid" name="Unpaid" stackId="payment" fill="#f87171" radius={[1,1,0,0]}/>
-                  <Bar dataKey="unknown" name="N/A" stackId="payment" fill="#3a5070" radius={[1,1,0,0]}/>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          <RegulatoryBlock
+            title={activeRegulatoryTitle}
+            data={activeRegulatoryData}
+          />
         </div>
       )}
     </div>
@@ -1318,7 +1671,7 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete, on
 
   const getDepositStatus = (t) => {
     const remaining = Number(t.volumeRemainingToBeDeposited);
-    const deposited = Number(t.volumeDeposited);
+    const deposited = Number(t.volumeCredited ?? t.volumeDeposited ?? 0);
 
     if (!Number.isFinite(remaining)) return { label: "N/A", color: "gray" };
     if (remaining < -EPS) return { label: "Over", color: "purple" };
@@ -1868,8 +2221,8 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete, on
                   "Contract",
                   "Validated",
                   "Payment",
-                  "Deposited (GWhc)",
-                  "Remaining (GWhc)",
+                  "Credited EMMY (GWhc)",
+                  "Remaining to credit (GWhc)",
                   "CP Ranking",
                   "Approval",
                   "Actions"
@@ -1988,7 +2341,7 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete, on
                       <input
                         type="number"
                         step="0.001"
-                        value={tradesDraft[t.id] ?? t.volumeDeposited ?? ""}
+                        value={tradesDraft[t.id] ?? t.volumeCredited ?? t.volumeDeposited ?? ""}
                         onChange={e => {
                           setTradesDraft(prev => ({
                             ...prev,
@@ -4536,7 +4889,12 @@ export default function App() {
         validationDate: t.validation_date,
         payment: t.payment,
         paymentDate: t.payment_date,
-        cpRanking: t.cp_ranking
+        cpRanking: t.cp_ranking,
+        riskPerformanceMt: t.risk_performance_mt != null ? +t.risk_performance_mt : null,
+
+        // Business aliases for the new Excel wording
+        volumeCredited: t.volume_deposited != null ? +t.volume_deposited : null,
+        volumeRemainingToBeCredited: t.volume_remaining_to_be_deposited != null ? +t.volume_remaining_to_be_deposited : null,
       }));
 
       const normO = (od || []).map(o => ({
