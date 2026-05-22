@@ -3152,66 +3152,91 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
 
   const npvData = useMemo(() => {
     const productParams = PARAMS[npvParams.product];
+    const energyFactor = productParams.kwhc_per_m3;
+    const precaCoeff = productParams.coeff_precarite;
     const discountRate = (Number(npvParams.discountRate) || 0) / 100;
-    const todayDate = new Date();
-    const MS_PER_DAY_LOCAL = 24 * 60 * 60 * 1000;
+
+    const refSpotClMWhc = Number(spotCurve.classique) || 0;
+    const refSpotPrMWhc = Number(spotCurve.precarite) || 0;
+
+    const spotClM3 = energyFactor * refSpotClMWhc / 1000;
+    const spotPrM3 = energyFactor * refSpotPrMWhc / 1000 * precaCoeff;
+    const totalSpotM3 = spotClM3 + spotPrM3;
+
+    const spotMaturityDate = MATURITY_DATES?.SPOT
+      ? new Date(MATURITY_DATES.SPOT)
+      : new Date();
+
+    const calculateLine = (tenor) => {
+      const c = curve[tenor];
+      if (!c) return null;
+
+      const maturityDateRaw = MATURITY_DATES?.[tenor] || null;
+      const maturityDate = maturityDateRaw ? new Date(maturityDateRaw) : new Date();
+
+      const rawDays = Math.round((maturityDate - spotMaturityDate) / MS_PER_DAY);
+      const numberOfDays = Math.max(0, rawDays);
+      const discountingFactor = numberOfDays / 365;
+
+      const clMWhc = Number(c.classique) || 0;
+      const prMWhc = Number(c.precarite) || 0;
+
+      // Forward price converted into product equivalent €/m³
+      const clM3 = energyFactor * clMWhc / 1000;
+      const prM3 = energyFactor * prMWhc / 1000 * precaCoeff;
+      const totalMarketM3 = clM3 + prM3;
+
+      // Financing / NPV logic aligned with the first CEE PnL tool
+      const clNpvM3 = clM3 / Math.pow(1 + discountRate, discountingFactor);
+      const prNpvM3 = prM3 / Math.pow(1 + discountRate, discountingFactor);
+      const totalNpvM3 = clNpvM3 + prNpvM3;
+
+      const clFinancingM3 = clNpvM3 - clM3;
+      const prFinancingM3 = prNpvM3 - prM3;
+      const totalFinancingM3 = totalNpvM3 - totalMarketM3;
+
+      // Re-conversion into €/MWhc after financing
+      const clNpvMWhc = clNpvM3 / energyFactor * 1000;
+      const prNpvMWhc = prNpvM3 / energyFactor * 1000 / precaCoeff;
+
+      // Comparison term price vs spot price after NPV
+      const clNpvVsSpotMWhc = clNpvMWhc - refSpotClMWhc;
+      const prNpvVsSpotMWhc = prNpvMWhc - refSpotPrMWhc;
+      const totalNpvVsSpotM3 = totalNpvM3 - totalSpotM3;
+
+      return {
+        tenor,
+        maturityDate: maturityDateRaw || "—",
+        rawDays,
+        numberOfDays,
+        discountingFactor,
+
+        clMWhc,
+        prMWhc,
+
+        clM3,
+        prM3,
+        totalMarketM3,
+
+        clFinancingM3,
+        prFinancingM3,
+        totalFinancingM3,
+
+        clNpvM3,
+        prNpvM3,
+        totalNpvM3,
+
+        clNpvMWhc,
+        prNpvMWhc,
+
+        clNpvVsSpotMWhc,
+        prNpvVsSpotMWhc,
+        totalNpvVsSpotM3
+      };
+    };
 
     return TENORS
-      .map(tenor => {
-        const c = curve[tenor];
-        if (!c) return null;
-
-        const maturityDateRaw = MATURITY_DATES?.[tenor] || null;
-        const maturityDate = maturityDateRaw ? new Date(maturityDateRaw) : todayDate;
-
-        const days = Math.max(
-          0,
-          Math.round((maturityDate - todayDate) / MS_PER_DAY_LOCAL)
-        );
-
-        const discountFactor = days / 365;
-
-        const classique = Number(c.classique) || 0;
-        const precarite = Number(c.precarite) || 0;
-
-        const spotCl = Number(spotCurve.classique) || 0;
-        const spotPr = Number(spotCurve.precarite) || 0;
-
-        const npvCl = classique / Math.pow(1 + discountRate, discountFactor);
-        const npvPr = precarite / Math.pow(1 + discountRate, discountFactor);
-
-        const spreadCl = classique - spotCl;
-        const spreadPr = precarite - spotPr;
-
-        const impactClM3 =
-          spreadCl * productParams.kwhc_per_m3 / 1000;
-
-        const impactPrM3 =
-          spreadPr *
-          productParams.kwhc_per_m3 /
-          1000 *
-          productParams.coeff_precarite *
-          productParams.coeff_correctif;
-
-        const totalImpactM3 = impactClM3 + impactPrM3;
-
-        return {
-          tenor,
-          maturityDate: maturityDateRaw || "—",
-          days,
-          classique,
-          precarite,
-          spotCl,
-          spotPr,
-          spreadCl,
-          spreadPr,
-          npvCl,
-          npvPr,
-          impactClM3,
-          impactPrM3,
-          totalImpactM3
-        };
-      })
+      .map(calculateLine)
       .filter(Boolean);
   }, [curve, spotCurve, npvParams]);
 
@@ -3769,7 +3794,7 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
             borderRadius: "2px",
             padding: "18px"
           }}>
-            <SectionTitle>Forward vs Spot Spread by Maturity (€/MWhc)</SectionTitle>
+            <SectionTitle>NPV Forward Price vs Spot by Maturity (€/MWhc)</SectionTitle>
 
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={npvData} barGap={3}>
@@ -3790,14 +3815,14 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                 <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
                 <ReferenceLine y={0} stroke="#1e2d45" />
                 <Bar
-                  dataKey="spreadCl"
-                  name="Classique Forward - Spot"
+                  dataKey="clNpvVsSpotMWhc"
+                  name="Classique NPV - Spot"
                   fill="#2563eb"
                   radius={[1, 1, 0, 0]}
                 />
                 <Bar
-                  dataKey="spreadPr"
-                  name="Précarité Forward - Spot"
+                  dataKey="prNpvVsSpotMWhc"
+                  name="Précarité NPV - Spot"
                   fill="#d4a843"
                   radius={[1, 1, 0, 0]}
                 />
@@ -3811,7 +3836,7 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
             borderRadius: "2px",
             padding: "18px"
           }}>
-            <SectionTitle>Forward Impact by Maturity — Product Equivalent (€/m³)</SectionTitle>
+           <SectionTitle>NPV Forward Impact vs Spot — Product Equivalent (€/m³)</SectionTitle>
 
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={npvData} barGap={3}>
@@ -3832,14 +3857,14 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                 <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
                 <ReferenceLine y={0} stroke="#1e2d45" />
                 <Bar
-                  dataKey="impactClM3"
-                  name="Classique impact €/m³"
+                  dataKey="clFinancingM3"
+                  name="Classique financing €/m³"
                   fill="#2563eb"
                   radius={[1, 1, 0, 0]}
                 />
                 <Bar
-                  dataKey="impactPrM3"
-                  name="Précarité impact €/m³"
+                  dataKey="prFinancingM3"
+                  name="Précarité financing €/m³"
                   fill="#d4a843"
                   radius={[1, 1, 0, 0]}
                 />
@@ -3857,11 +3882,13 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                     "Days",
                     "Fwd CL",
                     "Fwd PR",
-                    "Spread CL vs Spot",
-                    "Spread PR vs Spot",
-                    "NPV CL",
-                    "NPV PR",
-                    "Total impact €/m³"
+                    "CL €/m³",
+                    "PR €/m³",
+                    "CL NPV €/MWhc",
+                    "PR NPV €/MWhc",
+                    "CL NPV vs Spot",
+                    "PR NPV vs Spot",
+                    "Total NPV vs Spot €/m³"
                   ].map(h => (
                     <TH key={h}>{h}</TH>
                   ))}
@@ -3880,38 +3907,46 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                     </td>
 
                     <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "9px 14px" }}>
-                      {N(d.days, 0)}
+                      {N(d.numberOfDays, 0)}
                     </td>
 
                     <td style={{ ...S, fontSize: "11px", color: "#2563eb", padding: "9px 14px" }}>
-                      {N(d.classique, 2)}
+                      {N(d.clMWhc, 2)}
                     </td>
 
                     <td style={{ ...S, fontSize: "11px", color: "#d4a843", padding: "9px 14px" }}>
-                      {N(d.precarite, 2)}
-                    </td>
-
-                    <td style={{ ...S, fontSize: "11px", color: d.spreadCl >= 0 ? "#34d399" : "#f87171", padding: "9px 14px" }}>
-                      {d.spreadCl >= 0 ? "+" : ""}
-                      {N(d.spreadCl, 2)}
-                    </td>
-
-                    <td style={{ ...S, fontSize: "11px", color: d.spreadPr >= 0 ? "#34d399" : "#f87171", padding: "9px 14px" }}>
-                      {d.spreadPr >= 0 ? "+" : ""}
-                      {N(d.spreadPr, 2)}
+                      {N(d.prMWhc, 2)}
                     </td>
 
                     <td style={{ ...S, fontSize: "11px", color: "#2563eb", padding: "9px 14px" }}>
-                      {N(d.npvCl, 2)}
+                      {N(d.clM3, 2)}
                     </td>
 
                     <td style={{ ...S, fontSize: "11px", color: "#d4a843", padding: "9px 14px" }}>
-                      {N(d.npvPr, 2)}
+                      {N(d.prM3, 2)}
                     </td>
 
-                    <td style={{ ...S, fontSize: "11px", color: d.totalImpactM3 >= 0 ? "#34d399" : "#f87171", padding: "9px 14px", fontWeight: 700 }}>
-                      {d.totalImpactM3 >= 0 ? "+" : ""}
-                      {N(d.totalImpactM3, 3)} €/m³
+                    <td style={{ ...S, fontSize: "11px", color: "#2563eb", padding: "9px 14px" }}>
+                      {N(d.clNpvMWhc, 2)}
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: "#d4a843", padding: "9px 14px" }}>
+                      {N(d.prNpvMWhc, 2)}
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: d.clNpvVsSpotMWhc >= 0 ? "#34d399" : "#f87171", padding: "9px 14px" }}>
+                      {d.clNpvVsSpotMWhc >= 0 ? "+" : ""}
+                      {N(d.clNpvVsSpotMWhc, 2)}
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: d.prNpvVsSpotMWhc >= 0 ? "#34d399" : "#f87171", padding: "9px 14px" }}>
+                      {d.prNpvVsSpotMWhc >= 0 ? "+" : ""}
+                      {N(d.prNpvVsSpotMWhc, 2)}
+                    </td>
+
+                    <td style={{ ...S, fontSize: "11px", color: d.totalNpvVsSpotM3 >= 0 ? "#34d399" : "#f87171", padding: "9px 14px", fontWeight: 700 }}>
+                      {d.totalNpvVsSpotM3 >= 0 ? "+" : ""}
+                      {N(d.totalNpvVsSpotM3, 2)} €/m³
                     </td>
                   </tr>
                 ))}
