@@ -2979,7 +2979,7 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete, on
 // ─────────────────────────────────────────────────────────────────────────────
 const CLIENTS = ["Spot", "Certas", "Certas Lyon", "Autre"];
 
-function ObligationTab({ obligations, onAdd, onDelete }) {
+function ObligationTab({ obligations, onAdd, onDelete, canEdit = true }) {
   const [showModal, setShowModal] = useState(false);
   const [filterClient, setFilterClient] = useState("ALL");
   const [filterMonth, setFilterMonth] = useState("ALL");
@@ -3065,14 +3065,27 @@ function ObligationTab({ obligations, onAdd, onDelete }) {
           </select>
         </div>
 
-        <GoldBtn onClick={() => setShowModal(true)}>+ Add Obligation</GoldBtn>
+        {canEdit && (
+          <GoldBtn onClick={() => setShowModal(true)}>+ Add Obligation</GoldBtn>
+        )}
       </div>
 
       <div style={{ overflowX: "auto", border: "1px solid #1e1c18", borderRadius: "2px" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              {["Month", "Client", "Product", "Volume m³", "CEE Classique (GWhc)", "CEE Précarité (GWhc)", "Price Classique", "Price Précarité", "Priced", ""].map(h => <TH key={h}>{h}</TH>)}
+              {[
+                "Month",
+                "Client",
+                "Product",
+                "Volume m³",
+                "CEE Classique (GWhc)",
+                "CEE Précarité (GWhc)",
+                "Price Classique",
+                "Price Précarité",
+                "Priced",
+                ...(canEdit ? [""] : [])
+              ].map(h => <TH key={h}>{h}</TH>)}
             </tr>
           </thead>
           <tbody>
@@ -3089,7 +3102,23 @@ function ObligationTab({ obligations, onAdd, onDelete }) {
                   <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "9px 14px" }}>{N(o.priceCl / 1000, 2)}</td>
                   <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "9px 14px" }}>{N(o.pricePr / 1000, 2)}</td>
                   <td style={{ padding: "9px 14px" }}><Badge color={o.priced ? "green" : "red"}>{o.priced ? "Priced" : "Unpriced"}</Badge></td>
-                  <td style={{ padding: "9px 14px" }}><button onClick={() => onDelete(o.id)} style={{ ...S, fontSize: "9px", color: "#3d3830", background: "none", border: "none", cursor: "pointer" }}>✕</button></td>
+                  {canEdit && (
+                    <td style={{ padding: "9px 14px" }}>
+                      <button
+                        onClick={() => onDelete(o.id)}
+                        style={{
+                          ...S,
+                          fontSize: "9px",
+                          color: "#3d3830",
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer"
+                        }}
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -3097,7 +3126,7 @@ function ObligationTab({ obligations, onAdd, onDelete }) {
         </table>
       </div>
 
-      {showModal && (
+      {canEdit && showModal && (
         <Modal title="Add Obligation" onClose={() => setShowModal(false)} wide>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "13px" }}>
             <FI label="Month" type="month" value={form.month} onChange={e => setForm(f => ({ ...f, month: e.target.value }))} />
@@ -3802,7 +3831,7 @@ function Dashboard({ trades, obligations, prices, curve }) {
   );
 }
 
-function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve }) {
+function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve, canEdit = true }) {
   const [view, setView] = useState("spot");
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [editingTenor, setEditingTenor] = useState(null);
@@ -4127,9 +4156,11 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
             </ResponsiveContainer>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <GoldBtn onClick={() => setShowPriceModal(true)}>+ Add Market Price</GoldBtn>
-          </div>
+          {canEdit && (
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <GoldBtn onClick={() => setShowPriceModal(true)}>+ Add Market Price</GoldBtn>
+            </div>
+          )}
 
           <div style={{ border: "1px solid #1e1c18", borderRadius: "2px", overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -4179,7 +4210,7 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
             </table>
           </div>
 
-          {showPriceModal && (
+          {canEdit && showPriceModal && (
             <Modal title="Add Market Price" onClose={() => setShowPriceModal(false)}>
               <div style={{ display: "flex", flexDirection: "column", gap: "13px" }}>
                 <FI
@@ -4283,7 +4314,12 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  {["Tenor", "Classique Forward (€/MWhc)", "Précarité Forward (€/MWhc)", "Actions"].map(h => (
+                  {[
+                    "Tenor",
+                    "Classique Forward (€/MWhc)",
+                    "Précarité Forward (€/MWhc)",
+                    ...(canEdit ? ["Actions"] : [])
+                  ].map(h => (
                     <TH key={h}>{h}</TH>
                   ))}
                 </tr>
@@ -4356,27 +4392,51 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                         </>
                       )}
 
-                      <td style={{ padding: "9px 14px" }}>
-                        {isEditing ? (
-                          <div style={{ display: "flex", gap: "6px" }}>
-                            <button
-                              onClick={() => handleSaveCurve(t)}
-                              style={{
-                                ...S,
-                                fontSize: "10px",
-                                padding: "4px 10px",
-                                background: "#38bdf8",
-                                color: "#0a0e1a",
-                                border: "none",
-                                borderRadius: "2px",
-                                cursor: "pointer"
-                              }}
-                            >
-                              ✓ Save
-                            </button>
+                      {canEdit && (
+                        <td style={{ padding: "9px 14px" }}>
+                          {isEditing ? (
+                            <div style={{ display: "flex", gap: "6px" }}>
+                              <button
+                                onClick={() => handleSaveCurve(t)}
+                                style={{
+                                  ...S,
+                                  fontSize: "10px",
+                                  padding: "4px 10px",
+                                  background: "#38bdf8",
+                                  color: "#0a0e1a",
+                                  border: "none",
+                                  borderRadius: "2px",
+                                  cursor: "pointer"
+                                }}
+                              >
+                                ✓ Save
+                              </button>
 
+                              <button
+                                onClick={() => setEditingTenor(null)}
+                                style={{
+                                  ...S,
+                                  fontSize: "10px",
+                                  padding: "4px 10px",
+                                  background: "transparent",
+                                  color: "#3a5070",
+                                  border: "1px solid #2e2b24",
+                                  borderRadius: "2px",
+                                  cursor: "pointer"
+                                }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
                             <button
-                              onClick={() => setEditingTenor(null)}
+                              onClick={() => {
+                                setEditingTenor(t);
+                                setDraftCurve({
+                                  classique: String(fp?.classique ?? ""),
+                                  precarite: String(fp?.precarite ?? "")
+                                });
+                              }}
                               style={{
                                 ...S,
                                 fontSize: "10px",
@@ -4388,33 +4448,11 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                                 cursor: "pointer"
                               }}
                             >
-                              Cancel
+                              Edit
                             </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setEditingTenor(t);
-                              setDraftCurve({
-                                classique: String(fp?.classique ?? ""),
-                                precarite: String(fp?.precarite ?? "")
-                              });
-                            }}
-                            style={{
-                              ...S,
-                              fontSize: "10px",
-                              padding: "4px 10px",
-                              background: "transparent",
-                              color: "#3a5070",
-                              border: "1px solid #2e2b24",
-                              borderRadius: "2px",
-                              cursor: "pointer"
-                            }}
-                          >
-                            Edit
-                          </button>
-                        )}
-                      </td>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -5175,6 +5213,11 @@ export default function App() {
   const [loading,setLoading]        =useState(true);
   const [error,setError]            =useState(null);
 
+  const isViewer = currentUser?.role === "viewer";
+  const canEdit = currentUser?.role === "trader" || currentUser?.role === "approver";
+  const canApprove = currentUser?.role === "approver";
+  const canCreate = currentUser?.role === "trader";
+
   async function loadAll({ silent = false } = {}) {
     try {
       if (!silent) setLoading(true);
@@ -5617,7 +5660,7 @@ export default function App() {
     if (error || !data) {
       console.error("Trade update error:", error);
       alert(
-        "Erreur lors de la mise à jour du trade. La ligne n'a probablement pas été modifiée en base."
+        "You do not have permission to edit the blotter"
       );
       await loadAll({ silent: true });
       return;
@@ -5825,7 +5868,14 @@ export default function App() {
             onUpdate={handleUpdateTrade}
           />
         )}
-        {tab==="obligation" && <ObligationTab obligations={obligations} onAdd={handleAddObligation} onDelete={id=>setObligations(os=>os.filter(o=>o.id!==id))}/>}
+        {tab==="obligation" && (
+          <ObligationTab
+            obligations={obligations}
+            onAdd={handleAddObligation}
+            onDelete={id => setObligations(os => os.filter(o => o.id !== id))}
+            canEdit={canEdit}
+          />
+        )}
         {tab === "market" && (
           <MarketCurvesTab
             prices={prices}
@@ -5833,6 +5883,7 @@ export default function App() {
             currentUser={currentUser}
             onAddPrice={handleAddPrice}
             onUpdateCurve={handleUpdateCurve}
+            canEdit={canEdit}
           />
         )}
         {tab==="tools"      && <Tools curve={curve} />}
