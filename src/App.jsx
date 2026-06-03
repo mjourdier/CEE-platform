@@ -243,7 +243,9 @@ function Reporting({ trades, obligations, prices, curve }) {
 
   // P6 reporting scope: only 2026 trades
   const trades2026 = useMemo(
-    () => trades.filter(t => Number(t.year) === 2026),
+    () => trades.filter(t =>
+      String(t.period ?? "").trim().toUpperCase() === "P6"
+    ),
     [trades]
   );
 
@@ -281,29 +283,28 @@ function Reporting({ trades, obligations, prices, curve }) {
         ? (sPr - aPrP) * matchPr
         : 0;
 
-    // MtM = (spot - priced avg buy) × priced open position only
-    const openCl =
-      oblClP > 0.001 && bClP > oblClP
-        ? bClP - oblClP
-        : 0;
-
-    const openPr =
-      oblPrP > 0.001 && bPrP > oblPrP
-        ? bPrP - oblPrP
-        : 0;
+    // Excel-aligned MtM:
+    // If net position is positive, value against avg purchase.
+    // If net position is negative, value against avg sold price.
+    const netClRaw = bClP - oblClP;
+    const netPrRaw = bPrP - oblPrP;
 
     const mtmCl =
-      openCl > 0
-        ? openCl * (latestSpot.classique * 1000 - aClP)
+      Math.abs(netClRaw) > 0.001 && latestSpot.classique > 0
+        ? netClRaw < 0
+          ? netClRaw * (latestSpot.classique * 1000 - sCl)
+          : netClRaw * (latestSpot.classique * 1000 - aClP)
         : 0;
 
     const mtmPr =
-      openPr > 0
-        ? openPr * (latestSpot.precarite * 1000 - aPrP)
+      Math.abs(netPrRaw) > 0.001 && latestSpot.precarite > 0
+        ? netPrRaw < 0
+          ? netPrRaw * (latestSpot.precarite * 1000 - sPr)
+          : netPrRaw * (latestSpot.precarite * 1000 - aPrP)
         : 0;
 
-    const pricedObligation = oblClP + oblPrP;
-    const pricedBought = bClP + bPrP;
+        const pricedObligation = oblClP + oblPrP;
+        const pricedBought = bClP + bPrP;
 
     const covPct =
       pricedObligation > 0
@@ -321,6 +322,14 @@ function Reporting({ trades, obligations, prices, curve }) {
       bClP: Math.round(bClP),
       bPrP: Math.round(bPrP),
 
+      pnlClRaw: pnlCl,
+      pnlPrRaw: pnlPr,
+      pnlRaw: pnlCl + pnlPr,
+
+      mtmClRaw: mtmCl,
+      mtmPrRaw: mtmPr,
+      mtmRaw: mtmCl + mtmPr,
+
       pnlCl: Math.round(pnlCl / 1000),
       pnlPr: Math.round(pnlPr / 1000),
       pnl: Math.round((pnlCl + pnlPr) / 1000),
@@ -337,6 +346,11 @@ function Reporting({ trades, obligations, prices, curve }) {
       netPos: Math.round(bClP + bPrP - oblClP - oblPrP)
     };
   }), [trades2026, obligations, latestSpot]);
+
+  const estimatedTotalPnl = useMemo(
+    () => monthlyData.reduce((s, d) => s + d.pnlRaw + d.mtmRaw, 0),
+    [monthlyData]
+  );
 
   // Price history for chart
   const priceHistory = useMemo(
@@ -954,8 +968,8 @@ function Reporting({ trades, obligations, prices, curve }) {
             <KPI
               large
               label="Estimated Total PnL"
-              value={fM(monthlyData.reduce((s, d) => s + (d.pnl + d.mtm) * 1000, 0))}
-              color={monthlyData.reduce((s, d) => s + d.pnl + d.mtm, 0) >= 0 ? "emerald" : "rose"}
+              value={fM(estimatedTotalPnl)}
+              color={estimatedTotalPnl >= 0 ? "emerald" : "rose"}
               sub="Realized + MtM"
             />
 
@@ -3176,6 +3190,16 @@ function Dashboard({ trades, obligations, prices, curve }) {
   const spotCl = latest.classique;
   const spotPr = latest.precarite;
 
+  // P6 dashboard scope: exclude 2025 and P5 trades
+  const tradesP6 = useMemo(
+    () => trades.filter(t => {
+      const period = String(t.period ?? "").trim().toUpperCase();
+
+      return period === "P6";
+    }),
+    [trades]
+  );
+
   // Same methodology as the Tools converter, using Road Fuel by default
   const spotProductParams = PARAMS.CARBURANT;
 
@@ -3199,15 +3223,21 @@ function Dashboard({ trades, obligations, prices, curve }) {
   const totalOblPrU = MONTHS_LIST.reduce((s, m) => s + oblMonth(obligations, m, "PRECARITE") - oblMonth(obligations, m, "PRECARITE", true), 0);
 
   // ── Priced purchases vs unpriced purchases ──
-  const bClP = sumVol(trades, "CLASSIQUE", null, true), bPrP = sumVol(trades, "PRECARITE", null, true);
-  const bClU = sumVol(trades, "CLASSIQUE", null, false) - bClP, bPrU = sumVol(trades, "PRECARITE", null, false) - bPrP;
-  const aClP = wAvg(trades, "CLASSIQUE", null, true), aPrP = wAvg(trades, "PRECARITE", null, true);
-  const aClU = wAvg(trades, "CLASSIQUE") > 0 ?
-    (sumVol(trades, "CLASSIQUE") * wAvg(trades, "CLASSIQUE") - bClP * aClP) / (bClU || 1) : 0;
+  // Excel P6 scope: all 2026 P6 trades, including pending approval.
+  const bClP = sumVol(tradesP6, "CLASSIQUE", null, true, false);
+  const bPrP = sumVol(tradesP6, "PRECARITE", null, true, false);
 
-  // Global totals for display
-  const bCl = sumVol(trades, "CLASSIQUE"), bPr = sumVol(trades, "PRECARITE");
-  const aCl = wAvg(trades, "CLASSIQUE"), aPr = wAvg(trades, "PRECARITE");
+  const bCl = sumVol(tradesP6, "CLASSIQUE", null, false, false);
+  const bPr = sumVol(tradesP6, "PRECARITE", null, false, false);
+
+  const bClU = bCl - bClP;
+  const bPrU = bPr - bPrP;
+
+  const aClP = pnlBuyAvg(tradesP6, "CLASSIQUE", null);
+  const aPrP = pnlBuyAvg(tradesP6, "PRECARITE", null);
+
+  const aCl = wAvg(tradesP6, "CLASSIQUE");
+  const aPr = wAvg(tradesP6, "PRECARITE");
 
   // ── Net priced position ──
   const netClP = bClP - totalOblClP, netPrP = bPrP - totalOblPrP;
@@ -3225,42 +3255,85 @@ function Dashboard({ trades, obligations, prices, curve }) {
     const oblClP = oblMonth(obligations, month, "CLASSIQUE", true);
     const oblPrP = oblMonth(obligations, month, "PRECARITE", true);
 
-    if (oblClP < 0.001 && oblPrP < 0.001) return acc;
+    const mBClP = sumVol(tradesP6, "CLASSIQUE", month, true, false);
+    const mBPrP = sumVol(tradesP6, "PRECARITE", month, true, false);
 
-    // Business MtM: include all imported priced trades,
-    // including trades still pending four-eyes approval.
-    const mBClP = sumVol(trades, "CLASSIQUE", month, true, false);
-    const mBPrP = sumVol(trades, "PRECARITE", month, true, false);
+    const mAClP = pnlBuyAvg(tradesP6, "CLASSIQUE", month);
+    const mAPrP = pnlBuyAvg(tradesP6, "PRECARITE", month);
 
-    const mAClP = pnlBuyAvg(trades, "CLASSIQUE", month, true, false);
-    const mAPrP = pnlBuyAvg(trades, "PRECARITE", month, true, false);
+    const mSCl = avgSellMonth(obligations, month, "CLASSIQUE", true);
+    const mSPr = avgSellMonth(obligations, month, "PRECARITE", true);
 
-    const openCl = Math.max(mBClP - oblClP, 0);
-    const openPr = Math.max(mBPrP - oblPrP, 0);
+    const netClRaw = mBClP - oblClP;
+    const netPrRaw = mBPrP - oblPrP;
+
+    const monthMtmCl =
+      Math.abs(netClRaw) > 0.001 && spotCl > 0
+        ? netClRaw < 0
+          ? netClRaw * (spotCl * 1000 - mSCl)
+          : mAClP > 0
+            ? netClRaw * (spotCl * 1000 - mAClP)
+            : 0
+        : 0;
+
+    const monthMtmPr =
+      Math.abs(netPrRaw) > 0.001 && spotPr > 0
+        ? netPrRaw < 0
+          ? netPrRaw * (spotPr * 1000 - mSPr)
+          : mAPrP > 0
+            ? netPrRaw * (spotPr * 1000 - mAPrP)
+            : 0
+        : 0;
 
     return {
-      mtmCl: acc.mtmCl + (
-        openCl > 0 && mAClP > 0
-          ? openCl * (spotCl * 1000 - mAClP)
-          : 0
-      ),
-      mtmPr: acc.mtmPr + (
-        openPr > 0 && mAPrP > 0
-          ? openPr * (spotPr * 1000 - mAPrP)
-          : 0
-      ),
+      mtmCl: acc.mtmCl + monthMtmCl,
+      mtmPr: acc.mtmPr + monthMtmPr,
     };
-  }, { mtmCl: 0, mtmPr: 0 }), [trades, obligations, spotCl, spotPr]);
+  }, { mtmCl: 0, mtmPr: 0 }), [tradesP6, obligations, spotCl, spotPr]);
 
   // ── Data Quality ──
   const dataQualityChecks = useMemo(() => {
     const issues = [];
 
-    trades.forEach(t => {
-      if (!t.month) issues.push({ severity: "high", type: "Trade missing month", detail: `Trade ${t.id} — ${t.vendor}` });
-      if (!t.volume || t.volume <= 0) issues.push({ severity: "high", type: "Invalid trade volume", detail: `Trade ${t.id} — ${t.volume} GWhc` });
-      if (t.priced && (!t.price || t.price <= 0)) issues.push({ severity: "high", type: "Missing trade price", detail: `Trade ${t.id} — ${t.vendor}` });
-      if (t.status === "APPROVED" && !t.approvedBy) issues.push({ severity: "medium", type: "Approved trade without approver", detail: `Trade ${t.id}` });
+    const TRADE_VOLUME_EPS = 0.000001;
+
+    tradesP6.forEach(t => {
+      const volume = Number(t.volume ?? 0);
+      const price = Number(t.price ?? 0);
+      const isZeroVolumePlaceholder = Math.abs(volume) < TRADE_VOLUME_EPS;
+
+      if (!t.month) {
+        issues.push({
+          severity: "high",
+          type: "Trade missing month",
+          detail: `Trade ${t.id} — ${t.vendor}`
+        });
+      }
+
+      if (!isZeroVolumePlaceholder && volume < 0) {
+        issues.push({
+          severity: "high",
+          type: "Invalid trade volume",
+          detail: `Trade ${t.id} — ${volume} GWhc`
+        });
+      }
+
+      if (!isZeroVolumePlaceholder && t.priced && price <= 0) {
+        issues.push({
+          severity: "high",
+          type: "Missing trade price",
+          detail: `Trade ${t.id} — ${t.vendor}`
+        });
+      }
+
+      if (t.status === "APPROVED" && !t.approvedBy) {
+        issues.push({
+          severity: "medium",
+          type: "Approved trade without approver",
+          detail: `Trade ${t.id}`
+        });
+      }
+
       const ALLOWED_EXTRA_TRADE_MONTHS = ["2025-12"];
 
       if (
@@ -3285,7 +3358,8 @@ function Dashboard({ trades, obligations, prices, curve }) {
 
       const isEarlyYear = m === 1 || m === 2;
 
-      if (o.volume_m3 < 0 && !isEarlyYear) {
+      // Negative Spot obligation lines can be legitimate Excel adjustments.
+      if (o.volume_m3 < 0 && !isEarlyYear && o.client !== "Spot") {
         issues.push({
           severity: "high",
           type: "Abnormal negative obligation volume",
@@ -3303,17 +3377,32 @@ function Dashboard({ trades, obligations, prices, curve }) {
     });
 
     const seen = new Map();
-    trades.forEach(t => {
-      const key = `${t.ceeType}|${t.vendor}|${t.month}|${t.volume}|${t.price}`;
+
+    tradesP6.forEach(t => {
+      const key = [
+        t.ceeType,
+        t.vendor,
+        t.month,
+        t.dealType,
+        t.pricingMonth ?? "NO_PRICING_MONTH",
+        String(t.priced),
+        Number(t.volume ?? 0).toFixed(6),
+        Number(t.price ?? 0).toFixed(4)
+      ].join("|");
+
       if (seen.has(key)) {
-        issues.push({ severity: "medium", type: "Potential duplicate trade", detail: `${seen.get(key)} / ${t.id} — ${t.vendor}` });
+        issues.push({
+          severity: "medium",
+          type: "Potential duplicate trade",
+          detail: `${seen.get(key)} / ${t.id} — ${t.vendor}`
+        });
       } else {
         seen.set(key, t.id);
       }
     });
 
     return issues;
-  }, [trades, obligations]);
+  }, [tradesP6, obligations]);
 
   // ── Realized YTD PnL on priced months ──
   // Business PnL includes all imported priced trades, including pending four-eyes approval.
@@ -3324,11 +3413,11 @@ function Dashboard({ trades, obligations, prices, curve }) {
 
     if (oblClP < 0.001 && oblPrP < 0.001) return acc;
 
-    const mBClP = sumVol(trades, "CLASSIQUE", month, true, false);
-    const mBPrP = sumVol(trades, "PRECARITE", month, true, false);
+    const mBClP = sumVol(tradesP6, "CLASSIQUE", month, true, false);
+    const mBPrP = sumVol(tradesP6, "PRECARITE", month, true, false);
 
-    const mAClP = pnlBuyAvg(trades, "CLASSIQUE", month);
-    const mAPrP = pnlBuyAvg(trades, "PRECARITE", month);
+    const mAClP = pnlBuyAvg(tradesP6, "CLASSIQUE", month);
+    const mAPrP = pnlBuyAvg(tradesP6, "PRECARITE", month);
 
     const mSCl = avgSellMonth(obligations, month, "CLASSIQUE", true);
     const mSPr = avgSellMonth(obligations, month, "PRECARITE", true);
@@ -3348,7 +3437,7 @@ function Dashboard({ trades, obligations, prices, curve }) {
           : 0
       ),
     };
-  }, { pnlClYTD: 0, pnlPrYTD: 0 }), [trades, obligations]);
+  }, { pnlClYTD: 0, pnlPrYTD: 0 }), [tradesP6, obligations]);
 
   // ── Risk / Exposure KPIs ──
   const netPriced = netClP + netPrP;
@@ -3363,8 +3452,8 @@ function Dashboard({ trades, obligations, prices, curve }) {
   const coverageRows = MONTHS_LIST.map(month => {
     const oblClP = oblMonth(obligations, month, "CLASSIQUE", true);
     const oblPrP = oblMonth(obligations, month, "PRECARITE", true);
-    const boughtClP = sumVol(trades, "CLASSIQUE", month, true, false);
-    const boughtPrP = sumVol(trades, "PRECARITE", month, true, false);
+    const boughtClP = sumVol(tradesP6, "CLASSIQUE", month, true, false);
+    const boughtPrP = sumVol(tradesP6, "PRECARITE", month, true, false);
 
     const obligation = oblClP + oblPrP;
     const bought = boughtClP + boughtPrP;
@@ -3429,13 +3518,13 @@ function Dashboard({ trades, obligations, prices, curve }) {
   };
 
   // ── Operational Follow-up ──
-  const pending = trades.filter(t => t.status === "PENDING").length;
+  const pending = tradesP6.filter(t => t.status === "PENDING").length;
 
   const MATERIAL_TRADE_THRESHOLD = 50; // GWhc
   const DEPOSIT_EPS = 0.001;
 
   const operationalMetrics = useMemo(() => {
-    const relevantTrades = trades.filter(t => t.priced === true);
+    const relevantTrades = tradesP6.filter(t => t.priced === true);
 
     const materialTrades = relevantTrades.filter(t =>
       Number(t.volume) >= MATERIAL_TRADE_THRESHOLD
@@ -3490,7 +3579,7 @@ function Dashboard({ trades, obligations, prices, curve }) {
       missingCpRankingCount: missingCpRanking.length,
       missingCpRankingVolume: missingCpRanking.reduce((s, t) => s + Number(t.volume || 0), 0),
     };
-  }, [trades]);
+  }, [tradesP6]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
