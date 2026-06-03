@@ -241,6 +241,12 @@ function Reporting({ trades, obligations, prices, curve }) {
     };
   }, [prices, curve]);
 
+  // P6 reporting scope: only 2026 trades
+  const trades2026 = useMemo(
+    () => trades.filter(t => Number(t.year) === 2026),
+    [trades]
+  );
+
   // Monthly position data for charts
   const monthlyData = useMemo(() => MONTHS_LIST.map(month => {
     const oblCl = oblMonth(obligations, month, "CLASSIQUE");
@@ -248,17 +254,14 @@ function Reporting({ trades, obligations, prices, curve }) {
     const oblClP = oblMonth(obligations, month, "CLASSIQUE", true);
     const oblPrP = oblMonth(obligations, month, "PRECARITE", true);
 
-    // Business view: include imported priced trades even if still pending four-eyes approval
-    const bClP = sumVol(trades, "CLASSIQUE", month, true, false);
-    const bPrP = sumVol(trades, "PRECARITE", month, true, false);
+    const bClP = sumVol(trades2026, "CLASSIQUE", month, true, false);
+    const bPrP = sumVol(trades2026, "PRECARITE", month, true, false);
 
-    // Total purchases, also business view
-    const bCl = sumVol(trades, "CLASSIQUE", month, false, false);
-    const bPr = sumVol(trades, "PRECARITE", month, false, false);
+    const bCl = sumVol(trades2026, "CLASSIQUE", month, false, false);
+    const bPr = sumVol(trades2026, "PRECARITE", month, false, false);
 
-    // Excel-aligned priced average buy for PnL / MtM
-    const aClP = pnlBuyAvg(trades, "CLASSIQUE", month);
-    const aPrP = pnlBuyAvg(trades, "PRECARITE", month);
+    const aClP = pnlBuyAvg(trades2026, "CLASSIQUE", month);
+    const aPrP = pnlBuyAvg(trades2026, "PRECARITE", month);
 
     // Priced sell average only
     const sCl = avgSellMonth(obligations, month, "CLASSIQUE", true);
@@ -333,7 +336,7 @@ function Reporting({ trades, obligations, prices, curve }) {
       netPrP: Math.round(bPrP - oblPrP),
       netPos: Math.round(bClP + bPrP - oblClP - oblPrP)
     };
-  }), [trades, obligations, latestSpot]);
+  }), [trades2026, obligations, latestSpot]);
 
   // Price history for chart
   const priceHistory = useMemo(
@@ -352,7 +355,7 @@ function Reporting({ trades, obligations, prices, curve }) {
   const vendorData = useMemo(() => {
     const m = {};
 
-    trades
+    trades2026
       .filter(t => t.status === "APPROVED")
       .forEach(t => {
         m[t.vendor] = (m[t.vendor] || 0) + t.volume;
@@ -362,7 +365,7 @@ function Reporting({ trades, obligations, prices, curve }) {
       .map(([name, vol]) => ({ name, vol: Math.round(vol) }))
       .sort((a, b) => b.vol - a.vol)
       .slice(0, 8);
-  }, [trades]);
+  }, [trades2026]);
 
   // Cumulative PnL
   const cumPnlData = useMemo(() => {
@@ -406,12 +409,12 @@ function Reporting({ trades, obligations, prices, curve }) {
   );
 
   const totalBoughtP =
-    sumVol(trades, "CLASSIQUE", null, true, false) +
-    sumVol(trades, "PRECARITE", null, true, false);
+    sumVol(trades2026, "CLASSIQUE", null, true, false) +
+    sumVol(trades2026, "PRECARITE", null, true, false);
 
   const totalBought =
-    sumVol(trades, "CLASSIQUE", null, false, false) +
-    sumVol(trades, "PRECARITE", null, false, false);
+    sumVol(trades2026, "CLASSIQUE", null, false, false) +
+    sumVol(trades2026, "PRECARITE", null, false, false);
 
   const totalUnpriced =
     MONTHS_LIST.reduce(
@@ -426,13 +429,13 @@ function Reporting({ trades, obligations, prices, curve }) {
 
   // Regulatory & performance risk datasets
   const regulatoryBaseTrades = useMemo(
-    () => trades.filter(t => t.priced === true),
-    [trades]
+    () => trades2026.filter(t => t.priced === true),
+    [trades2026]
   );
 
   const regulatoryApprovalTrades = useMemo(
-    () => trades,
-    [trades]
+    () => trades2026,
+    [trades2026]
   );
 
   const buildRegulatoryMetrics = (ceeType) => {
@@ -961,7 +964,7 @@ function Reporting({ trades, obligations, prices, curve }) {
               label="Total Purchased Inventory"
               value={N(totalBought, 0) + " GWhc"}
               color="sky"
-              sub={`Classique: ${N(sumVol(trades, "CLASSIQUE"), 0)} · Précarité: ${N(sumVol(trades, "PRECARITE"), 0)}`}
+              sub={`Classique: ${N(sumVol(trades2026, "CLASSIQUE", null, false, false), 0)} · Précarité: ${N(sumVol(trades2026, "PRECARITE", null, false, false), 0)}`}
             />
 
             <KPI
