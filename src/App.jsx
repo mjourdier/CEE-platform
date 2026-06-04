@@ -136,7 +136,7 @@ function pnlBuyAvg(trades, ceeType, month = null) {
   }
 
   if (month === "2026-01" && ceeType === "PRECARITE") {
-    rows = rows.filter(t => !(Math.abs(t.volume - 36.18) < 0.001 && Math.abs(t.price - 8330.24) < 0.01));
+    rows = rows.filter(t => t.id !== "xlsx_pr_001");
   }
 
   const v = rows.reduce((s, t) => s + t.volume, 0);
