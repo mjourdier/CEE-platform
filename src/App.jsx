@@ -71,6 +71,20 @@ const fK  = (n, d = 0) => n == null ? "—" : (n >= 0 ? "+" : "") + N(n / 1000, 
 const fM  = (n, d = 1) => n == null ? "—" : (n >= 0 ? "+" : "") + N(n / 1000000, d) + " M€";
 const uid = () => Math.random().toString(36).slice(2, 9);
 
+const formatDateEn = (date) => {
+  if (!date || date === "(curve)") return "Curve fallback";
+
+  const parsed = new Date(`${String(date).slice(0, 10)}T00:00:00`);
+
+  if (Number.isNaN(parsed.getTime())) return String(date);
+
+  return parsed.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+};
+
 // Display labels only. Do not use these values for data matching.
 const MO  = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const ML  = m => { const [y, mo] = m.split("-"); return MO[parseInt(mo) - 1] + " " + y; };
@@ -960,7 +974,7 @@ function Reporting({ trades, obligations, prices, curve }) {
               Executive Dashboard
             </h2>
             <p style={{ ...S, fontSize: "10px", color: "#3a5070" }}>
-              As of {prices.slice(-1)[0]?.date ?? "2026-03-06"} · Reference period: 2026 (P6)
+              As of {latest.date === "(curve)" ? "curve fallback" : latest.date} · Reference period: 2026 (P6)
             </p>
           </div>
 
@@ -3187,6 +3201,8 @@ function Dashboard({ trades, obligations, prices, curve }) {
     return { classique: p.classique, precarite: p.precarite, date: p.date };
   }, [prices, curve]);
 
+  const displayDate = formatDateEn(latest.date);
+
   const spotCl = latest.classique;
   const spotPr = latest.precarite;
 
@@ -3439,6 +3455,7 @@ function Dashboard({ trades, obligations, prices, curve }) {
     };
   }, { pnlClYTD: 0, pnlPrYTD: 0 }), [tradesP6, obligations]);
 
+
   // ── Risk / Exposure KPIs ──
   const netPriced = netClP + netPrP;
   const netUnpriced = netClU + netPrU;
@@ -3672,7 +3689,7 @@ function Dashboard({ trades, obligations, prices, curve }) {
       {/* ── PnL / MtM / Spot ── */}
       <div>
         <p style={{ ...S, fontSize: "9px", color: "#3a5070", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "10px" }}>
-          PnL & Market Summary — 06/03/2026
+          PNL & Market Summary — {displayDate}
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: "10px" }}>
           <KPI label="Spot Classique" value={`${N(spotCl)} €/MWhc`} color="sky"sub={`Road Fuel impact: ${N(spotClEurM3, 2)} €/m³`}/>
@@ -5868,6 +5885,10 @@ export default function App() {
     {id:"audit",      label:"Audit Log"},
   ];
 
+  const appDisplayDate = prices.length
+  ? formatDateEn([...prices].sort((a, b) => b.date.localeCompare(a.date))[0].date)
+  : "Curve fallback";
+
   return(
     <div style={{ minHeight:"100vh",background:"#0a0e1a",color:"#e2e8f0" }}>
       <div style={{ position:"fixed",inset:0,backgroundImage:"linear-gradient(#ffffff06 1px,transparent 1px),linear-gradient(90deg,#ffffff06 1px,transparent 1px)",backgroundSize:"40px 40px",pointerEvents:"none",zIndex:0 }}/>
@@ -5881,7 +5902,7 @@ export default function App() {
               CEE Dashboard
               <span style={{ ...S,fontSize:"11px",color:"#3a5070",fontWeight:400,marginLeft:"12px" }}>
                 {prices.length>0
-                  ? `Data as of ${new Date([...prices].sort((a,b)=>b.date.localeCompare(a.date))[0].date).toLocaleDateString("fr-FR")}`
+                  ? `Data as of ${appDisplayDate}`
                   : "Loading…"}
               </span>
             </h1>
