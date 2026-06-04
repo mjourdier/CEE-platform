@@ -1687,10 +1687,33 @@ function PositionView({ trades, obligations, curve, prices }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "10px" }}>
         {view === "position" && (
           <>
-            <KPI label="Total Classique Obligation" value={N(tot.oblCl, 0) + " GWhc"} color="sky" />
-            <KPI label="Total Classique Purchased" value={N(tot.bCl, 0) + " GWhc"} color="sky" />
-            <KPI label="Total Précarité Obligation" value={N(tot.oblPr, 0) + " GWhc"} color="amber" />
-            <KPI label="Total Précarité Purchased" value={N(tot.bPr, 0) + " GWhc"} color="amber" />
+            <KPI
+              label="FY 2026 Classique Obligation"
+              value={N(tot.oblCl, 0) + " GWhc"}
+              color="sky"
+              sub="Full-year obligation"
+            />
+
+            <KPI
+              label="FY 2026 Classique Purchased"
+              value={N(tot.bCl, 0) + " GWhc"}
+              color="sky"
+              sub="Full-year purchases"
+            />
+
+            <KPI
+              label="FY 2026 Précarité Obligation"
+              value={N(tot.oblPr, 0) + " GWhc"}
+              color="amber"
+              sub="Full-year obligation"
+            />
+
+            <KPI
+              label="FY 2026 Précarité Purchased"
+              value={N(tot.bPr, 0) + " GWhc"}
+              color="amber"
+              sub="Full-year purchases"
+            />
           </>
         )}
 
@@ -1716,17 +1739,17 @@ function PositionView({ trades, obligations, curve, prices }) {
       {view === "position" && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2,1fr)", gap: "10px" }}>
           <KPI
-            label="Total Coverage"
+            label="FY 2026 Total Coverage"
             value={totalCoverage == null ? "—" : `${N(totalCoverage, 1)}%`}
             color={totalCoverage >= 100 ? "emerald" : totalCoverage >= 80 ? "amber" : "rose"}
-            sub="Total purchases / total obligations"
+            sub="Full-year purchases / full-year obligations"
           />
 
           <KPI
             label="Priced Coverage"
             value={pricedCoverage == null ? "—" : `${N(pricedCoverage, 1)}%`}
             color={pricedCoverage >= 100 ? "emerald" : pricedCoverage >= 80 ? "amber" : "rose"}
-            sub="Priced purchases / priced obligations"
+            sub="Priced purchases / priced obligations only"
           />
         </div>
       )}
@@ -1757,10 +1780,10 @@ function PositionView({ trades, obligations, curve, prices }) {
 
               {view === "position" && (
                 <>
-                  <TH>Total Classique Obligation</TH>
-                  <TH>Total Précarité Obligation</TH>
-                  <TH>Purchased Classique</TH>
-                  <TH>Purchased Précarité</TH>
+                  <TH>FY Classique Obligation</TH>
+                  <TH>FY Précarité Obligation</TH>
+                  <TH>FY Purchased Classique</TH>
+                  <TH>FY Purchased Précarité</TH>
                   <TH>Net Classique</TH>
                   <TH>Net Précarité</TH>
                   <TH>Total Coverage</TH>
