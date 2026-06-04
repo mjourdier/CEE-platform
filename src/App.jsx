@@ -243,7 +243,8 @@ function Reporting({ trades, obligations, prices, curve }) {
     if (!prices.length) {
       return {
         classique: curve.SPOT?.classique ?? 8.96,
-        precarite: curve.SPOT?.precarite ?? 16.44
+        precarite: curve.SPOT?.precarite ?? 16.44,
+        date: "(curve)"
       };
     }
 
@@ -251,9 +252,12 @@ function Reporting({ trades, obligations, prices, curve }) {
 
     return {
       classique: p.classique,
-      precarite: p.precarite
+      precarite: p.precarite,
+      date: p.date
     };
   }, [prices, curve]);
+
+  const reportingDisplayDate = formatDateEn(latestSpot.date);
 
   // P6 reporting scope: only 2026 trades
   const trades2026 = useMemo(
@@ -974,7 +978,7 @@ function Reporting({ trades, obligations, prices, curve }) {
               Executive Dashboard
             </h2>
             <p style={{ ...S, fontSize: "10px", color: "#3a5070" }}>
-              As of {latest.date === "(curve)" ? "curve fallback" : latest.date} · Reference period: 2026 (P6)
+              As of {reportingDisplayDate} · Reference period: 2026 (P6)
             </p>
           </div>
 
