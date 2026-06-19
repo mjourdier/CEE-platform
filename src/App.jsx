@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, PieChart, Pie, Cell } from "recharts";
 import * as XLSX from "xlsx";
+import { Analytics } from "@vercel/analytics/react";
 // ─────────────────────────────────────────────────────────────────────────────
 // PARAMS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6028,6 +6029,7 @@ export default function App() {
         )}
         {tab==="tools"      && <Tools curve={curve} />}
         {tab==="audit"      && <AuditLog audit={audit} users={users}/>}
+      <Analytics />
       </div>
     </div>
   );
