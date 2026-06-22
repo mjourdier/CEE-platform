@@ -534,6 +534,62 @@ function Reporting({ trades, obligations, prices, curve }) {
       return s + Number(t.riskPerformanceMt || 0);
     }, 0);
 
+    // ------------------------------------------------------------
+    // Unpaid & not validated performance risk
+    // Scope remains P6 + priced trades through `rows`.
+    // ------------------------------------------------------------
+
+    const unpaidNotValidatedRows = rows
+      .filter(t => t.payment !== true && t.validated !== true)
+      .map(t => ({
+        id: t.id,
+        vendor: t.vendor || "Unknown",
+        rating: t.cpRanking || "N/A",
+        month: t.month,
+        volume: Number(t.volume || 0),
+        price: Number(t.price || 0),
+        exposure: Number(t.riskPerformanceMt || 0)
+      }))
+      .sort((a, b) => Math.abs(b.exposure) - Math.abs(a.exposure));
+
+    const unpaidNotValidatedVolume = unpaidNotValidatedRows.reduce(
+      (sum, trade) => sum + trade.volume,
+      0
+    );
+
+    const unpaidNotValidatedExposure = unpaidNotValidatedRows.reduce(
+      (sum, trade) => sum + trade.exposure,
+      0
+    );
+
+    const unpaidNotValidatedRiskMap = unpaidNotValidatedRows.reduce(
+      (map, trade) => {
+        if (!map[trade.vendor]) {
+          map[trade.vendor] = {
+            vendor: trade.vendor,
+            rating: trade.rating,
+            volume: 0,
+            exposure: 0
+          };
+        }
+
+        map[trade.vendor].volume += trade.volume;
+        map[trade.vendor].exposure += trade.exposure;
+
+        return map;
+      },
+      {}
+    );
+
+    const unpaidNotValidatedCounterpartyData = Object.values(
+      unpaidNotValidatedRiskMap
+    )
+      .filter(row =>
+        Math.abs(row.volume) > 0.001 ||
+        Math.abs(row.exposure) > 0.001
+      )
+      .sort((a, b) => Math.abs(b.exposure) - Math.abs(a.exposure));
+
     const pendingApprovalRows = approvalRows
       .filter(t => !isInternallyApproved(t))
       .map(t => ({
@@ -627,6 +683,12 @@ function Reporting({ trades, obligations, prices, curve }) {
       paidNotCreditedPct: pct(paidNotCreditedVolume, paidVolume),
       paidNotCreditedExposure,
 
+      unpaidNotValidatedPct: pct(unpaidNotValidatedVolume),
+      unpaidNotValidatedVolume,
+      unpaidNotValidatedExposure,
+      unpaidNotValidatedRows,
+      unpaidNotValidatedCounterpartyData,
+
       pendingApprovalRows,
       ratingData,
       counterpartyRiskData
@@ -676,24 +738,38 @@ function Reporting({ trades, obligations, prices, curve }) {
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-        <div style={{
-          background: "#111827",
-          border: "1px solid #1e2d45",
-          borderRadius: "2px",
-          padding: "18px"
-        }}>
-          <p style={{
-            ...S,
-            fontSize: "9px",
-            color: "#38bdf8",
-            textTransform: "uppercase",
-            letterSpacing: "0.18em",
-            marginBottom: "8px"
-          }}>
+
+        {/* ======================================================
+            GLOBAL KPIs
+        ====================================================== */}
+        <div
+          style={{
+            background: "#111827",
+            border: "1px solid #1e2d45",
+            borderRadius: "2px",
+            padding: "18px"
+          }}
+        >
+          <p
+            style={{
+              ...S,
+              fontSize: "9px",
+              color: "#38bdf8",
+              textTransform: "uppercase",
+              letterSpacing: "0.18em",
+              marginBottom: "8px"
+            }}
+          >
             {title}
           </p>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "10px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(4,1fr)",
+              gap: "10px"
+            }}
+          >
             <KPI
               label={`Total ${title} Purchased`}
               value={`${N(data.totalPurchased, 0)} GWhc`}
@@ -704,67 +780,146 @@ function Reporting({ trades, obligations, prices, curve }) {
             <KPI
               label="Approved internally"
               value={`${N(data.approvedPct, 1)}%`}
-              color={data.approvedPct >= 95 ? "emerald" : data.approvedPct >= 80 ? "amber" : "rose"}
+              color={
+                data.approvedPct >= 95
+                  ? "emerald"
+                  : data.approvedPct >= 80
+                    ? "amber"
+                    : "rose"
+              }
               sub="Approved / purchased"
             />
 
             <KPI
               label="Signed contract"
               value={`${N(data.signedContractPct, 1)}%`}
-              color={data.signedContractPct >= 95 ? "emerald" : data.signedContractPct >= 80 ? "amber" : "rose"}
+              color={
+                data.signedContractPct >= 95
+                  ? "emerald"
+                  : data.signedContractPct >= 80
+                    ? "amber"
+                    : "rose"
+              }
               sub="Contract signed / purchased"
             />
 
             <KPI
               label="Paid"
               value={`${N(data.paidPct, 1)}%`}
-              color={data.paidPct >= 95 ? "emerald" : data.paidPct >= 80 ? "amber" : "rose"}
+              color={
+                data.paidPct >= 95
+                  ? "emerald"
+                  : data.paidPct >= 80
+                    ? "amber"
+                    : "rose"
+              }
               sub="Paid / purchased"
             />
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-          <div style={{ background:"#111827", border:"1px solid #252219", borderRadius:"2px", padding:"18px" }}>
+        {/* ======================================================
+            REGULATORY RISK + CURRENT PERFORMANCE RISK
+        ====================================================== */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "16px"
+          }}
+        >
+          {/* Regulatory Risk */}
+          <div
+            style={{
+              background: "#111827",
+              border: "1px solid #252219",
+              borderRadius: "2px",
+              padding: "18px"
+            }}
+          >
             <SectionTitle>Regulatory Risk</SectionTitle>
 
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"10px", marginBottom:"16px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3,1fr)",
+                gap: "10px",
+                marginBottom: "16px"
+              }}
+            >
               <KPI
                 label="Credited on EMMY"
                 value={`${N(data.creditedPct, 1)}%`}
-                color={data.creditedPct >= 95 ? "emerald" : data.creditedPct >= 80 ? "amber" : "rose"}
+                color={
+                  data.creditedPct >= 95
+                    ? "emerald"
+                    : data.creditedPct >= 80
+                      ? "amber"
+                      : "rose"
+                }
               />
 
               <KPI
                 label="Validated on EMMY"
                 value={`${N(data.validatedPct, 1)}%`}
-                color={data.validatedPct >= 95 ? "emerald" : data.validatedPct >= 80 ? "amber" : "rose"}
+                color={
+                  data.validatedPct >= 95
+                    ? "emerald"
+                    : data.validatedPct >= 80
+                      ? "amber"
+                      : "rose"
+                }
               />
 
               <KPI
                 label="Credited & validated"
                 value={`${N(data.creditedAndValidatedPct, 1)}%`}
-                color={data.creditedAndValidatedPct >= 95 ? "emerald" : data.creditedAndValidatedPct >= 80 ? "amber" : "rose"}
+                color={
+                  data.creditedAndValidatedPct >= 95
+                    ? "emerald"
+                    : data.creditedAndValidatedPct >= 80
+                      ? "amber"
+                      : "rose"
+                }
               />
             </div>
 
-            <p style={{
-              ...S,
-              fontSize:"9px",
-              color:"#38bdf8",
-              textTransform:"uppercase",
-              letterSpacing:"0.14em",
-              marginBottom:"8px"
-            }}>
+            <p
+              style={{
+                ...S,
+                fontSize: "9px",
+                color: "#38bdf8",
+                textTransform: "uppercase",
+                letterSpacing: "0.14em",
+                marginBottom: "8px"
+              }}
+            >
               Pending approval volumes
             </p>
 
-            <div style={{ maxHeight:"220px", overflowY:"auto", border:"1px solid #1e1c18" }}>
-              <table style={{ width:"100%", borderCollapse:"collapse" }}>
+            <div
+              style={{
+                maxHeight: "220px",
+                overflowY: "auto",
+                border: "1px solid #1e1c18"
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse"
+                }}
+              >
                 <thead>
                   <tr>
-                    {["Counterparty", "Month", "Volume", "Priced", "Status"].map(h => (
-                      <TH key={h}>{h}</TH>
+                    {[
+                      "Counterparty",
+                      "Month",
+                      "Volume",
+                      "Priced",
+                      "Status"
+                    ].map(header => (
+                      <TH key={header}>{header}</TH>
                     ))}
                   </tr>
                 </thead>
@@ -772,132 +927,316 @@ function Reporting({ trades, obligations, prices, curve }) {
                 <tbody>
                   {data.pendingApprovalRows.length === 0 ? (
                     <tr>
-                      <td colSpan={5} style={{ ...S, padding:"10px 14px", color:"#4a6080" }}>
+                      <td
+                        colSpan={5}
+                        style={{
+                          ...S,
+                          padding: "10px 14px",
+                          color: "#4a6080"
+                        }}
+                      >
                         No pending approval.
                       </td>
                     </tr>
-                  ) : data.pendingApprovalRows.map(r => (
-                    <tr key={r.id} style={{ borderBottom:"1px solid #1a1815" }}>
-                      <td style={{ ...S, padding:"9px 14px", color:"#e2e8f0" }}>{r.vendor}</td>
+                  ) : (
+                    data.pendingApprovalRows.map(row => (
+                      <tr
+                        key={row.id}
+                        style={{
+                          borderBottom: "1px solid #1a1815"
+                        }}
+                      >
+                        <td
+                          style={{
+                            ...S,
+                            padding: "9px 14px",
+                            color: "#e2e8f0"
+                          }}
+                        >
+                          {row.vendor}
+                        </td>
 
-                      <td style={{ ...S, padding:"9px 14px", color:"#4a6080" }}>
-                        {r.month ? ML(r.month) : "—"}
-                      </td>
+                        <td
+                          style={{
+                            ...S,
+                            padding: "9px 14px",
+                            color: "#4a6080"
+                          }}
+                        >
+                          {row.month ? ML(row.month) : "—"}
+                        </td>
 
-                      <td style={{ ...S, padding:"9px 14px", color:"#e2e8f0" }}>
-                        {N(r.volume, 2)} GWhc
-                      </td>
+                        <td
+                          style={{
+                            ...S,
+                            padding: "9px 14px",
+                            color: "#e2e8f0"
+                          }}
+                        >
+                          {N(row.volume, 2)} GWhc
+                        </td>
 
-                      <td style={{ padding:"9px 14px" }}>
-                        <Badge color={r.priced === true ? "green" : "gray"}>
-                          {r.priced === true ? "Priced" : "Unpriced"}
-                        </Badge>
-                      </td>
+                        <td style={{ padding: "9px 14px" }}>
+                          <Badge
+                            color={
+                              row.priced === true
+                                ? "green"
+                                : "gray"
+                            }
+                          >
+                            {row.priced === true
+                              ? "Priced"
+                              : "Unpriced"}
+                          </Badge>
+                        </td>
 
-                      <td style={{ padding:"9px 14px" }}>
-                        <Badge color="amber">
-                          {String(r.approval ?? "").trim() === "No" ? "Approval No" : r.status}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
+                        <td style={{ padding: "9px 14px" }}>
+                          <Badge color="amber">
+                            {String(row.approval ?? "").trim() === "No"
+                              ? "Approval No"
+                              : row.status}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
 
-          <div style={{ background:"#111827", border:"1px solid #252219", borderRadius:"2px", padding:"18px" }}>
+          {/* Existing paid performance risk */}
+          <div
+            style={{
+              background: "#111827",
+              border: "1px solid #252219",
+              borderRadius: "2px",
+              padding: "18px"
+            }}
+          >
             <SectionTitle>Performance Risk</SectionTitle>
 
-            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"10px", marginBottom:"16px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3,1fr)",
+                gap: "10px",
+                marginBottom: "16px"
+              }}
+            >
               <KPI
                 label="Paid credited not validated"
                 value={`${N(data.paidCreditedNotValidatedPct, 1)}%`}
-                color={data.paidCreditedNotValidatedPct > 0 ? "amber" : "emerald"}
+                color={
+                  data.paidCreditedNotValidatedPct > 0
+                    ? "amber"
+                    : "emerald"
+                }
                 sub="Of paid volume"
               />
 
               <KPI
                 label="Paid not credited"
                 value={`${N(data.paidNotCreditedPct, 1)}%`}
-                color={data.paidNotCreditedPct > 0 ? "rose" : "emerald"}
+                color={
+                  data.paidNotCreditedPct > 0
+                    ? "rose"
+                    : "emerald"
+                }
                 sub="Of paid volume"
               />
 
               <KPI
                 label="Financial exposure"
                 value={fM(data.paidNotCreditedExposure)}
-                color={data.paidNotCreditedExposure > 0 ? "rose" : data.paidNotCreditedExposure < 0 ? "emerald" : "gray"}
+                color={
+                  data.paidNotCreditedExposure > 0
+                    ? "rose"
+                    : data.paidNotCreditedExposure < 0
+                      ? "emerald"
+                      : "gray"
+                }
                 sub="Paid but not credited"
               />
             </div>
 
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={data.counterpartyRiskData} layout="vertical" barSize={14}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" horizontal={false} />
-                <XAxis
-                  type="number"
-                  tick={{ ...S, fontSize:9, fill:"#3a5070" }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  type="category"
-                  dataKey="vendor"
-                  tick={{ ...S, fontSize:9, fill:"#4a6080" }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={170}
-                />
-                <Tooltip content={<ChartTip />} />
+            {data.counterpartyRiskData.length === 0 ? (
+              <div
+                style={{
+                  ...S,
+                  height: "220px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#4a6080"
+                }}
+              >
+                No current performance risk.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart
+                  data={data.counterpartyRiskData}
+                  layout="vertical"
+                  barSize={14}
+                >
+                  <CartesianGrid
+                    strokeDasharray="2 4"
+                    stroke="#1e2d45"
+                    horizontal={false}
+                  />
 
-                <Bar dataKey="exposure" name="Current performance risk (€)" radius={[0,1,1,0]}>
-                  {data.counterpartyRiskData.map((entry) => (
-                    <Cell
-                      key={`risk-cell-${entry.vendor}`}
-                      fill={riskColor(entry.exposure)}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                  <XAxis
+                    type="number"
+                    tick={{
+                      ...S,
+                      fontSize: 9,
+                      fill: "#3a5070"
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+
+                  <YAxis
+                    type="category"
+                    dataKey="vendor"
+                    tick={{
+                      ...S,
+                      fontSize: 9,
+                      fill: "#4a6080"
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={170}
+                  />
+
+                  <Tooltip content={<ChartTip />} />
+
+                  <ReferenceLine
+                    x={0}
+                    stroke="#1e2d45"
+                  />
+
+                  <Bar
+                    dataKey="exposure"
+                    name="Current performance risk (€)"
+                    radius={[0, 1, 1, 0]}
+                  >
+                    {data.counterpartyRiskData.map(entry => (
+                      <Cell
+                        key={`risk-cell-${entry.vendor}`}
+                        fill={riskColor(entry.exposure)}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px" }}>
-          <div style={{ background:"#111827", border:"1px solid #252219", borderRadius:"2px", padding:"18px" }}>
-            <SectionTitle>Volumes by Counterparty Rating</SectionTitle>
+        {/* ======================================================
+            RATING + EXISTING PERFORMANCE RISK TABLE
+        ====================================================== */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "16px"
+          }}
+        >
+          <div
+            style={{
+              background: "#111827",
+              border: "1px solid #252219",
+              borderRadius: "2px",
+              padding: "18px"
+            }}
+          >
+            <SectionTitle>
+              Volumes by Counterparty Rating
+            </SectionTitle>
 
             <ResponsiveContainer width="100%" height={240}>
-              <BarChart data={data.ratingData} barSize={24}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
+              <BarChart
+                data={data.ratingData}
+                barSize={24}
+              >
+                <CartesianGrid
+                  strokeDasharray="2 4"
+                  stroke="#1e2d45"
+                  vertical={false}
+                />
+
                 <XAxis
                   dataKey="rating"
-                  tick={{ ...S, fontSize:9, fill:"#3a5070" }}
+                  tick={{
+                    ...S,
+                    fontSize: 9,
+                    fill: "#3a5070"
+                  }}
                   axisLine={false}
                   tickLine={false}
                 />
+
                 <YAxis
-                  tick={{ ...S, fontSize:9, fill:"#3a5070" }}
+                  tick={{
+                    ...S,
+                    fontSize: 9,
+                    fill: "#3a5070"
+                  }}
                   axisLine={false}
                   tickLine={false}
                   width={50}
                 />
+
                 <Tooltip content={<ChartTip />} />
-                <Bar dataKey="volume" name="Volume (GWhc)" fill="#38bdf8" radius={[1,1,0,0]} />
+
+                <Bar
+                  dataKey="volume"
+                  name="Volume (GWhc)"
+                  fill="#38bdf8"
+                  radius={[1, 1, 0, 0]}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div style={{ background:"#111827", border:"1px solid #252219", borderRadius:"2px", padding:"18px" }}>
-            <SectionTitle>Performance Risk by Counterparty</SectionTitle>
+          <div
+            style={{
+              background: "#111827",
+              border: "1px solid #252219",
+              borderRadius: "2px",
+              padding: "18px"
+            }}
+          >
+            <SectionTitle>
+              Performance Risk by Counterparty
+            </SectionTitle>
 
-            <div style={{ maxHeight:"240px", overflowY:"auto", border:"1px solid #1e1c18" }}>
-              <table style={{ width:"100%", borderCollapse:"collapse" }}>
+            <div
+              style={{
+                maxHeight: "240px",
+                overflowY: "auto",
+                border: "1px solid #1e1c18"
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse"
+                }}
+              >
                 <thead>
                   <tr>
-                    {["Counterparty", "Rating", "Paid not credited", "Credited not validated", "Exposure"].map(h => (
-                      <TH key={h}>{h}</TH>
+                    {[
+                      "Counterparty",
+                      "Rating",
+                      "Paid not credited",
+                      "Credited not validated",
+                      "Exposure"
+                    ].map(header => (
+                      <TH key={header}>{header}</TH>
                     ))}
                   </tr>
                 </thead>
@@ -905,35 +1244,419 @@ function Reporting({ trades, obligations, prices, curve }) {
                 <tbody>
                   {data.counterpartyRiskData.length === 0 ? (
                     <tr>
-                      <td colSpan={5} style={{ ...S, padding:"10px 14px", color:"#4a6080" }}>
+                      <td
+                        colSpan={5}
+                        style={{
+                          ...S,
+                          padding: "10px 14px",
+                          color: "#4a6080"
+                        }}
+                      >
                         No current performance risk.
                       </td>
                     </tr>
-                  ) : data.counterpartyRiskData.map(r => (
-                    <tr key={r.vendor} style={{ borderBottom:"1px solid #1a1815" }}>
-                      <td style={{ ...S, padding:"9px 14px", color:"#e2e8f0" }}>{r.vendor}</td>
+                  ) : (
+                    data.counterpartyRiskData.map(row => (
+                      <tr
+                        key={row.vendor}
+                        style={{
+                          borderBottom: "1px solid #1a1815"
+                        }}
+                      >
+                        <td
+                          style={{
+                            ...S,
+                            padding: "9px 14px",
+                            color: "#e2e8f0"
+                          }}
+                        >
+                          {row.vendor}
+                        </td>
 
-                      <td style={{ padding:"9px 14px" }}>
-                        <Badge color={r.rating === "AAA" ? "green" : r.rating === "N/A" ? "gray" : "amber"}>
-                          {r.rating}
-                        </Badge>
-                      </td>
+                        <td style={{ padding: "9px 14px" }}>
+                          <Badge
+                            color={
+                              row.rating === "AAA"
+                                ? "green"
+                                : row.rating === "N/A"
+                                  ? "gray"
+                                  : "amber"
+                            }
+                          >
+                            {row.rating}
+                          </Badge>
+                        </td>
 
-                      <td style={{ ...S, padding:"9px 14px", color:"#f87171" }}>
-                        {N(r.paidNotCreditedVolume, 2)} GWhc
-                      </td>
+                        <td
+                          style={{
+                            ...S,
+                            padding: "9px 14px",
+                            color: "#f87171"
+                          }}
+                        >
+                          {N(row.paidNotCreditedVolume, 2)} GWhc
+                        </td>
 
-                      <td style={{ ...S, padding:"9px 14px", color:"#d4a843" }}>
-                        {N(r.creditedNotValidatedVolume, 2)} GWhc
-                      </td>
+                        <td
+                          style={{
+                            ...S,
+                            padding: "9px 14px",
+                            color: "#d4a843"
+                          }}
+                        >
+                          {N(row.creditedNotValidatedVolume, 2)} GWhc
+                        </td>
 
-                      <td style={{ ...S, padding:"9px 14px", color: riskColor(r.exposure), fontWeight:700 }}>
-                        {fM(r.exposure)}
-                      </td>
-                    </tr>
-                  ))}
+                        <td
+                          style={{
+                            ...S,
+                            padding: "9px 14px",
+                            color: riskColor(row.exposure),
+                            fontWeight: 700
+                          }}
+                        >
+                          {fM(row.exposure)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+
+        {/* ======================================================
+            NEW: UNPAID & NOT VALIDATED PERFORMANCE RISK
+        ====================================================== */}
+        <div
+          style={{
+            background: "#111827",
+            border: "1px solid #252219",
+            borderRadius: "2px",
+            padding: "18px"
+          }}
+        >
+          <SectionTitle>
+            Unpaid & Not Validated Performance Risk
+          </SectionTitle>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3,1fr)",
+              gap: "10px",
+              marginBottom: "18px"
+            }}
+          >
+            <KPI
+              label="Unpaid & not validated"
+              value={`${N(data.unpaidNotValidatedPct, 1)}%`}
+              color={
+                data.unpaidNotValidatedPct > 0
+                  ? "rose"
+                  : "emerald"
+              }
+              sub="Of purchased volume"
+            />
+
+            <KPI
+              label="Volume concerned"
+              value={`${N(data.unpaidNotValidatedVolume, 2)} GWhc`}
+              color={
+                data.unpaidNotValidatedVolume > 0
+                  ? "amber"
+                  : "emerald"
+              }
+              sub="P6 priced trades"
+            />
+
+            <KPI
+              label="Financial exposure"
+              value={fM(data.unpaidNotValidatedExposure)}
+              color={
+                data.unpaidNotValidatedExposure > 0
+                  ? "rose"
+                  : data.unpaidNotValidatedExposure < 0
+                    ? "emerald"
+                    : "gray"
+              }
+              sub="Unpaid and not validated"
+            />
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1.4fr",
+              gap: "16px",
+              alignItems: "start"
+            }}
+          >
+            {/* New counterparty chart */}
+            <div
+              style={{
+                background: "#0d1526",
+                border: "1px solid #1e2d45",
+                borderRadius: "2px",
+                padding: "14px"
+              }}
+            >
+              <p
+                style={{
+                  ...S,
+                  fontSize: "9px",
+                  color: "#38bdf8",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.14em",
+                  marginBottom: "10px"
+                }}
+              >
+                Exposure by counterparty
+              </p>
+
+              {data.unpaidNotValidatedCounterpartyData.length === 0 ? (
+                <div
+                  style={{
+                    ...S,
+                    minHeight: "220px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#4a6080"
+                  }}
+                >
+                  No unpaid and unvalidated performance risk.
+                </div>
+              ) : (
+                <ResponsiveContainer
+                  width="100%"
+                  height={Math.max(
+                    220,
+                    data.unpaidNotValidatedCounterpartyData.length * 42
+                  )}
+                >
+                  <BarChart
+                    data={data.unpaidNotValidatedCounterpartyData}
+                    layout="vertical"
+                    barSize={14}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="2 4"
+                      stroke="#1e2d45"
+                      horizontal={false}
+                    />
+
+                    <XAxis
+                      type="number"
+                      tick={{
+                        ...S,
+                        fontSize: 9,
+                        fill: "#3a5070"
+                      }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+
+                    <YAxis
+                      type="category"
+                      dataKey="vendor"
+                      tick={{
+                        ...S,
+                        fontSize: 9,
+                        fill: "#4a6080"
+                      }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={170}
+                    />
+
+                    <Tooltip content={<ChartTip />} />
+
+                    <ReferenceLine
+                      x={0}
+                      stroke="#1e2d45"
+                    />
+
+                    <Bar
+                      dataKey="exposure"
+                      name="Unpaid & not validated risk (€)"
+                      radius={[0, 1, 1, 0]}
+                    >
+                      {data.unpaidNotValidatedCounterpartyData.map(entry => (
+                        <Cell
+                          key={`unpaid-risk-${entry.vendor}`}
+                          fill={riskColor(entry.exposure)}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {/* New detailed trades table */}
+            <div
+              style={{
+                background: "#0d1526",
+                border: "1px solid #1e2d45",
+                borderRadius: "2px",
+                padding: "14px"
+              }}
+            >
+              <p
+                style={{
+                  ...S,
+                  fontSize: "9px",
+                  color: "#38bdf8",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.14em",
+                  marginBottom: "10px"
+                }}
+              >
+                Unpaid & not validated trades
+              </p>
+
+              <div
+                style={{
+                  maxHeight: "320px",
+                  overflowY: "auto",
+                  overflowX: "auto",
+                  border: "1px solid #1e1c18"
+                }}
+              >
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    minWidth: "820px"
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      {[
+                        "Counterparty",
+                        "Rating",
+                        "Month",
+                        "Volume",
+                        "Price",
+                        "Payment",
+                        "Validation",
+                        "Exposure"
+                      ].map(header => (
+                        <TH key={header}>{header}</TH>
+                      ))}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {data.unpaidNotValidatedRows.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          style={{
+                            ...S,
+                            padding: "12px 14px",
+                            color: "#4a6080"
+                          }}
+                        >
+                          No unpaid and unvalidated trade.
+                        </td>
+                      </tr>
+                    ) : (
+                      data.unpaidNotValidatedRows.map(row => (
+                        <tr
+                          key={row.id}
+                          style={{
+                            borderBottom: "1px solid #1a1815"
+                          }}
+                        >
+                          <td
+                            style={{
+                              ...S,
+                              padding: "9px 14px",
+                              color: "#e2e8f0"
+                            }}
+                          >
+                            {row.vendor}
+                          </td>
+
+                          <td style={{ padding: "9px 14px" }}>
+                            <Badge
+                              color={
+                                row.rating === "AAA"
+                                  ? "green"
+                                  : row.rating === "N/A"
+                                    ? "gray"
+                                    : "amber"
+                              }
+                            >
+                              {row.rating}
+                            </Badge>
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "9px 14px",
+                              color: "#4a6080",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {row.month ? ML(row.month) : "—"}
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "9px 14px",
+                              color: "#e2e8f0",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {N(row.volume, 2)} GWhc
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "9px 14px",
+                              color: "#e2e8f0",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {N(row.price, 2)} €/GWhc
+                          </td>
+
+                          <td style={{ padding: "9px 14px" }}>
+                            <Badge color="red">
+                              Unpaid
+                            </Badge>
+                          </td>
+
+                          <td style={{ padding: "9px 14px" }}>
+                            <Badge color="amber">
+                              Not validated
+                            </Badge>
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "9px 14px",
+                              color: riskColor(row.exposure),
+                              fontWeight: 700,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {fM(row.exposure)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -5349,6 +6072,7 @@ export default function App() {
   const [tab,setTab]                =useState("dashboard");
   const [loading,setLoading]        =useState(true);
   const [error,setError]            =useState(null);
+  const [lastModifiedAt, setLastModifiedAt] = useState(null);
 
   const isViewer = currentUser?.role === "viewer";
   const canEdit = currentUser?.role === "trader" || currentUser?.role === "approver";
@@ -5366,18 +6090,28 @@ export default function App() {
         { data: od, error: e3 },
         { data: pd, error: e4 },
         { data: cd, error: e5 },
-        { data: ad, error: e6 }
+        { data: ad, error: e6 },
+        { data: md, error: e7 }
       ] = await Promise.all([
         supabase.from("users").select("*"),
         supabase.from("trades").select("*").order("created_at"),
         supabase.from("obligations").select("*").order("month"),
         supabase.from("market_prices").select("*").order("date"),
         supabase.from("forward_curve").select("*"),
-        supabase.from("audit_log").select("*").order("ts", { ascending: false }).limit(200),
+        supabase
+          .from("audit_log")
+          .select("*")
+          .order("ts", { ascending: false })
+          .limit(200),
+        supabase
+          .from("app_metadata")
+          .select("last_modified_at")
+          .eq("id", "global")
+          .maybeSingle()
       ]);
 
-      if (e1 || e2 || e3 || e4 || e5 || e6) {
-        throw new Error((e1 || e2 || e3 || e4 || e5 || e6).message);
+      if (e1 || e2 || e3 || e4 || e5 || e6 || e7) {
+        throw new Error((e1 || e2 || e3 || e4 || e5 || e6 || e7).message);
       }
 
       const normT = (td || []).map(t => ({
@@ -5470,6 +6204,7 @@ export default function App() {
       setPrices(normP);
       setCurve(normC);
       setAudit(normA);
+      setLastModifiedAt(md?.last_modified_at ?? null);
 
     } catch (e) {
       setError(e.message);
@@ -5477,6 +6212,32 @@ export default function App() {
       if (!silent) setLoading(false);
     }
   }
+  
+  useEffect(() => {
+    const metadataChannel = supabase
+      .channel("global-last-modified")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "app_metadata",
+          filter: "id=eq.global"
+        },
+        payload => {
+          const updatedDate = payload.new?.last_modified_at;
+
+          if (updatedDate) {
+            setLastModifiedAt(updatedDate);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(metadataChannel);
+    };
+  }, []);
 
   useEffect(() => {
     async function initAuth(silent = false) {
@@ -5913,9 +6674,20 @@ export default function App() {
     {id:"audit",      label:"Audit Log"},
   ];
 
-  const appDisplayDate = prices.length
-  ? formatDateEn([...prices].sort((a, b) => b.date.localeCompare(a.date))[0].date)
-  : "Curve fallback";
+  const appDisplayDate = (() => {
+    if (!lastModifiedAt) return null;
+
+    const date = new Date(lastModifiedAt);
+
+    if (Number.isNaN(date.getTime())) return null;
+
+    return date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      timeZone: "Europe/Paris"
+    });
+  })();
 
   return(
     <div style={{ minHeight:"100vh",background:"#0a0e1a",color:"#e2e8f0" }}>
@@ -5929,7 +6701,7 @@ export default function App() {
             <h1 style={{ ...CG,fontSize:"32px",fontWeight:700,color:"#e2e8f0",lineHeight:1 }}>
               CEE Dashboard
               <span style={{ ...S,fontSize:"11px",color:"#3a5070",fontWeight:400,marginLeft:"12px" }}>
-                {prices.length>0
+                {appDisplayDate
                   ? `Data as of ${appDisplayDate}`
                   : "Loading…"}
               </span>
