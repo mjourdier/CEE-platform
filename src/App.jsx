@@ -176,58 +176,463 @@ function avgSellMonth(obligations, month, ceeType, pricedOnly = true) {
 // ─────────────────────────────────────────────────────────────────────────────
 // ATOMS
 // ─────────────────────────────────────────────────────────────────────────────
-const S  = { fontFamily:"Inter, sans-serif" };
-const CG = { fontFamily:"Inter, sans-serif", fontWeight:600 };
-const CHART_COLORS = { classique:"#2563eb", precarite:"#d4a843", green:"#34d399", red:"#f87171", gold:"#38bdf8", bg:"#111827", grid:"#1e2d45" };
+const THEME = {
+  page: "#070b16",
+  panel: "#111827",
+  panelAlt: "#0d1526",
+  tableHeader: "#0f1724",
+
+  textPrimary: "#e8edf7",
+  textSecondary: "#9aabc2",
+  textMuted: "#7187a6",
+  textLabel: "#8297b7",
+
+  border: "#2a3950",
+  borderSoft: "#1e2d45",
+
+  blue: "#2563eb",
+  sky: "#38bdf8",
+  green: "#34d399",
+  red: "#f87171",
+  amber: "#d4a843"
+};
+
+const S = {
+  fontFamily: "Inter, sans-serif",
+  lineHeight: 1.35
+};
+
+const CG = {
+  fontFamily: "Inter, sans-serif",
+  fontWeight: 600
+};
+
+const CHART_COLORS = {
+  classique:"#4f7cff",
+  precarite:"#e0b84f",
+  green:"#34d399",
+  red:"#f87171",
+  gold:"#38bdf8",
+  bg:"#111827",
+  grid:"#22314d",
+
+  oblCl:"#5b7c99",
+  oblPr:"#8a6a1f",
+  achCl:"#4f7cff",
+  achPr:"#e0b84f",
+};
 
 function Badge({ children, color }) {
-  const m={green:"#0f2e1a;#6db87a;#1d4a2a",red:"#2e1010;#c96b6b;#4a1c1c",amber:"#2e2410;#d4a843;#4a3a18",blue:"#101e2e;#6aace8;#1a3050",sky:"#0e2030;#5bc2e7;#1a3848",gray:"#1e1c18;#6b6350;#2e2b24",purple:"#1e1028;#b07ee8;#3a2050",gold:"#2a2010;#b8973a;#3a3020",teal:"#0e2820;#5bd4b4;#1a4838"}[color]||"#1e1c18;#6b6350;#2e2b24";
-  const [bg,fg,bc]=m.split(";");
-  return <span style={{ display:"inline-flex",alignItems:"center",padding:"2px 7px",borderRadius:"2px",fontSize:"10px",fontWeight:600,border:`1px solid ${bc}`,background:bg,color:fg,...S,letterSpacing:"0.06em" }}>{children}</span>;
-}
-function KPI({ label, value, sub, color, large }) {
-  const c={emerald:"#34d399",rose:"#f87171",sky:"#2563eb",amber:"#d4a843",gold:"#38bdf8",gray:"#3a3428"}[color]||"#3a3428";
+  const m = {
+    green: "#0f2e1a;#85d291;#245b34",
+    red: "#2e1010;#e48787;#642929",
+    amber: "#2e2410;#e2bd5b;#5c4820",
+    blue: "#101e2e;#82bced;#25446d",
+    sky: "#0e2030;#72cceb;#21536b",
+    gray: "#1b2433;#9aabc2;#34445d",
+    purple: "#1e1028;#c296ed;#51306b",
+    gold: "#2a2010;#d0ad50;#594a25",
+    teal: "#0e2820;#75dbc0;#245d4a"
+  }[color] || "#1b2433;#9aabc2;#34445d";
+
+  const [bg, fg, bc] = m.split(";");
+
   return (
-    <div style={{ background:"#111827",border:"1px solid #252219",borderLeft:`2px solid ${c}`,borderRadius:"2px",padding:large?"20px 22px":"15px 18px" }}>
-      <p style={{ ...S,fontSize:"9px",color:"#3a5070",letterSpacing:"0.14em",textTransform:"uppercase",marginBottom:"5px" }}>{label}</p>
-      <p style={{ ...S,fontSize:large?"26px":"20px",fontWeight:500,color:"#e2e8f0" }}>{value}</p>
-      {sub&&<p style={{ ...S,fontSize:"10px",color:"#3a5070",marginTop:"3px" }}>{sub}</p>}
+    <span
+      style={{
+        ...S,
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "2px 7px",
+        borderRadius: "2px",
+        fontSize: "10px",
+        fontWeight: 600,
+        border: `1px solid ${bc}`,
+        background: bg,
+        color: fg,
+        letterSpacing: "0.06em"
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function KPI({ label, value, sub, color, large }) {
+  const c = {
+    emerald: "#34d399",
+    rose: "#f87171",
+    sky: "#2563eb",
+    amber: "#d4a843",
+    gold: "#38bdf8",
+    gray: "#7187a6"
+  }[color] || "#7187a6";
+
+  return (
+    <div
+      style={{
+        background: THEME.panel,
+        border: `1px solid ${THEME.borderSoft}`,
+        borderLeft: `2px solid ${c}`,
+        borderRadius: "2px",
+        padding: large ? "20px 22px" : "15px 18px"
+      }}
+    >
+      <p
+        style={{
+          ...S,
+          fontSize: "10px",
+          color: THEME.textLabel,
+          fontWeight: 600,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          marginBottom: "6px"
+        }}
+      >
+        {label}
+      </p>
+
+      <p
+        style={{
+          ...S,
+          fontSize: large ? "26px" : "20px",
+          fontWeight: 500,
+          color: THEME.textPrimary
+        }}
+      >
+        {value}
+      </p>
+
+      {sub && (
+        <p
+          style={{
+            ...S,
+            fontSize: "11px",
+            lineHeight: 1.4,
+            color: THEME.textSecondary,
+            fontWeight: 500,
+            marginTop: "4px"
+          }}
+        >
+          {sub}
+        </p>
+      )}
     </div>
   );
 }
+
 function Modal({ title, onClose, children, wide }) {
   return (
-    <div onClick={onClose} style={{ position:"fixed",inset:0,background:"rgba(8,7,6,0.9)",backdropFilter:"blur(6px)",zIndex:100,display:"flex",alignItems:"center",justifyContent:"center",padding:"20px" }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:"#111827",border:"1px solid #2e2b24",borderRadius:"2px",width:"100%",maxWidth:wide?"860px":"520px",maxHeight:"92vh",overflowY:"auto",position:"relative" }}>
-        <div style={{ position:"absolute",top:0,left:0,right:0,height:"1px",background:"linear-gradient(90deg,transparent,#b8973a55,transparent)" }}/>
-        <div style={{ padding:"20px 26px 14px",borderBottom:"1px solid #e2e4e8",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-          <h3 style={{ ...CG,fontSize:"20px",fontWeight:600,color:"#e2e8f0" }}>{title}</h3>
-          <button onClick={onClose} style={{ background:"none",border:"none",color:"#3a5070",fontSize:"20px",cursor:"pointer" }}>×</button>
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(4, 7, 14, 0.88)",
+        backdropFilter: "blur(6px)",
+        zIndex: 100,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px"
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: THEME.panel,
+          border: `1px solid ${THEME.border}`,
+          borderRadius: "3px",
+          width: "100%",
+          maxWidth: wide ? "860px" : "520px",
+          maxHeight: "92vh",
+          overflowY: "auto",
+          position: "relative",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.45)"
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "1px",
+            background:
+              "linear-gradient(90deg, transparent, #b8973a77, transparent)"
+          }}
+        />
+
+        <div
+          style={{
+            padding: "20px 26px 14px",
+            borderBottom: `1px solid ${THEME.borderSoft}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+          }}
+        >
+          <h3
+            style={{
+              ...CG,
+              fontSize: "20px",
+              color: THEME.textPrimary,
+              margin: 0
+            }}
+          >
+            {title}
+          </h3>
+
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              color: THEME.textMuted,
+              fontSize: "22px",
+              cursor: "pointer",
+              lineHeight: 1,
+              padding: "2px 5px"
+            }}
+          >
+            ×
+          </button>
         </div>
-        <div style={{ padding:"18px 26px 22px" }}>{children}</div>
+
+        <div style={{ padding: "18px 26px 22px" }}>
+          {children}
+        </div>
       </div>
     </div>
   );
 }
-function FL({ children }) { return <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:"5px" }}>{children}</p>; }
-function FI({ label, ...p }) { return <div><FL>{label}</FL><input style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#e2e8f0",borderRadius:"2px",padding:"8px 10px",fontSize:"12px",width:"100%",outline:"none" }} {...p}/></div>; }
-function FS({ label, children, ...p }) { return <div><FL>{label}</FL><select style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#e2e8f0",borderRadius:"2px",padding:"8px 10px",fontSize:"12px",width:"100%",outline:"none" }} {...p}>{children}</select></div>; }
-function GoldBtn({ children, onClick }) { return <button onClick={onClick} style={{ background:"linear-gradient(135deg,#b8973a,#d4af55)",color:"#0a0e1a",border:"none",borderRadius:"2px",...S,fontSize:"11px",fontWeight:500,letterSpacing:"0.1em",textTransform:"uppercase",padding:"9px 18px",cursor:"pointer" }}>{children}</button>; }
-function GhostBtn({ children, onClick }) { return <button onClick={onClick} style={{ background:"transparent",color:"#4a6080",border:"1px solid #2e2b24",borderRadius:"2px",...S,fontSize:"11px",letterSpacing:"0.08em",textTransform:"uppercase",padding:"8px 14px",cursor:"pointer" }}>{children}</button>; }
-function TH({ children }) { return <th style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.1em",padding:"9px 14px",textAlign:"left",whiteSpace:"nowrap",background:"#121110",borderBottom:"1px solid #e2e4e8" }}>{children}</th>; }
+
+function FL({ children }) {
+  return (
+    <p
+      style={{
+        ...S,
+        fontSize: "10px",
+        color: THEME.textLabel,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.11em",
+        marginBottom: "6px"
+      }}
+    >
+      {children}
+    </p>
+  );
+}
+
+function FI({ label, ...p }) {
+  return (
+    <div>
+      <FL>{label}</FL>
+
+      <input
+        style={{
+          ...S,
+          background: THEME.panelAlt,
+          border: `1px solid ${THEME.border}`,
+          color: THEME.textPrimary,
+          borderRadius: "2px",
+          padding: "9px 10px",
+          fontSize: "12px",
+          width: "100%",
+          outline: "none"
+        }}
+        {...p}
+      />
+    </div>
+  );
+}
+
+function FS({ label, children, ...p }) {
+  return (
+    <div>
+      <FL>{label}</FL>
+
+      <select
+        style={{
+          ...S,
+          background: THEME.panelAlt,
+          border: `1px solid ${THEME.border}`,
+          color: THEME.textPrimary,
+          borderRadius: "2px",
+          padding: "9px 10px",
+          fontSize: "12px",
+          width: "100%",
+          outline: "none"
+        }}
+        {...p}
+      >
+        {children}
+      </select>
+    </div>
+  );
+}
+
+function GoldBtn({ children, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        ...S,
+        background: "linear-gradient(135deg, #b8973a, #d4af55)",
+        color: "#0a0e1a",
+        border: "none",
+        borderRadius: "2px",
+        fontSize: "11px",
+        fontWeight: 600,
+        letterSpacing: "0.09em",
+        textTransform: "uppercase",
+        padding: "9px 18px",
+        cursor: "pointer"
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function GhostBtn({ children, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        ...S,
+        background: "transparent",
+        color: THEME.textSecondary,
+        border: `1px solid ${THEME.border}`,
+        borderRadius: "2px",
+        fontSize: "11px",
+        fontWeight: 500,
+        letterSpacing: "0.07em",
+        textTransform: "uppercase",
+        padding: "8px 14px",
+        cursor: "pointer"
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TH({ children }) {
+  return (
+    <th
+      style={{
+        ...S,
+        fontSize: "10px",
+        color: THEME.textLabel,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.09em",
+        padding: "9px 14px",
+        textAlign: "left",
+        whiteSpace: "nowrap",
+        background: THEME.tableHeader,
+        borderBottom: `1px solid ${THEME.border}`
+      }}
+    >
+      {children}
+    </th>
+  );
+}
+
 function CovBar({ pct }) {
-  const c=pct>=100?"#34d399":pct>=70?"#d4a843":"#f87171";
-  return <div style={{ display:"flex",alignItems:"center",gap:"8px" }}><div style={{ flex:1,height:"5px",background:"#1e2d45",borderRadius:"1px",overflow:"hidden" }}><div style={{ width:`${Math.min(pct,100)}%`,height:"100%",background:c,borderRadius:"1px" }}/></div><span style={{ ...S,fontSize:"10px",color:c,minWidth:"38px",textAlign:"right" }}>{N(pct,1)}%</span></div>;
+  const c =
+    pct >= 100
+      ? THEME.green
+      : pct >= 70
+        ? THEME.amber
+        : THEME.red;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px"
+      }}
+    >
+      <div
+        style={{
+          flex: 1,
+          height: "5px",
+          background: THEME.borderSoft,
+          borderRadius: "1px",
+          overflow: "hidden"
+        }}
+      >
+        <div
+          style={{
+            width: `${Math.min(pct, 100)}%`,
+            height: "100%",
+            background: c,
+            borderRadius: "1px"
+          }}
+        />
+      </div>
+
+      <span
+        style={{
+          ...S,
+          fontSize: "10px",
+          fontWeight: 600,
+          color: c,
+          minWidth: "38px",
+          textAlign: "right"
+        }}
+      >
+        {N(pct, 1)}%
+      </span>
+    </div>
+  );
 }
 
 // Custom chart tooltip
 function ChartTip({ active, payload, label }) {
-  if (!active||!payload?.length) return null;
+  if (!active || !payload?.length) return null;
+
   return (
-    <div style={{ background:"#0d1526",border:"1px solid #2e2b24",borderRadius:"2px",padding:"10px 14px" }}>
-      <p style={{ ...S,fontSize:"10px",color:"#38bdf8",marginBottom:"6px" }}>{label}</p>
-      {payload.map(p=>(
-        <p key={p.dataKey} style={{ ...S,fontSize:"11px",color:p.color,marginBottom:"2px" }}>{p.name}: {typeof p.value==="number"?N(p.value,p.value>1000?0:2):p.value}</p>
+    <div
+      style={{
+        background: THEME.panelAlt,
+        border: `1px solid ${THEME.border}`,
+        borderRadius: "3px",
+        padding: "10px 14px",
+        boxShadow: "0 10px 30px rgba(0, 0, 0, 0.35)"
+      }}
+    >
+      <p
+        style={{
+          ...S,
+          fontSize: "10px",
+          color: THEME.sky,
+          fontWeight: 600,
+          marginBottom: "6px"
+        }}
+      >
+        {label}
+      </p>
+
+      {payload.map(p => (
+        <p
+          key={p.dataKey}
+          style={{
+            ...S,
+            fontSize: "11px",
+            color: p.color || THEME.textSecondary,
+            marginBottom: "2px"
+          }}
+        >
+          {p.name}:{" "}
+          {typeof p.value === "number"
+            ? N(p.value, Math.abs(p.value) > 1000 ? 0 : 2)
+            : p.value}
+        </p>
       ))}
     </div>
   );
@@ -236,7 +641,13 @@ function ChartTip({ active, payload, label }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // REPORTING TAB
 // ─────────────────────────────────────────────────────────────────────────────
-function Reporting({ trades, obligations, prices, curve }) {
+function Reporting({
+  trades,
+  obligations,
+  prices,
+  curve,
+  displayDate
+}) {
   const [report, setReport] = useState("executive");
   const [regulatoryType, setRegulatoryType] = useState("CLASSIQUE");
 
@@ -257,8 +668,6 @@ function Reporting({ trades, obligations, prices, curve }) {
       date: p.date
     };
   }, [prices, curve]);
-
-  const reportingDisplayDate = formatDateEn(latestSpot.date);
 
   // P6 reporting scope: only 2026 trades
   const trades2026 = useMemo(
@@ -1702,7 +2111,7 @@ function Reporting({ trades, obligations, prices, curve }) {
               Executive Dashboard
             </h2>
             <p style={{ ...S, fontSize: "10px", color: "#3a5070" }}>
-              As of {reportingDisplayDate} · Reference period: 2026 (P6)
+              As of {displayDate || "Loading…"} · Reference period: 2026 (P6)
             </p>
           </div>
 
@@ -1819,124 +2228,443 @@ function Reporting({ trades, obligations, prices, curve }) {
       )}
 
       {/* ── POSITION & COVERAGE ── */}
-      {report === "position" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
-            <SectionTitle>Obligation vs Purchases by Month (GWhc)</SectionTitle>
+{report === "position" && (
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: "20px"
+    }}
+  >
+    {/* ======================================================
+        OBLIGATIONS VS PURCHASES
+    ====================================================== */}
+    <div
+      style={{
+        background: THEME.panel,
+        border: `1px solid ${THEME.borderSoft}`,
+        borderRadius: "3px",
+        padding: "20px 22px"
+      }}
+    >
+      <SectionTitle>
+        Obligation vs Purchases by Month (GWhc)
+      </SectionTitle>
 
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={monthlyData} barGap={2} barCategoryGap="20%">
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={44} />
-                <Tooltip content={<ChartTip />} />
-                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
-                <Bar dataKey="oblClP" name="Total Classique Obligation" fill="#1a3848" radius={[1, 1, 0, 0]} stackId="obl" />
-                <Bar dataKey="oblPrP" name="Total Précarité Obligation" fill="#2e2410" radius={[1, 1, 0, 0]} stackId="obl" />
-                <Bar dataKey="bClP" name="Purchased Classique Priced" fill="#2563eb" radius={[1, 1, 0, 0]} stackId="buy" fillOpacity={0.85} />
-                <Bar dataKey="bPrP" name="Purchased Précarité Priced" fill="#d4a843" radius={[1, 1, 0, 0]} stackId="buy" fillOpacity={0.85} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+      <ResponsiveContainer width="100%" height={350}>
+        <BarChart
+          data={monthlyData}
+          barGap={8}
+          barCategoryGap="26%"
+          margin={{
+            top: 8,
+            right: 20,
+            left: 4,
+            bottom: 8
+          }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 6"
+            stroke={THEME.border}
+            vertical={false}
+            opacity={0.8}
+          />
 
-          <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
-            <SectionTitle>Priced Coverage Control — Monthly Detail</SectionTitle>
+          <XAxis
+            dataKey="month"
+            tick={{
+              ...S,
+              fontSize: 11,
+              fontWeight: 500,
+              fill: THEME.textMuted
+            }}
+            axisLine={false}
+            tickLine={false}
+            dy={6}
+          />
 
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px" }}>
-                <thead>
-                  <tr>
-                    {[
-                      "Month",
-                      "Priced Obligation",
-                      "Priced Purchases",
-                      "Net Position",
-                      "Coverage",
-                      "Status"
-                    ].map(h => (
-                      <TH key={h}>{h}</TH>
-                    ))}
+          <YAxis
+            tick={{
+              ...S,
+              fontSize: 11,
+              fill: THEME.textMuted
+            }}
+            axisLine={false}
+            tickLine={false}
+            width={54}
+            tickFormatter={value => N(value, 0)}
+          />
+
+          <Tooltip content={<ChartTip />} />
+
+          <Legend
+            verticalAlign="top"
+            align="center"
+            iconSize={10}
+            iconType="square"
+            height={42}
+            wrapperStyle={{
+              ...S,
+              fontSize: "11px",
+              color: THEME.textSecondary,
+              paddingBottom: "12px"
+            }}
+          />
+
+          {/* Obligations — muted colors */}
+          <Bar
+            dataKey="oblClP"
+            name="Classique Obligation"
+            fill="#59748f"
+            stackId="obl"
+            radius={[2, 2, 0, 0]}
+            maxBarSize={36}
+          />
+
+          <Bar
+            dataKey="oblPrP"
+            name="Précarité Obligation"
+            fill="#8c7131"
+            stackId="obl"
+            radius={[2, 2, 0, 0]}
+            maxBarSize={36}
+          />
+
+          {/* Purchases — brighter colors */}
+          <Bar
+            dataKey="bClP"
+            name="Priced Purchases CL"
+            fill="#4f7cff"
+            stackId="buy"
+            radius={[2, 2, 0, 0]}
+            maxBarSize={36}
+          />
+
+          <Bar
+            dataKey="bPrP"
+            name="Priced Purchases PR"
+            fill="#e0b84f"
+            stackId="buy"
+            radius={[2, 2, 0, 0]}
+            maxBarSize={36}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          gap: "22px",
+          flexWrap: "wrap",
+          marginTop: "4px"
+        }}
+      >
+        <span
+          style={{
+            ...S,
+            fontSize: "10px",
+            color: THEME.textSecondary
+          }}
+        >
+          Muted bars: priced obligations
+        </span>
+
+        <span
+          style={{
+            ...S,
+            fontSize: "10px",
+            color: THEME.textSecondary
+          }}
+        >
+          Bright bars: priced purchases
+        </span>
+      </div>
+    </div>
+
+    {/* ======================================================
+        MONTHLY COVERAGE TABLE
+    ====================================================== */}
+    <div
+      style={{
+        background: THEME.panel,
+        border: `1px solid ${THEME.borderSoft}`,
+        borderRadius: "3px",
+        padding: "20px 22px"
+      }}
+    >
+      <SectionTitle>
+        Priced Coverage Control — Monthly Detail
+      </SectionTitle>
+
+      <div
+        style={{
+          overflowX: "auto",
+          border: `1px solid ${THEME.borderSoft}`,
+          borderRadius: "2px"
+        }}
+      >
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            minWidth: "900px"
+          }}
+        >
+          <thead>
+            <tr>
+              {[
+                "Month",
+                "Priced Obligation",
+                "Priced Purchases",
+                "Net Position",
+                "Coverage",
+                "Status"
+              ].map(header => (
+                <TH key={header}>{header}</TH>
+              ))}
+            </tr>
+          </thead>
+
+          <tbody>
+            {monthlyData
+              .filter(
+                row =>
+                  row.oblClP +
+                    row.oblPrP +
+                    row.bClP +
+                    row.bPrP >
+                  0
+              )
+              .map((row, index) => {
+                const obligation =
+                  row.oblClP + row.oblPrP;
+
+                const purchased =
+                  row.bClP + row.bPrP;
+
+                const net = row.netPos;
+                const coverage = row.covPct;
+
+                let status = {
+                  label: "N/A",
+                  color: "gray"
+                };
+
+                if (obligation > 0) {
+                  if (coverage >= 150) {
+                    status = {
+                      label: "Overcovered",
+                      color: "sky"
+                    };
+                  } else if (coverage >= 100) {
+                    status = {
+                      label: "OK",
+                      color: "green"
+                    };
+                  } else if (coverage >= 80) {
+                    status = {
+                      label: "Watch",
+                      color: "amber"
+                    };
+                  } else {
+                    status = {
+                      label: "Undercovered",
+                      color: "red"
+                    };
+                  }
+                }
+
+                const rowBackground =
+                  index % 2 === 0
+                    ? THEME.panel
+                    : THEME.panelAlt;
+
+                return (
+                  <tr
+                    key={row.month}
+                    style={{
+                      background: rowBackground,
+                      borderBottom: `1px solid ${THEME.borderSoft}`
+                    }}
+                    onMouseEnter={event => {
+                      event.currentTarget.style.background =
+                        "#162033";
+                    }}
+                    onMouseLeave={event => {
+                      event.currentTarget.style.background =
+                        rowBackground;
+                    }}
+                  >
+                    <td
+                      style={{
+                        ...CG,
+                        fontSize: "12px",
+                        color: THEME.textPrimary,
+                        padding: "11px 14px",
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      {row.month}
+                    </td>
+
+                    <td
+                      style={{
+                        ...S,
+                        fontSize: "12px",
+                        color: THEME.textSecondary,
+                        padding: "11px 14px"
+                      }}
+                    >
+                      {N(obligation, 0)} GWhc
+                    </td>
+
+                    <td
+                      style={{
+                        ...S,
+                        fontSize: "12px",
+                        color: THEME.textPrimary,
+                        padding: "11px 14px",
+                        fontWeight: 500
+                      }}
+                    >
+                      {N(purchased, 0)} GWhc
+                    </td>
+
+                    <td
+                      style={{
+                        ...S,
+                        fontSize: "12px",
+                        padding: "11px 14px",
+                        color:
+                          net >= 0
+                            ? THEME.green
+                            : THEME.red,
+                        fontWeight: 600
+                      }}
+                    >
+                      {net >= 0 ? "+" : ""}
+                      {N(net, 0)} GWhc
+                    </td>
+
+                    <td
+                      style={{
+                        ...S,
+                        fontSize: "12px",
+                        color: THEME.sky,
+                        padding: "11px 14px",
+                        fontWeight: 600
+                      }}
+                    >
+                      {coverage == null
+                        ? "—"
+                        : coverage > 150
+                          ? ">150%"
+                          : `${N(coverage, 0)}%`}
+                    </td>
+
+                    <td
+                      style={{
+                        padding: "11px 14px"
+                      }}
+                    >
+                      <Badge color={status.color}>
+                        {status.label}
+                      </Badge>
+                    </td>
                   </tr>
-                </thead>
+                );
+              })}
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-                <tbody>
-                  {monthlyData
-                    .filter(d => (d.oblClP + d.oblPrP + d.bClP + d.bPrP) > 0)
-                    .map(d => {
-                      const obligation = d.oblClP + d.oblPrP;
-                      const purchased = d.bClP + d.bPrP;
-                      const net = d.netPos;
-                      const coverage = d.covPct;
+    {/* ======================================================
+        UNPRICED OBLIGATIONS
+    ====================================================== */}
+    <div
+      style={{
+        background: THEME.panel,
+        border: `1px solid ${THEME.borderSoft}`,
+        borderRadius: "3px",
+        padding: "20px 22px"
+      }}
+    >
+      <SectionTitle>
+        Unpriced Obligation (Forward) — GWhc to Cover
+      </SectionTitle>
 
-                      let status = { label: "N/A", color: "gray" };
+      <ResponsiveContainer width="100%" height={250}>
+        <BarChart
+          data={monthlyData.map(row => ({
+            ...row,
+            unpriced:
+              row.oblCl +
+              row.oblPr -
+              row.oblClP -
+              row.oblPrP
+          }))}
+          barCategoryGap="38%"
+          margin={{
+            top: 8,
+            right: 20,
+            left: 4,
+            bottom: 8
+          }}
+        >
+          <CartesianGrid
+            strokeDasharray="3 6"
+            stroke={THEME.border}
+            vertical={false}
+            opacity={0.8}
+          />
 
-                      if (obligation > 0) {
-                        if (coverage >= 150) {
-                          status = { label: "Overcovered", color: "sky" };
-                        } else if (coverage >= 100) {
-                          status = { label: "OK", color: "green" };
-                        } else if (coverage >= 80) {
-                          status = { label: "Watch", color: "amber" };
-                        } else {
-                          status = { label: "Undercovered", color: "red" };
-                        }
-                      }
+          <XAxis
+            dataKey="month"
+            tick={{
+              ...S,
+              fontSize: 11,
+              fontWeight: 500,
+              fill: THEME.textMuted
+            }}
+            axisLine={false}
+            tickLine={false}
+            dy={6}
+          />
 
-                      return (
-                        <tr key={d.month} style={{ borderBottom: "1px solid #1a1815" }}>
-                          <td style={{ ...S, fontSize: "11px", color: "#e2e8f0", padding: "10px 14px", whiteSpace: "nowrap" }}>
-                            {d.month}
-                          </td>
+          <YAxis
+            tick={{
+              ...S,
+              fontSize: 11,
+              fill: THEME.textMuted
+            }}
+            axisLine={false}
+            tickLine={false}
+            width={54}
+            tickFormatter={value => N(value, 0)}
+          />
 
-                          <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "10px 14px" }}>
-                            {N(obligation, 0)} GWhc
-                          </td>
+          <Tooltip content={<ChartTip />} />
 
-                          <td style={{ ...S, fontSize: "11px", color: "#e2e8f0", padding: "10px 14px" }}>
-                            {N(purchased, 0)} GWhc
-                          </td>
+          <ReferenceLine
+            y={0}
+            stroke={THEME.border}
+          />
 
-                          <td style={{
-                            ...S,
-                            fontSize: "11px",
-                            padding: "10px 14px",
-                            color: net >= 0 ? "#34d399" : "#f87171",
-                            fontWeight: 600
-                          }}>
-                            {net >= 0 ? "+" : ""}
-                            {N(net, 0)} GWhc
-                          </td>
-
-                          <td style={{ ...S, fontSize: "11px", color: "#38bdf8", padding: "10px 14px", fontWeight: 600 }}>
-                            {coverage == null ? "—" : coverage > 150 ? ">150%" : `${N(coverage, 0)}%`}
-                          </td>
-
-                          <td style={{ padding: "10px 14px" }}>
-                            <Badge color={status.color}>{status.label}</Badge>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
-            <SectionTitle>Unpriced Obligation (Forward) — GWhc to Cover</SectionTitle>
-
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={monthlyData.map(d => ({ ...d, unpriced: d.oblCl + d.oblPr - d.oblClP - d.oblPrP }))}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={44} />
-                <Tooltip content={<ChartTip />} />
-                <Bar dataKey="unpriced" name="Unpriced (GWhc)" fill="#f87171" radius={[1, 1, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
+          <Bar
+            dataKey="unpriced"
+            name="Unpriced Obligation"
+            fill={THEME.red}
+            fillOpacity={0.9}
+            radius={[2, 2, 0, 0]}
+            maxBarSize={48}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  </div>
+)}
 
       {/* ── PNL & MTM ── */}
       {report === "pnl" && (
@@ -3945,14 +4673,18 @@ function ObligationTab({ obligations, onAdd, onDelete, canEdit = true }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // DASHBOARD
 // ─────────────────────────────────────────────────────────────────────────────
-function Dashboard({ trades, obligations, prices, curve }) {
+function Dashboard({
+  trades,
+  obligations,
+  prices,
+  curve,
+  displayDate
+}) {
   const latest = useMemo(() => {
     if (!prices.length) return { classique: curve.SPOT?.classique ?? 8.96, precarite: curve.SPOT?.precarite ?? 16.44, date: "(curve)" };
     const p = [...prices].sort((a, b) => b.date.localeCompare(a.date))[0];
     return { classique: p.classique, precarite: p.precarite, date: p.date };
   }, [prices, curve]);
-
-  const displayDate = formatDateEn(latest.date);
 
   const spotCl = latest.classique;
   const spotPr = latest.precarite;
@@ -6767,8 +7499,24 @@ export default function App() {
           ))}
         </div>
 
-        {tab==="dashboard"  && <Dashboard     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
-        {tab==="reporting"  && <Reporting     trades={trades} obligations={obligations} prices={prices} curve={curve}/>}
+        {tab === "dashboard" && (
+          <Dashboard
+            trades={trades}
+            obligations={obligations}
+            prices={prices}
+            curve={curve}
+            displayDate={appDisplayDate}
+          />
+        )}
+        {tab === "reporting" && (
+          <Reporting
+            trades={trades}
+            obligations={obligations}
+            prices={prices}
+            curve={curve}
+            displayDate={appDisplayDate}
+          />
+        )}
         {tab==="position"   && <PositionView  trades={trades} obligations={obligations} curve={curve} prices={prices}/>}
         {tab==="blotter" && (
           <Blotter
