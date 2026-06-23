@@ -261,60 +261,75 @@ function Badge({ children, color }) {
   );
 }
 
-function KPI({ label, value, sub, color, large }) {
-  const c = {
-    emerald: "#34d399",
-    rose: "#f87171",
-    sky: "#2563eb",
-    amber: "#d4a843",
-    gold: "#38bdf8",
-    gray: "#7187a6"
-  }[color] || "#7187a6";
+function KPI({ label, value, sub, color }) {
+  const accentColors = {
+    emerald: THEME.green,
+    rose: THEME.red,
+    sky: THEME.sky,
+    amber: THEME.amber,
+    gold: "#facc15",
+    neutral: THEME.textMuted,
+    gray: THEME.textMuted
+  };
+
+  const accent = accentColors[color] || THEME.textMuted;
 
   return (
     <div
       style={{
         background: THEME.panel,
         border: `1px solid ${THEME.borderSoft}`,
-        borderLeft: `2px solid ${c}`,
-        borderRadius: "2px",
-        padding: large ? "20px 22px" : "15px 18px"
+        borderLeft: `2px solid ${accent}`,
+        borderRadius: "3px",
+        padding: "16px 18px",
+        minHeight: "112px",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between"
       }}
     >
-      <p
-        style={{
-          ...S,
-          fontSize: "10px",
-          color: THEME.textLabel,
-          fontWeight: 600,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          marginBottom: "6px"
-        }}
-      >
-        {label}
-      </p>
+      <div>
+        <p
+          style={{
+            ...S,
+            fontSize: "9px",
+            lineHeight: 1.25,
+            color: THEME.textLabel,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.14em",
+            margin: 0,
+            marginBottom: "9px"
+          }}
+        >
+          {label}
+        </p>
 
-      <p
-        style={{
-          ...S,
-          fontSize: large ? "26px" : "20px",
-          fontWeight: 500,
-          color: THEME.textPrimary
-        }}
-      >
-        {value}
-      </p>
+        <p
+          style={{
+            ...S,
+            fontSize: "23px",
+            lineHeight: 1.08,
+            color: THEME.textPrimary,
+            fontWeight: 700,
+            letterSpacing: "-0.02em",
+            margin: 0
+          }}
+        >
+          {value}
+        </p>
+      </div>
 
       {sub && (
         <p
           style={{
             ...S,
-            fontSize: "11px",
+            fontSize: "10px",
             lineHeight: 1.4,
             color: THEME.textSecondary,
-            fontWeight: 500,
-            marginTop: "4px"
+            fontWeight: 400,
+            margin: 0,
+            marginTop: "9px"
           }}
         >
           {sub}
@@ -2087,15 +2102,31 @@ function Reporting({
             style={{
               ...S,
               fontSize: "10px",
-              padding: "7px 14px",
+              fontWeight: report === r.id ? 600 : 500,
+              padding: "8px 14px",
               borderRadius: "2px",
               border: "1px solid",
               cursor: "pointer",
               letterSpacing: "0.08em",
               textTransform: "uppercase",
-              background: report === r.id ? "#38bdf8" : "transparent",
-              color: report === r.id ? "#0a0e1a" : "#3a5070",
-              borderColor: report === r.id ? "#38bdf8" : "#1e2d45"
+
+              background:
+                report === r.id
+                  ? THEME.sky
+                  : THEME.panelAlt,
+
+              color:
+                report === r.id
+                  ? "#07101d"
+                  : THEME.controlText,
+
+              borderColor:
+                report === r.id
+                  ? THEME.sky
+                  : THEME.border,
+
+              transition:
+                "color 0.2s ease, border-color 0.2s ease, background 0.2s ease"
             }}
           >
             {r.label}
@@ -5315,8 +5346,32 @@ function ObligationTab({ obligations, onAdd, onDelete, canEdit = true }) {
           ["Correction Coeff.", "0.847"]
         ].map(([k, v]) => (
           <div key={k}>
-            <p style={{ ...S, fontSize: "9px", color: "#3a5070", textTransform: "uppercase", letterSpacing: "0.1em" }}>{k}</p>
-            <p style={{ ...S, fontSize: "14px", color: "#38bdf8", marginTop: "3px" }}>{v}</p>
+            <p
+              style={{
+                ...S,
+                fontSize: "10px",
+                color: THEME.textLabel,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.11em",
+                margin: 0
+              }}
+            >
+              {k}
+            </p>
+
+            <p
+              style={{
+                ...S,
+                fontSize: "15px",
+                color: THEME.sky,
+                fontWeight: 500,
+                marginTop: "5px",
+                marginBottom: 0
+              }}
+            >
+              {v}
+            </p>
           </div>
         ))}
       </div>
@@ -5330,23 +5385,54 @@ function ObligationTab({ obligations, onAdd, onDelete, canEdit = true }) {
               style={{
                 ...S,
                 fontSize: "10px",
-                padding: "5px 10px",
+                fontWeight: filterClient === c ? 600 : 500,
+                padding: "6px 11px",
                 borderRadius: "2px",
                 border: "1px solid",
                 cursor: "pointer",
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
-                background: filterClient === c ? "#38bdf8" : "transparent",
-                color: filterClient === c ? "#0a0e1a" : "#3a5070",
-                borderColor: filterClient === c ? "#38bdf8" : "#1e2d45"
+
+                background:
+                  filterClient === c
+                    ? THEME.sky
+                    : THEME.panelAlt,
+
+                color:
+                  filterClient === c
+                    ? "#07101d"
+                    : THEME.controlText,
+
+                borderColor:
+                  filterClient === c
+                    ? THEME.sky
+                    : THEME.border
               }}
             >
               {clientLabel(c)}
             </button>
           ))}
 
-          <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={{ ...S, background: "#0d1526", border: "1px solid #2e2b24", color: "#4a6080", borderRadius: "2px", padding: "5px 8px", fontSize: "10px", outline: "none" }}>
-            {months.map(m => <option key={m} value={m}>{m === "ALL" ? "All months" : ML(m)}</option>)}
+          <select
+            value={filterMonth}
+            onChange={e => setFilterMonth(e.target.value)}
+            style={{
+              ...S,
+              background: THEME.panelAlt,
+              border: `1px solid ${THEME.border}`,
+              color: THEME.textSecondary,
+              borderRadius: "2px",
+              padding: "6px 9px",
+              fontSize: "10px",
+              fontWeight: 500,
+              outline: "none"
+            }}
+          >
+            {months.map(m => (
+              <option key={m} value={m}>
+                {m === "ALL" ? "All months" : ML(m)}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -5857,23 +5943,48 @@ function Dashboard({
   }, [tradesP6]);
   
   const DashboardSectionTitle = ({ children }) => (
-    <p
+    <div
       style={{
-        ...S,
-        fontSize: "10px",
-        color: THEME.sectionTitle,
-        fontWeight: 600,
-        textTransform: "uppercase",
-        letterSpacing: "0.13em",
-        marginBottom: "10px"
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        marginBottom: "12px"
       }}
     >
-      {children}
-    </p>
+      <span
+        style={{
+          width: "18px",
+          height: "1px",
+          background: THEME.sky,
+          opacity: 0.65,
+          flexShrink: 0
+        }}
+      />
+
+      <p
+        style={{
+          ...S,
+          fontSize: "10px",
+          color: THEME.sectionTitle,
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.14em",
+          margin: 0
+        }}
+      >
+        {children}
+      </p>
+    </div>
   );
   
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "30px"
+      }}
+    >
       {pending > 0 && (
         <div style={{ background: "#2a1f0a", border: "1px solid #5a4000", borderRadius: "2px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
           <span style={{ color: "#fbbf24", fontSize: "12px" }}>⚠</span>
@@ -5965,7 +6076,7 @@ function Dashboard({
         <DashboardSectionTitle>
           PNL & Market Summary — {displayDate || "Loading…"}
         </DashboardSectionTitle>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: "10px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: "12px" }}>
           <KPI label="Spot Classique" value={`${N(spotCl)} €/MWhc`} color="sky"sub={`Road Fuel impact: ${N(spotClEurM3, 2)} €/m³`}/>
           <KPI label="Spot Précarité" value={`${N(spotPr)} €/MWhc`} color="amber" sub={`Road Fuel impact: ${N(spotPrEurM3, 2)} €/m³`}/>
           <KPI label="Realized PnL YTD" value={fM(pnlClYTD + pnlPrYTD)} color={(pnlClYTD + pnlPrYTD) >= 0 ? "emerald" : "rose"} sub={`Classique: ${fK(pnlClYTD)} · Précarité: ${fK(pnlPrYTD)}`} />
@@ -5981,7 +6092,7 @@ function Dashboard({
           Risk / Exposure View
         </DashboardSectionTitle>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "10px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "12px" }}>
           <KPI
             label="Net Priced Position"
             value={`${netPriced >= 0 ? "+" : ""}${N(netPriced, 0)} GWhc`}
@@ -6453,7 +6564,17 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
             Market & Curves
           </p>
 
-          <p style={{ ...S, fontSize: "11px", color: "#4a6080", lineHeight: 1.6 }}>
+          <p
+            style={{
+              ...S,
+              fontSize: "12px",
+              color: THEME.textSecondary,
+              lineHeight: 1.5,
+              fontWeight: 400,
+              margin: 0,
+              maxWidth: "760px"
+            }}
+          >
             Spot market prices, CEE forward curve and spot-vs-forward analysis.
             Prices are expressed in €/MWhc.
           </p>
@@ -7430,7 +7551,17 @@ function Tools({ curve }) {
         <h2 style={{ ...CG, fontSize: "24px", color: "#e2e8f0", marginBottom: "4px" }}>
           CEE PnL Calculator
         </h2>
-        <p style={{ ...S, fontSize: "11px", color: "#3a5070" }}>
+        <p
+          style={{
+            ...S,
+            fontSize: "12px",
+            color: THEME.textSecondary,
+            lineHeight: 1.5,
+            fontWeight: 400,
+            margin: 0,
+            maxWidth: "760px"
+          }}
+        >
           PnL simulation including financing effect by product, CEE type, volume and maturity.
         </p>
       </div>
@@ -7529,7 +7660,18 @@ function Tools({ curve }) {
           €/MWhc → €/m³ Converter
         </h2>
 
-        <p style={{ ...S, fontSize: "11px", color: "#3a5070", marginBottom: "18px" }}>
+        <p
+          style={{
+            ...S,
+            fontSize: "12px",
+            color: THEME.textSecondary,
+            lineHeight: 1.5,
+            fontWeight: 400,
+            marginTop: 0,
+            marginBottom: "18px",
+            maxWidth: "760px"
+          }}
+        >
           Converts Classique and Précarité CEE prices into product impact in €/m³ using Road Fuel / FOD factors.
         </p>
 
