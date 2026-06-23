@@ -187,6 +187,9 @@ const THEME = {
   textMuted: "#7187a6",
   textLabel: "#8297b7",
 
+  sectionTitle: "#8da3c3",
+  controlText: "#8195b4",
+
   border: "#2a3950",
   borderSoft: "#1e2d45",
 
@@ -2104,13 +2107,41 @@ function Reporting({
       {report === "executive" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "22px 26px" }}>
-            <p style={{ ...S, fontSize: "9px", color: "#3a5070", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "4px" }}>
+            <p
+              style={{
+                ...S,
+                fontSize: "10px",
+                color: THEME.sectionTitle,
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.14em",
+                marginBottom: "5px"
+              }}
+            >
               CEE Management Report — P6
             </p>
-            <h2 style={{ ...CG, fontSize: "28px", fontWeight: 700, color: "#e2e8f0", marginBottom: "2px" }}>
+
+            <h2
+              style={{
+                ...CG,
+                fontSize: "28px",
+                fontWeight: 700,
+                color: THEME.textPrimary,
+                marginBottom: "3px"
+              }}
+            >
               Executive Dashboard
             </h2>
-            <p style={{ ...S, fontSize: "10px", color: "#3a5070" }}>
+
+            <p
+              style={{
+                ...S,
+                fontSize: "11px",
+                color: THEME.textMuted,
+                fontWeight: 500,
+                marginTop: "3px"
+              }}
+            >
               As of {displayDate || "Loading…"} · Reference period: 2026 (P6)
             </p>
           </div>
@@ -3799,689 +3830,1433 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete, on
     });
   };
 
+  const filterSelectStyle = {
+    ...S,
+    background: THEME.panelAlt,
+    border: `1px solid ${THEME.border}`,
+    color: THEME.textSecondary,
+    borderRadius: "2px",
+    padding: "7px 9px",
+    fontSize: "10px",
+    fontWeight: 500,
+    outline: "none",
+    minHeight: "32px"
+  };
+
   return (
-    <div style={{ display:"flex",flexDirection:"column",gap:"14px" }}>
-      <div style={{
-        background: "#111827",
-        border: "1px solid #1e2d45",
+  <div
+    style={{
+      display: "flex",
+      flexDirection: "column",
+      gap: "14px"
+    }}
+  >
+    {/* ======================================================
+        FILTERS AND ACTIONS
+    ====================================================== */}
+    <div
+      style={{
+        background: THEME.panel,
+        border: `1px solid ${THEME.border}`,
         borderRadius: "2px",
         padding: "14px",
         display: "flex",
         flexDirection: "column",
         gap: "12px"
-      }}>
-        {/* Row 1 — Main status filters + actions */}
-        <div style={{
+      }}
+    >
+      {/* Row 1 — Main status filters + actions */}
+      <div
+        style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           gap: "12px",
           flexWrap: "wrap"
-        }}>
-          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-            {["ALL", "PENDING", "APPROVED", "CLASSIQUE", "PRECARITE"].map(f => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                style={{
-                  ...S,
-                  fontSize: "10px",
-                  padding: "6px 12px",
-                  borderRadius: "2px",
-                  border: "1px solid",
-                  cursor: "pointer",
-                  letterSpacing: "0.08em",
-                  textTransform: "uppercase",
-                  background: filter === f ? "#38bdf8" : "transparent",
-                  color: filter === f ? "#0a0e1a" : "#3a5070",
-                  borderColor: filter === f ? "#38bdf8" : "#1e2d45"
-                }}
-              >
-                {filterLabel(f)}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            gap: "6px",
+            flexWrap: "wrap"
+          }}
+        >
+          {[
+            "ALL",
+            "PENDING",
+            "APPROVED",
+            "CLASSIQUE",
+            "PRECARITE"
+          ].map(f => (
             <button
-              onClick={exportBlotterToExcel}
+              key={f}
+              onClick={() => setFilter(f)}
               style={{
                 ...S,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                background: "linear-gradient(135deg, #0f2e1a, #123d24)",
-                color: "#34d399",
-                border: "1px solid #1d6b3a",
-                borderRadius: "2px",
                 fontSize: "10px",
-                fontWeight: 600,
-                letterSpacing: "0.09em",
-                textTransform: "uppercase",
-                padding: "8px 14px",
+                fontWeight: filter === f ? 600 : 500,
+                padding: "6px 12px",
+                borderRadius: "2px",
+                border: "1px solid",
                 cursor: "pointer",
-                boxShadow: "0 0 0 1px rgba(52, 211, 153, 0.08) inset"
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+
+                background:
+                  filter === f
+                    ? THEME.sky
+                    : "transparent",
+
+                color:
+                  filter === f
+                    ? "#07101d"
+                    : THEME.controlText,
+
+                borderColor:
+                  filter === f
+                    ? THEME.sky
+                    : THEME.border,
+
+                transition:
+                  "color 0.2s ease, border-color 0.2s ease, background 0.2s ease"
               }}
             >
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: "16px",
-                  height: "16px",
-                  borderRadius: "2px",
-                  background: "#166534",
-                  color: "#dcfce7",
-                  fontSize: "10px",
-                  fontWeight: 800,
-                  lineHeight: 1
-                }}
-              >
-                X
-              </span>
-              Export Excel
+              {filterLabel(f)}
             </button>
-
-            {currentUser?.role === "trader" && (
-              <GoldBtn onClick={() => setShowModal(true)}>+ New Purchase</GoldBtn>
-            )}
-          </div>
+          ))}
         </div>
 
-        {/* Row 2 — Business / operational filters */}
-        <div style={{
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            alignItems: "center",
+            flexWrap: "wrap"
+          }}
+        >
+          <button
+            onClick={exportBlotterToExcel}
+            style={{
+              ...S,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              background:
+                "linear-gradient(135deg, #0f2e1a, #123d24)",
+              color: "#34d399",
+              border: "1px solid #1d6b3a",
+              borderRadius: "2px",
+              fontSize: "10px",
+              fontWeight: 600,
+              letterSpacing: "0.09em",
+              textTransform: "uppercase",
+              padding: "8px 14px",
+              cursor: "pointer",
+              boxShadow:
+                "0 0 0 1px rgba(52, 211, 153, 0.08) inset"
+            }}
+          >
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "16px",
+                height: "16px",
+                borderRadius: "2px",
+                background: "#166534",
+                color: "#dcfce7",
+                fontSize: "10px",
+                fontWeight: 800,
+                lineHeight: 1
+              }}
+            >
+              X
+            </span>
+
+            Export Excel
+          </button>
+
+          {currentUser?.role === "trader" && (
+            <GoldBtn
+              onClick={() => setShowModal(true)}
+            >
+              + New Purchase
+            </GoldBtn>
+          )}
+        </div>
+      </div>
+
+      {/* Row 2 — Business / operational filters */}
+      <div
+        style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(145px, 1fr))",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(145px, 1fr))",
           gap: "8px"
-        }}>
-          <select
-            value={filterMonth}
-            onChange={e => setFilterMonth(e.target.value)}
-            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
-          >
-            {months.map(m => (
-              <option key={m} value={m}>
-                {m === "ALL" ? "All months" : ML(m)}
-              </option>
-            ))}
-          </select>
+        }}
+      >
+        <select
+          value={filterMonth}
+          onChange={e =>
+            setFilterMonth(e.target.value)
+          }
+          style={filterSelectStyle}
+        >
+          {months.map(m => (
+            <option key={m} value={m}>
+              {m === "ALL"
+                ? "All months"
+                : ML(m)}
+            </option>
+          ))}
+        </select>
 
-          <select
-            value={filterVendor}
-            onChange={e => setFilterVendor(e.target.value)}
-            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
-          >
-            {vendors.map(v => (
-              <option key={v} value={v}>
-                {v === "ALL" ? "All sellers" : v}
-              </option>
-            ))}
-          </select>
+        <select
+          value={filterVendor}
+          onChange={e =>
+            setFilterVendor(e.target.value)
+          }
+          style={filterSelectStyle}
+        >
+          {vendors.map(v => (
+            <option key={v} value={v}>
+              {v === "ALL"
+                ? "All sellers"
+                : v}
+            </option>
+          ))}
+        </select>
 
-          <select
-            value={filterPriced}
-            onChange={e => setFilterPriced(e.target.value)}
-            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
-          >
-            <option value="ALL">Priced / unpriced</option>
-            <option value="true">Priced</option>
-            <option value="false">Unpriced</option>
-          </select>
+        <select
+          value={filterPriced}
+          onChange={e =>
+            setFilterPriced(e.target.value)
+          }
+          style={filterSelectStyle}
+        >
+          <option value="ALL">
+            Priced / unpriced
+          </option>
+          <option value="true">
+            Priced
+          </option>
+          <option value="false">
+            Unpriced
+          </option>
+        </select>
 
-          <select
-            value={filterContract}
-            onChange={e => setFilterContract(e.target.value)}
-            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
-          >
-            <option value="ALL">All contracts</option>
-            <option value="Signed">Signed</option>
-            <option value="To sign">To sign</option>
-            <option value="No contract">No contract</option>
-            <option value="N/A">N/A</option>
-          </select>
+        <select
+          value={filterContract}
+          onChange={e =>
+            setFilterContract(e.target.value)
+          }
+          style={filterSelectStyle}
+        >
+          <option value="ALL">
+            All contracts
+          </option>
+          <option value="Signed">
+            Signed
+          </option>
+          <option value="To sign">
+            To sign
+          </option>
+          <option value="No contract">
+            No contract
+          </option>
+          <option value="N/A">
+            N/A
+          </option>
+        </select>
 
-          <select
-            value={filterValidation}
-            onChange={e => setFilterValidation(e.target.value)}
-            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
-          >
-            <option value="ALL">All validations</option>
-            <option value="Validated">Validated</option>
-            <option value="Pending">Pending validation</option>
-            <option value="N/A">N/A</option>
-          </select>
+        <select
+          value={filterValidation}
+          onChange={e =>
+            setFilterValidation(e.target.value)
+          }
+          style={filterSelectStyle}
+        >
+          <option value="ALL">
+            All validations
+          </option>
+          <option value="Validated">
+            Validated
+          </option>
+          <option value="Pending">
+            Pending validation
+          </option>
+          <option value="N/A">
+            N/A
+          </option>
+        </select>
 
-          <select
-            value={filterPayment}
-            onChange={e => setFilterPayment(e.target.value)}
-            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
-          >
-            <option value="ALL">All payments</option>
-            <option value="Paid">Paid</option>
-            <option value="Unpaid">Unpaid</option>
-            <option value="N/A">N/A</option>
-          </select>
+        <select
+          value={filterPayment}
+          onChange={e =>
+            setFilterPayment(e.target.value)
+          }
+          style={filterSelectStyle}
+        >
+          <option value="ALL">
+            All payments
+          </option>
+          <option value="Paid">
+            Paid
+          </option>
+          <option value="Unpaid">
+            Unpaid
+          </option>
+          <option value="N/A">
+            N/A
+          </option>
+        </select>
 
-          <select
-            value={filterDeposit}
-            onChange={e => setFilterDeposit(e.target.value)}
-            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
-          >
-            <option value="ALL">All deposits</option>
-            <option value="Full">Fully deposited</option>
-            <option value="Partial">Partially deposited</option>
-            <option value="Open">Open deposit</option>
-            <option value="Over">Over-deposited</option>
-            <option value="N/A">N/A</option>
-          </select>
+        <select
+          value={filterDeposit}
+          onChange={e =>
+            setFilterDeposit(e.target.value)
+          }
+          style={filterSelectStyle}
+        >
+          <option value="ALL">
+            All deposits
+          </option>
+          <option value="Full">
+            Fully deposited
+          </option>
+          <option value="Partial">
+            Partially deposited
+          </option>
+          <option value="Open">
+            Open deposit
+          </option>
+          <option value="Over">
+            Over-deposited
+          </option>
+          <option value="N/A">
+            N/A
+          </option>
+        </select>
 
-          <select
-            value={filterCpRanking}
-            onChange={e => setFilterCpRanking(e.target.value)}
-            style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
-          >
-            {cpRankings.map(r => (
-              <option key={r} value={r}>
-                {r === "ALL" ? "All CP rankings" : r}
-              </option>
-            ))}
-          </select>
-        </div>
+        <select
+          value={filterCpRanking}
+          onChange={e =>
+            setFilterCpRanking(e.target.value)
+          }
+          style={filterSelectStyle}
+        >
+          {cpRankings.map(r => (
+            <option key={r} value={r}>
+              {r === "ALL"
+                ? "All CP rankings"
+                : r}
+            </option>
+          ))}
+        </select>
+      </div>
 
-        {/* Row 3 — Sort controls + result count */}
-        <div style={{
+      {/* Row 3 — Sort controls + result count */}
+      <div
+        style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           gap: "10px",
           flexWrap: "wrap",
-          borderTop: "1px solid #1e2d45",
+          borderTop:
+            `1px solid ${THEME.borderSoft}`,
           paddingTop: "10px"
-        }}>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <select
-              value={sortKey}
-              onChange={e => setSortKey(e.target.value)}
-              style={{ ...S, background:"#0d1526", border:"1px solid #2e2b24", color:"#4a6080", borderRadius:"2px", padding:"7px 9px", fontSize:"10px", outline:"none" }}
-            >
-              <option value="createdAt">Sort by creation date</option>
-              <option value="month">Sort by month</option>
-              <option value="vendor">Sort by seller</option>
-              <option value="volume">Sort by volume</option>
-              <option value="price">Sort by price</option>
-              <option value="status">Sort by approval</option>
-            </select>
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            gap: "8px",
+            flexWrap: "wrap"
+          }}
+        >
+          <select
+            value={sortKey}
+            onChange={e =>
+              setSortKey(e.target.value)
+            }
+            style={filterSelectStyle}
+          >
+            <option value="createdAt">
+              Sort by creation date
+            </option>
+            <option value="month">
+              Sort by month
+            </option>
+            <option value="vendor">
+              Sort by seller
+            </option>
+            <option value="volume">
+              Sort by volume
+            </option>
+            <option value="price">
+              Sort by price
+            </option>
+            <option value="status">
+              Sort by approval
+            </option>
+          </select>
 
-            <button
-              onClick={() => setSortDir(d => d === "asc" ? "desc" : "asc")}
-              style={{
-                ...S,
-                fontSize: "10px",
-                padding: "7px 12px",
-                borderRadius: "2px",
-                border: "1px solid #1e2d45",
-                cursor: "pointer",
-                background: "transparent",
-                color: "#3a5070"
-              }}
-            >
-              {sortDir === "asc" ? "↑ ASC" : "↓ DESC"}
-            </button>
-          </div>
-
-          <span style={{ ...S, fontSize: "10px", color: "#3a5070" }}>
-            {filtered.length} trade{filtered.length > 1 ? "s" : ""} displayed / {trades.length} total
-          </span>
+          <button
+            onClick={() =>
+              setSortDir(d =>
+                d === "asc"
+                  ? "desc"
+                  : "asc"
+              )
+            }
+            style={{
+              ...S,
+              fontSize: "10px",
+              fontWeight: 500,
+              padding: "7px 12px",
+              borderRadius: "2px",
+              border:
+                `1px solid ${THEME.border}`,
+              cursor: "pointer",
+              background: THEME.panelAlt,
+              color: THEME.controlText,
+              minHeight: "32px"
+            }}
+          >
+            {sortDir === "asc"
+              ? "↑ ASC"
+              : "↓ DESC"}
+          </button>
         </div>
+
+        <span
+          style={{
+            ...S,
+            fontSize: "10px",
+            color: THEME.textMuted,
+            fontWeight: 500
+          }}
+        >
+          {filtered.length} trade
+          {filtered.length > 1 ? "s" : ""} displayed
+          {" / "}
+          {trades.length} total
+        </span>
+      </div>
+    </div>
+
+    {/* ======================================================
+        BLOTTER TABLE
+    ====================================================== */}
+    <div>
+      <div
+        ref={topScrollRef}
+        onScroll={syncTopScroll}
+        style={{
+          overflowX: "auto",
+          overflowY: "hidden",
+          height: "14px",
+          marginBottom: "6px",
+          border:
+            `1px solid ${THEME.border}`,
+          borderRadius: "2px",
+          background: THEME.panelAlt
+        }}
+      >
+        <div
+          style={{
+            width: BLOTTER_TABLE_WIDTH,
+            height: "1px"
+          }}
+        />
       </div>
 
-      <div>
-        <div
-          ref={topScrollRef}
-          onScroll={syncTopScroll}
+      <div
+        ref={tableScrollRef}
+        onScroll={syncTableScroll}
+        style={{
+          overflowX: "auto",
+          border:
+            `1px solid ${THEME.borderSoft}`,
+          borderRadius: "2px"
+        }}
+      >
+        <table
           style={{
-            overflowX: "auto",
-            overflowY: "hidden",
-            height: "14px",
-            marginBottom: "6px",
-            border: "1px solid #1e2d45",
-            borderRadius: "2px",
-            background: "#0d1526"
+            width: "100%",
+            borderCollapse: "collapse",
+            minWidth: BLOTTER_TABLE_WIDTH
           }}
         >
-          <div style={{ width: BLOTTER_TABLE_WIDTH, height: "1px" }} />
-        </div>
+          <thead>
+            <tr>
+              {[
+                "Type",
+                "Seller",
+                "Deal Type",
+                "Period",
+                "Month",
+                "Pricing Month",
+                "Volume (GWhc)",
+                "Price (€/GWhc)",
+                "Priced",
+                "Sourcing",
+                "Contract",
+                "Validated",
+                "Payment",
+                "Credited EMMY (GWhc)",
+                "Remaining to credit (GWhc)",
+                "CP Ranking",
+                "Approval",
+                "Actions"
+              ].map(header => (
+                <TH key={header}>
+                  {header}
+                </TH>
+              ))}
+            </tr>
+          </thead>
 
-        <div
-          ref={tableScrollRef}
-          onScroll={syncTableScroll}
-          style={{
-            overflowX: "auto",
-            border: "1px solid #1e1c18",
-            borderRadius: "2px"
-          }}
-        >
-          <table style={{ width:"100%", borderCollapse:"collapse", minWidth:BLOTTER_TABLE_WIDTH }}>
-            <thead>
-              <tr>
-                {[
-                  "Type",
-                  "Seller",
-                  "Deal Type",
-                  "Period",
-                  "Month",
-                  "Pricing Month",
-                  "Volume (GWhc)",
-                  "Price (€/GWhc)",
-                  "Priced",
-                  "Sourcing",
-                  "Contract",
-                  "Validated",
-                  "Payment",
-                  "Credited EMMY (GWhc)",
-                  "Remaining to credit (GWhc)",
-                  "CP Ranking",
-                  "Approval",
-                  "Actions"
-                ].map(h => <TH key={h}>{h}</TH>)}
-              </tr>
-            </thead>
+          <tbody>
+            {filtered.map(trade => {
+              const can =
+                currentUser.role === "approver" &&
+                trade.status === "PENDING" &&
+                trade.createdBy !== currentUser.id;
 
-            <tbody>
-              {filtered.map(t => {
-                const can = currentUser.role === "approver" && t.status === "PENDING" && t.createdBy !== currentUser.id;
-                const bg = "#111827";
+              const rowBackground = THEME.panel;
 
-                return (
-                  <tr
-                    key={t.id}
-                    style={{ borderBottom:"1px solid #1a1815", background:bg }}
-                    onMouseEnter={e => e.currentTarget.style.background = "#0d1526"}
-                    onMouseLeave={e => e.currentTarget.style.background = bg}
+              return (
+                <tr
+                  key={trade.id}
+                  style={{
+                    borderBottom:
+                      `1px solid ${THEME.borderSoft}`,
+                    background: rowBackground
+                  }}
+                  onMouseEnter={event => {
+                    event.currentTarget.style.background =
+                      THEME.panelAlt;
+                  }}
+                  onMouseLeave={event => {
+                    event.currentTarget.style.background =
+                      rowBackground;
+                  }}
+                >
+                  <td
+                    style={{
+                      padding: "9px 14px",
+                      minWidth: "130px",
+                      whiteSpace: "nowrap"
+                    }}
                   >
-                    <td
-                      style={{
-                        padding:"9px 14px",
-                        minWidth:"130px",
-                        whiteSpace:"nowrap"
-                      }}
+                    <Badge
+                      color={
+                        trade.ceeType === "CLASSIQUE"
+                          ? "sky"
+                          : "amber"
+                      }
                     >
-                      <Badge color={t.ceeType === "CLASSIQUE" ? "sky" : "amber"}>
-                        {t.ceeType === "PRECARITE" ? "PRÉCARITÉ" : t.ceeType}
+                      {trade.ceeType === "PRECARITE"
+                        ? "PRÉCARITÉ"
+                        : trade.ceeType}
+                    </Badge>
+                  </td>
+
+                  <td
+                    style={{
+                      ...CG,
+                      fontSize: "14px",
+                      color: THEME.textPrimary,
+                      padding: "9px 14px",
+                      maxWidth: "180px"
+                    }}
+                  >
+                    {trade.vendor}
+                  </td>
+
+                  <td
+                    style={{
+                      ...S,
+                      fontSize: "10px",
+                      color: THEME.textSecondary,
+                      padding: "9px 14px"
+                    }}
+                  >
+                    {trade.dealType}
+                  </td>
+
+                  <td
+                    style={{
+                      ...S,
+                      fontSize: "10px",
+                      color: THEME.textMuted,
+                      padding: "9px 14px"
+                    }}
+                  >
+                    {trade.period}
+                  </td>
+
+                  <td
+                    style={{
+                      ...S,
+                      fontSize: "11px",
+                      color: THEME.textSecondary,
+                      padding: "9px 14px",
+                      whiteSpace: "nowrap"
+                    }}
+                  >
+                    {trade.month
+                      ? ML(trade.month)
+                      : "—"}
+                  </td>
+
+                  <td
+                    style={{
+                      ...S,
+                      fontSize: "11px",
+                      color: THEME.textSecondary,
+                      padding: "9px 14px",
+                      whiteSpace: "nowrap"
+                    }}
+                  >
+                    {trade.pricingMonth
+                      ? ML(trade.pricingMonth)
+                      : "—"}
+                  </td>
+
+                  <td
+                    style={{
+                      ...S,
+                      fontSize: "12px",
+                      color: THEME.textPrimary,
+                      padding: "9px 14px"
+                    }}
+                  >
+                    {N(trade.volume, 3)}
+                  </td>
+
+                  <td
+                    style={{
+                      ...S,
+                      fontSize: "12px",
+                      color: THEME.textPrimary,
+                      padding: "9px 14px"
+                    }}
+                  >
+                    {N(trade.price, 0)}
+                  </td>
+
+                  <td
+                    style={{
+                      padding: "9px 14px"
+                    }}
+                  >
+                    <button
+                      onClick={() =>
+                        togglePriced(trade)
+                      }
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer"
+                      }}
+                      title="Toggle priced status"
+                    >
+                      <Badge
+                        color={
+                          trade.priced === true
+                            ? "green"
+                            : "gray"
+                        }
+                      >
+                        {trade.priced === true
+                          ? "Priced"
+                          : "Unpriced"}
                       </Badge>
-                    </td>
+                    </button>
+                  </td>
 
-                    <td style={{ ...CG, fontSize:"14px", color:"#e2e8f0", padding:"9px 14px", maxWidth:"180px" }}>
-                      {t.vendor}
-                    </td>
+                  <td
+                    style={{
+                      ...S,
+                      fontSize: "10px",
+                      color: THEME.textSecondary,
+                      padding: "9px 14px",
+                      maxWidth: "170px"
+                    }}
+                  >
+                    {trade.sourcing || "—"}
+                  </td>
 
-                    <td style={{ ...S, fontSize:"10px", color:"#4a6080", padding:"9px 14px" }}>
-                      {t.dealType}
-                    </td>
-
-                    <td style={{ ...S, fontSize:"10px", color:"#3a5070", padding:"9px 14px" }}>
-                      {t.period}
-                    </td>
-
-                    <td style={{ ...S, fontSize:"11px", color:"#4a6080", padding:"9px 14px", whiteSpace:"nowrap" }}>
-                      {t.month ? ML(t.month) : "—"}
-                    </td>
-
-                    <td style={{ ...S, fontSize:"11px", color:"#4a6080", padding:"9px 14px", whiteSpace:"nowrap" }}>
-                      {t.pricingMonth ? ML(t.pricingMonth) : "—"}
-                    </td>
-
-                    <td style={{ ...S, fontSize:"12px", color:"#e2e8f0", padding:"9px 14px" }}>
-                      {N(t.volume, 3)}
-                    </td>
-
-                    <td style={{ ...S, fontSize:"12px", color:"#e2e8f0", padding:"9px 14px" }}>
-                      {N(t.price, 0)}
-                    </td>
-
-                    <td style={{ padding:"9px 14px" }}>
-                      <button
-                        onClick={() => togglePriced(t)}
-                        style={{ background:"none", border:"none", padding:0, cursor:"pointer" }}
-                        title="Toggle priced status"
-                      >
-                        <Badge color={t.priced === true ? "green" : "gray"}>
-                          {t.priced === true ? "Priced" : "Unpriced"}
-                        </Badge>
-                      </button>
-                    </td>
-
-                    <td style={{ ...S, fontSize:"10px", color:"#4a6080", padding:"9px 14px", maxWidth:"170px" }}>
-                      {t.sourcing || "—"}
-                    </td>
-
-                    <td style={{ padding:"9px 14px" }}>
-                      <button
-                        onClick={() => toggleContract(t)}
-                        style={{ background:"none", border:"none", padding:0, cursor:"pointer" }}
-                        title="Toggle contract signed"
-                      >
-                        {(() => {
-                          const s = getContractStatus(t);
-                          return <Badge color={s.color}>{s.label}</Badge>;
-                        })()}
-                      </button>
-                    </td>
-
-                    <td style={{ padding:"9px 14px" }}>
-                      <button
-                        onClick={() => toggleValidation(t)}
-                        style={{ background:"none", border:"none", padding:0, cursor:"pointer" }}
-                        title="Toggle validation status"
-                      >
-                        {(() => {
-                          const s = getValidationStatus(t);
-                          return <Badge color={s.color}>{s.label}</Badge>;
-                        })()}
-                      </button>
-                    </td>
-
-                    <td style={{ padding:"9px 14px" }}>
-                      <button
-                        onClick={() => togglePayment(t)}
-                        style={{ background:"none", border:"none", padding:0, cursor:"pointer" }}
-                        title="Toggle payment status"
-                      >
-                        {(() => {
-                          const s = getPaymentStatus(t);
-                          return <Badge color={s.color}>{s.label}</Badge>;
-                        })()}
-                      </button>
-                    </td>
-
-                    <td style={{ padding:"9px 14px" }}>
-                      <input
-                        type="number"
-                        step="0.001"
-                        value={tradesDraft[t.id] ?? t.volumeCredited ?? t.volumeDeposited ?? ""}
-                        onChange={e => {
-                          setTradesDraft(prev => ({
-                            ...prev,
-                            [t.id]: e.target.value
-                          }));
-                        }}
-                        onBlur={e => {
-                          updateDeposited(t, e.target.value);
-                          setTradesDraft(prev => {
-                            const next = { ...prev };
-                            delete next[t.id];
-                            return next;
-                          });
-                        }}
-                        onKeyDown={e => {
-                          if (e.key === "Enter") {
-                            e.currentTarget.blur();
-                          }
-                        }}
-                        style={{
-                          ...S,
-                          width:"82px",
-                          background:"#0d1526",
-                          border:"1px solid #2e2b24",
-                          color:"#e2e8f0",
-                          borderRadius:"2px",
-                          padding:"5px 7px",
-                          fontSize:"10px",
-                          outline:"none"
-                        }}
-                      />
-                    </td>
-
-                    <td style={{ padding:"9px 14px" }}>
+                  <td
+                    style={{
+                      padding: "9px 14px"
+                    }}
+                  >
+                    <button
+                      onClick={() =>
+                        toggleContract(trade)
+                      }
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer"
+                      }}
+                      title="Toggle contract signed"
+                    >
                       {(() => {
-                        const s = getDepositStatus(t);
-                        const remaining = t.volumeRemainingToBeDeposited;
+                        const status =
+                          getContractStatus(trade);
 
                         return (
-                          <div style={{ display:"flex", flexDirection:"column", gap:"3px" }}>
-                            <Badge color={s.color}>{s.label}</Badge>
-                            <span
-                              style={{
-                                ...S,
-                                fontSize:"10px",
-                                color: remaining < -EPS ? "#b07ee8" : remaining > EPS ? "#f87171" : "#4a6080"
-                              }}
-                            >
-                              {remaining != null ? N(remaining, 3) : "—"}
-                            </span>
-                          </div>
+                          <Badge color={status.color}>
+                            {status.label}
+                          </Badge>
                         );
                       })()}
-                    </td>
+                    </button>
+                  </td>
 
-                    <td style={{ padding:"9px 14px" }}>
-                      {t.cpRanking
-                        ? (
-                          <Badge color={t.cpRanking === "AAA" ? "green" : t.cpRanking?.includes("A") ? "sky" : "amber"}>
-                            {t.cpRanking}
+                  <td
+                    style={{
+                      padding: "9px 14px"
+                    }}
+                  >
+                    <button
+                      onClick={() =>
+                        toggleValidation(trade)
+                      }
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer"
+                      }}
+                      title="Toggle validation status"
+                    >
+                      {(() => {
+                        const status =
+                          getValidationStatus(trade);
+
+                        return (
+                          <Badge color={status.color}>
+                            {status.label}
                           </Badge>
-                        )
-                        : <span style={{ ...S, fontSize:"10px", color:"#3d3830" }}>—</span>}
-                    </td>
+                        );
+                      })()}
+                    </button>
+                  </td>
 
-                    <td style={{ padding:"9px 14px" }}>
-                      <button
-                        onClick={() => toggleApproval(t)}
-                        style={{ background:"none", border:"none", padding:0, cursor:"pointer" }}
-                        title="Toggle approval status"
-                      >
-                        {SB(t.status)}
-                      </button>
-                    </td>
+                  <td
+                    style={{
+                      padding: "9px 14px"
+                    }}
+                  >
+                    <button
+                      onClick={() =>
+                        togglePayment(trade)
+                      }
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer"
+                      }}
+                      title="Toggle payment status"
+                    >
+                      {(() => {
+                        const status =
+                          getPaymentStatus(trade);
 
-                    <td style={{ padding:"9px 14px" }}>
-                      {can && (
-                        <div style={{ display:"flex", gap:"5px" }}>
-                          <button
-                            onClick={() => onApprove(t.id, currentUser.id)}
-                            style={{ ...S, fontSize:"10px", padding:"4px 8px", background:"#0a2a1a", color:"#34d399", border:"1px solid #1d4a2a", borderRadius:"2px", cursor:"pointer" }}
+                        return (
+                          <Badge color={status.color}>
+                            {status.label}
+                          </Badge>
+                        );
+                      })()}
+                    </button>
+                  </td>
+
+                  <td
+                    style={{
+                      padding: "9px 14px"
+                    }}
+                  >
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={
+                        tradesDraft[trade.id] ??
+                        trade.volumeCredited ??
+                        trade.volumeDeposited ??
+                        ""
+                      }
+                      onChange={event => {
+                        setTradesDraft(previous => ({
+                          ...previous,
+                          [trade.id]: event.target.value
+                        }));
+                      }}
+                      onBlur={event => {
+                        updateDeposited(
+                          trade,
+                          event.target.value
+                        );
+
+                        setTradesDraft(previous => {
+                          const next = {
+                            ...previous
+                          };
+
+                          delete next[trade.id];
+
+                          return next;
+                        });
+                      }}
+                      onKeyDown={event => {
+                        if (event.key === "Enter") {
+                          event.currentTarget.blur();
+                        }
+                      }}
+                      style={{
+                        ...S,
+                        width: "82px",
+                        background: THEME.panelAlt,
+                        border:
+                          `1px solid ${THEME.border}`,
+                        color: THEME.textPrimary,
+                        borderRadius: "2px",
+                        padding: "5px 7px",
+                        fontSize: "10px",
+                        outline: "none"
+                      }}
+                    />
+                  </td>
+
+                  <td
+                    style={{
+                      padding: "9px 14px"
+                    }}
+                  >
+                    {(() => {
+                      const status =
+                        getDepositStatus(trade);
+
+                      const remaining =
+                        trade.volumeRemainingToBeDeposited;
+
+                      return (
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "3px"
+                          }}
+                        >
+                          <Badge color={status.color}>
+                            {status.label}
+                          </Badge>
+
+                          <span
+                            style={{
+                              ...S,
+                              fontSize: "10px",
+                              color:
+                                remaining < -EPS
+                                  ? "#c296ed"
+                                  : remaining > EPS
+                                    ? THEME.red
+                                    : THEME.textSecondary
+                            }}
                           >
-                            ✓ OK
-                          </button>
-
-                          <button
-                            onClick={() => onReject(t.id)}
-                            style={{ ...S, fontSize:"10px", padding:"4px 8px", background:"#2a0a0a", color:"#f87171", border:"1px solid #4a1c1c", borderRadius:"2px", cursor:"pointer" }}
-                          >
-                            ✗
-                          </button>
+                            {remaining != null
+                              ? N(remaining, 3)
+                              : "—"}
+                          </span>
                         </div>
-                      )}
+                      );
+                    })()}
+                  </td>
 
-                      {t.status === "PENDING" && !can && (
-                        <span style={{ ...S, fontSize:"10px", color:"#1e2d45" }}>
+                  <td
+                    style={{
+                      padding: "9px 14px"
+                    }}
+                  >
+                    {trade.cpRanking ? (
+                      <Badge
+                        color={
+                          trade.cpRanking === "AAA"
+                            ? "green"
+                            : trade.cpRanking?.includes("A")
+                              ? "sky"
+                              : "amber"
+                        }
+                      >
+                        {trade.cpRanking}
+                      </Badge>
+                    ) : (
+                      <span
+                        style={{
+                          ...S,
+                          fontSize: "10px",
+                          color: THEME.textMuted
+                        }}
+                      >
+                        —
+                      </span>
+                    )}
+                  </td>
+
+                  <td
+                    style={{
+                      padding: "9px 14px"
+                    }}
+                  >
+                    <button
+                      onClick={() =>
+                        toggleApproval(trade)
+                      }
+                      style={{
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer"
+                      }}
+                      title="Toggle approval status"
+                    >
+                      {SB(trade.status)}
+                    </button>
+                  </td>
+
+                  <td
+                    style={{
+                      padding: "9px 14px"
+                    }}
+                  >
+                    {can && (
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "5px"
+                        }}
+                      >
+                        <button
+                          onClick={() =>
+                            onApprove(
+                              trade.id,
+                              currentUser.id
+                            )
+                          }
+                          style={{
+                            ...S,
+                            fontSize: "10px",
+                            padding: "4px 8px",
+                            background: "#0a2a1a",
+                            color: THEME.green,
+                            border:
+                              "1px solid #1d4a2a",
+                            borderRadius: "2px",
+                            cursor: "pointer"
+                          }}
+                        >
+                          ✓ OK
+                        </button>
+
+                        <button
+                          onClick={() =>
+                            onReject(trade.id)
+                          }
+                          style={{
+                            ...S,
+                            fontSize: "10px",
+                            padding: "4px 8px",
+                            background: "#2a0a0a",
+                            color: THEME.red,
+                            border:
+                              "1px solid #4a1c1c",
+                            borderRadius: "2px",
+                            cursor: "pointer"
+                          }}
+                        >
+                          ✗
+                        </button>
+                      </div>
+                    )}
+
+                    {trade.status === "PENDING" &&
+                      !can && (
+                        <span
+                          style={{
+                            ...S,
+                            fontSize: "10px",
+                            color: THEME.textMuted
+                          }}
+                        >
                           Awaiting approver
                         </span>
                       )}
 
-                      {currentUser?.role === "approver" && (
+                    {currentUser?.role ===
+                      "approver" && (
                         <button
-                          onClick={() => { if (window.confirm(`Delete this trade?`)) onDelete(t.id); }}
-                          style={{ ...S, fontSize:"9px", padding:"3px 7px", background:"none", color:"#3a5070", border:"1px solid #2e2b24", borderRadius:"2px", cursor:"pointer", marginTop:"4px" }}
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                "Delete this trade?"
+                              )
+                            ) {
+                              onDelete(trade.id);
+                            }
+                          }}
+                          style={{
+                            ...S,
+                            fontSize: "9px",
+                            padding: "3px 7px",
+                            background:
+                              "transparent",
+                            color:
+                              THEME.controlText,
+                            border:
+                              `1px solid ${THEME.border}`,
+                            borderRadius: "2px",
+                            cursor: "pointer",
+                            marginTop: "4px"
+                          }}
                         >
                           🗑
                         </button>
                       )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            </table>
-        </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-
-      {showModal && (
-        <Modal title="New CEE Purchase" onClose={() => setShowModal(false)} wide>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"13px" }}>
-            <FS label="CEE Type" value={form.ceeType} onChange={e => setForm(f => ({ ...f, ceeType:e.target.value }))}>
-              <option value="CLASSIQUE">Classique</option>
-              <option value="PRECARITE">Précarité</option>
-            </FS>
-
-            <FI
-              label="Seller"
-              placeholder="ACT France, OTC, Eco-Environnement..."
-              value={form.vendor}
-              onChange={e => setForm(f => ({ ...f, vendor:e.target.value }))}
-            />
-
-            <FS label="Deal Type" value={form.dealType} onChange={e => setForm(f => ({ ...f, dealType:e.target.value }))}>
-              <option value="Fixed Price">Fixed Price</option>
-              <option value="Floating">Floating</option>
-            </FS>
-
-            <FS label="Period" value={form.period} onChange={e => setForm(f => ({ ...f, period:e.target.value }))}>
-              <option value="P6">P6</option>
-              <option value="P5">P5</option>
-            </FS>
-
-            <FI
-              label="Month"
-              type="month"
-              value={form.month}
-              onChange={e => setForm(f => ({ ...f, month:e.target.value }))}
-            />
-
-            <FS
-              label="Priced"
-              value={String(form.priced)}
-              onChange={e => setForm(f => ({ ...f, priced:e.target.value === "true" }))}
-            >
-              <option value="true">Priced</option>
-              <option value="false">Unpriced</option>
-            </FS>
-
-            <FI
-              label="Volume (GWhc)"
-              type="number"
-              step="0.001"
-              placeholder="0.000"
-              value={form.volume}
-              onChange={e => setForm(f => ({ ...f, volume:e.target.value }))}
-            />
-
-            <FI
-              label="Price (€/GWhc)"
-              type="number"
-              step="1"
-              placeholder="9000"
-              value={form.price}
-              onChange={e => setForm(f => ({ ...f, price:e.target.value }))}
-            />
-
-            <FI
-              label="Deposited (GWhc)"
-              type="number"
-              step="0.001"
-              placeholder="0.000"
-              value={form.volumeDeposited}
-              onChange={e => setForm(f => ({ ...f, volumeDeposited:e.target.value }))}
-            />
-
-            <FS label="Sourcing" value={form.sourcing} onChange={e => setForm(f => ({ ...f, sourcing:e.target.value }))}>
-              <option value="">—</option>
-              <option value="Primary">Primary</option>
-              <option value="Secondary">Secondary</option>
-              <option value="Program">Program</option>
-              <option value="Authorized representative">Authorized representative</option>
-            </FS>
-
-            <FS
-              label="Contract expected"
-              value={String(form.contractYesNo)}
-              onChange={e => setForm(f => ({ ...f, contractYesNo:e.target.value === "true" }))}
-            >
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </FS>
-
-            <FS
-              label="Contract signed"
-              value={String(form.contractSigned)}
-              onChange={e => setForm(f => ({ ...f, contractSigned:e.target.value === "true" }))}
-            >
-              <option value="false">No</option>
-              <option value="true">Yes</option>
-            </FS>
-
-            <FI
-              label="Contract date"
-              type="date"
-              value={form.contractDate}
-              onChange={e => setForm(f => ({ ...f, contractDate:e.target.value }))}
-            />
-
-            <FS label="Payment terms" value={form.paymentTerms} onChange={e => setForm(f => ({ ...f, paymentTerms:e.target.value }))}>
-              <option value="After Delivery">After Delivery</option>
-              <option value="Prepayment">Prepayment</option>
-            </FS>
-
-            <FS
-              label="Validated"
-              value={String(form.validated)}
-              onChange={e => setForm(f => ({ ...f, validated:e.target.value === "true" }))}
-            >
-              <option value="false">Pending</option>
-              <option value="true">Validated</option>
-            </FS>
-
-            <FS
-              label="Payment"
-              value={String(form.payment)}
-              onChange={e => setForm(f => ({ ...f, payment:e.target.value === "true" }))}
-            >
-              <option value="false">Unpaid</option>
-              <option value="true">Paid</option>
-            </FS>
-
-            <FS label="CP Ranking" value={form.cpRanking} onChange={e => setForm(f => ({ ...f, cpRanking:e.target.value }))}>
-              <option value="">—</option>
-              {["AAA","AA","A+","A","BBB","BB","B+"].map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </FS>
-
-            <FI
-              label="Comments"
-              placeholder="Optional comment"
-              value={form.comments}
-              onChange={e => setForm(f => ({ ...f, comments:e.target.value }))}
-            />
-          </div>
-
-          <div style={{
-            marginTop:"14px",
-            padding:"10px 12px",
-            background:"#0d1526",
-            border:"1px solid #1e2d45",
-            borderRadius:"2px"
-          }}>
-            <p style={{ ...S, fontSize:"10px", color:"#3a5070" }}>
-              Remaining to deposit will be calculated automatically:
-              {" "}
-              <span style={{ color:"#38bdf8" }}>
-                {Number.isFinite(Number(form.volume)) && Number.isFinite(Number(form.volumeDeposited || 0))
-                  ? `${N(Number(form.volume) - Number(form.volumeDeposited || 0), 3)} GWhc`
-                  : "—"}
-              </span>
-            </p>
-          </div>
-
-          <div style={{ display:"flex", justifyContent:"flex-end", gap:"10px", marginTop:"16px" }}>
-            <GhostBtn onClick={() => setShowModal(false)}>Cancel</GhostBtn>
-            <GoldBtn onClick={handleSubmit}>Submit</GoldBtn>
-          </div>
-        </Modal>
-      )}
     </div>
-  );
+
+    {/* ======================================================
+        NEW PURCHASE MODAL
+    ====================================================== */}
+    {showModal && (
+      <Modal
+        title="New CEE Purchase"
+        onClose={() =>
+          setShowModal(false)
+        }
+        wide
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "1fr 1fr 1fr",
+            gap: "13px"
+          }}
+        >
+          <FS
+            label="CEE Type"
+            value={form.ceeType}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                ceeType: event.target.value
+              }))
+            }
+          >
+            <option value="CLASSIQUE">
+              Classique
+            </option>
+            <option value="PRECARITE">
+              Précarité
+            </option>
+          </FS>
+
+          <FI
+            label="Seller"
+            placeholder="ACT France, OTC, Eco-Environnement..."
+            value={form.vendor}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                vendor: event.target.value
+              }))
+            }
+          />
+
+          <FS
+            label="Deal Type"
+            value={form.dealType}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                dealType: event.target.value
+              }))
+            }
+          >
+            <option value="Fixed Price">
+              Fixed Price
+            </option>
+            <option value="Floating">
+              Floating
+            </option>
+          </FS>
+
+          <FS
+            label="Period"
+            value={form.period}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                period: event.target.value
+              }))
+            }
+          >
+            <option value="P6">
+              P6
+            </option>
+            <option value="P5">
+              P5
+            </option>
+          </FS>
+
+          <FI
+            label="Month"
+            type="month"
+            value={form.month}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                month: event.target.value
+              }))
+            }
+          />
+
+          <FS
+            label="Priced"
+            value={String(form.priced)}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                priced:
+                  event.target.value === "true"
+              }))
+            }
+          >
+            <option value="true">
+              Priced
+            </option>
+            <option value="false">
+              Unpriced
+            </option>
+          </FS>
+
+          <FI
+            label="Volume (GWhc)"
+            type="number"
+            step="0.001"
+            placeholder="0.000"
+            value={form.volume}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                volume: event.target.value
+              }))
+            }
+          />
+
+          <FI
+            label="Price (€/GWhc)"
+            type="number"
+            step="1"
+            placeholder="9000"
+            value={form.price}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                price: event.target.value
+              }))
+            }
+          />
+
+          <FI
+            label="Deposited (GWhc)"
+            type="number"
+            step="0.001"
+            placeholder="0.000"
+            value={form.volumeDeposited}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                volumeDeposited:
+                  event.target.value
+              }))
+            }
+          />
+
+          <FS
+            label="Sourcing"
+            value={form.sourcing}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                sourcing: event.target.value
+              }))
+            }
+          >
+            <option value="">
+              —
+            </option>
+            <option value="Primary">
+              Primary
+            </option>
+            <option value="Secondary">
+              Secondary
+            </option>
+            <option value="Program">
+              Program
+            </option>
+            <option value="Authorized representative">
+              Authorized representative
+            </option>
+          </FS>
+
+          <FS
+            label="Contract expected"
+            value={String(
+              form.contractYesNo
+            )}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                contractYesNo:
+                  event.target.value === "true"
+              }))
+            }
+          >
+            <option value="true">
+              Yes
+            </option>
+            <option value="false">
+              No
+            </option>
+          </FS>
+
+          <FS
+            label="Contract signed"
+            value={String(
+              form.contractSigned
+            )}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                contractSigned:
+                  event.target.value === "true"
+              }))
+            }
+          >
+            <option value="false">
+              No
+            </option>
+            <option value="true">
+              Yes
+            </option>
+          </FS>
+
+          <FI
+            label="Contract date"
+            type="date"
+            value={form.contractDate}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                contractDate:
+                  event.target.value
+              }))
+            }
+          />
+
+          <FS
+            label="Payment terms"
+            value={form.paymentTerms}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                paymentTerms:
+                  event.target.value
+              }))
+            }
+          >
+            <option value="After Delivery">
+              After Delivery
+            </option>
+            <option value="Prepayment">
+              Prepayment
+            </option>
+          </FS>
+
+          <FS
+            label="Validated"
+            value={String(form.validated)}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                validated:
+                  event.target.value === "true"
+              }))
+            }
+          >
+            <option value="false">
+              Pending
+            </option>
+            <option value="true">
+              Validated
+            </option>
+          </FS>
+
+          <FS
+            label="Payment"
+            value={String(form.payment)}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                payment:
+                  event.target.value === "true"
+              }))
+            }
+          >
+            <option value="false">
+              Unpaid
+            </option>
+            <option value="true">
+              Paid
+            </option>
+          </FS>
+
+          <FS
+            label="CP Ranking"
+            value={form.cpRanking}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                cpRanking:
+                  event.target.value
+              }))
+            }
+          >
+            <option value="">
+              —
+            </option>
+
+            {[
+              "AAA",
+              "AA",
+              "A+",
+              "A",
+              "BBB",
+              "BB",
+              "B+"
+            ].map(ranking => (
+              <option
+                key={ranking}
+                value={ranking}
+              >
+                {ranking}
+              </option>
+            ))}
+          </FS>
+
+          <FI
+            label="Comments"
+            placeholder="Optional comment"
+            value={form.comments}
+            onChange={event =>
+              setForm(previous => ({
+                ...previous,
+                comments:
+                  event.target.value
+              }))
+            }
+          />
+        </div>
+
+        <div
+          style={{
+            marginTop: "14px",
+            padding: "10px 12px",
+            background: THEME.panelAlt,
+            border:
+              `1px solid ${THEME.borderSoft}`,
+            borderRadius: "2px"
+          }}
+        >
+          <p
+            style={{
+              ...S,
+              fontSize: "10px",
+              color: THEME.textSecondary
+            }}
+          >
+            Remaining to deposit will be calculated
+            automatically:{" "}
+
+            <span
+              style={{
+                color: THEME.sky,
+                fontWeight: 600
+              }}
+            >
+              {Number.isFinite(
+                Number(form.volume)
+              ) &&
+              Number.isFinite(
+                Number(
+                  form.volumeDeposited || 0
+                )
+              )
+                ? `${N(
+                    Number(form.volume) -
+                      Number(
+                        form.volumeDeposited || 0
+                      ),
+                    3
+                  )} GWhc`
+                : "—"}
+            </span>
+          </p>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "10px",
+            marginTop: "16px"
+          }}
+        >
+          <GhostBtn
+            onClick={() =>
+              setShowModal(false)
+            }
+          >
+            Cancel
+          </GhostBtn>
+
+          <GoldBtn onClick={handleSubmit}>
+            Submit
+          </GoldBtn>
+        </div>
+      </Modal>
+    )}
+  </div>
+);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5080,7 +5855,23 @@ function Dashboard({
       missingCpRankingVolume: missingCpRanking.reduce((s, t) => s + Number(t.volume || 0), 0),
     };
   }, [tradesP6]);
-
+  
+  const DashboardSectionTitle = ({ children }) => (
+    <p
+      style={{
+        ...S,
+        fontSize: "10px",
+        color: THEME.sectionTitle,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.13em",
+        marginBottom: "10px"
+      }}
+    >
+      {children}
+    </p>
+  );
+  
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
       {pending > 0 && (
@@ -5171,9 +5962,9 @@ function Dashboard({
 
       {/* ── PnL / MtM / Spot ── */}
       <div>
-        <p style={{ ...S, fontSize: "9px", color: "#3a5070", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "10px" }}>
-          PNL & Market Summary — {displayDate}
-        </p>
+        <DashboardSectionTitle>
+          PNL & Market Summary — {displayDate || "Loading…"}
+        </DashboardSectionTitle>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: "10px" }}>
           <KPI label="Spot Classique" value={`${N(spotCl)} €/MWhc`} color="sky"sub={`Road Fuel impact: ${N(spotClEurM3, 2)} €/m³`}/>
           <KPI label="Spot Précarité" value={`${N(spotPr)} €/MWhc`} color="amber" sub={`Road Fuel impact: ${N(spotPrEurM3, 2)} €/m³`}/>
@@ -5186,9 +5977,9 @@ function Dashboard({
 
       {/* ── Risk / Exposure View ── */}
       <div>
-        <p style={{ ...S, fontSize: "9px", color: "#3a5070", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "10px" }}>
+        <DashboardSectionTitle>
           Risk / Exposure View
-        </p>
+        </DashboardSectionTitle>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "10px" }}>
           <KPI
@@ -5227,9 +6018,9 @@ function Dashboard({
 
       {/* ── Operational Follow-up ── */}
       <div>
-        <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.14em",marginBottom:"10px" }}>
+        <DashboardSectionTitle>
           Operational Follow-up
-        </p>
+        </DashboardSectionTitle>
 
         <div style={{ display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:"10px" }}>
           <KPI
@@ -5278,9 +6069,9 @@ function Dashboard({
 
       {/* ── Monthly Coverage Heatmap ── */}
       <div>
-        <p style={{ ...S, fontSize: "9px", color: "#3a5070", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "10px" }}>
+        <DashboardSectionTitle>
           Monthly Coverage Heatmap — Priced Obligations
-        </p>
+        </DashboardSectionTitle>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(12,1fr)", gap: "8px" }}>
           {coverageRows.map(r => {
@@ -5359,9 +6150,9 @@ function Dashboard({
 
       {/* ── Priced Position ── */}
       <div>
-        <p style={{ ...S, fontSize: "9px", color: "#3a5070", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "8px" }}>
+        <DashboardSectionTitle>
           Priced Position — Confirmed Purchases vs Fixed-Price Obligations
-        </p>
+        </DashboardSectionTitle>
 
         <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", overflow: "hidden", marginBottom: "16px" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -5390,9 +6181,9 @@ function Dashboard({
         </div>
 
         {/* ── Unpriced Position ── */}
-        <p style={{ ...S, fontSize: "9px", color: "#3a5070", textTransform: "uppercase", letterSpacing: "0.14em", marginBottom: "8px" }}>
+        <DashboardSectionTitle>
           Unpriced Position — Forward Exposure (Partial Mar + Apr–Dec, obligations without fixed price)
-        </p>
+        </DashboardSectionTitle>
 
         <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -7481,17 +8272,27 @@ export default function App() {
               onClick={()=>setTab(t.id)}
               style={{
                 ...S,
-                background:"none",
-                border:"none",
-                fontSize:"10px",
-                letterSpacing:"0.1em",
-                textTransform:"uppercase",
-                padding:"12px 0",
-                cursor:"pointer",
-                whiteSpace:"nowrap",
-                color:tab===t.id?"#38bdf8":"#3a5070",
-                borderBottom:tab===t.id?"1px solid #b8973a":"1px solid transparent",
-                transition:"color 0.2s"
+                background: "none",
+                border: "none",
+                fontSize: "10px",
+                fontWeight: tab === t.id ? 600 : 500,
+                letterSpacing: "0.09em",
+                textTransform: "uppercase",
+                padding: "12px 0",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+
+                color:
+                  tab === t.id
+                    ? THEME.sky
+                    : THEME.controlText,
+
+                borderBottom:
+                  tab === t.id
+                    ? "1px solid #d4a843"
+                    : "1px solid transparent",
+
+                transition: "color 0.2s ease"
               }}
             >
               {t.label}
