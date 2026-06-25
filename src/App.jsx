@@ -5295,12 +5295,20 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete, on
 // ─────────────────────────────────────────────────────────────────────────────
 const CLIENTS = ["Spot", "Certas", "Certas Lyon", "Autre"];
 
-function ObligationTab({ obligations, onAdd, onDelete, canEdit = true }) {
+function ObligationTab({
+  obligations,
+  onAdd,
+  onUpdate,
+  onDelete,
+  canEdit = false
+}) {
   const [showModal, setShowModal] = useState(false);
   const [filterClient, setFilterClient] = useState("ALL");
   const [filterMonth, setFilterMonth] = useState("ALL");
   const blank = { month: "", product: "CARBURANT", volume_m3: "", priceCl: "9000", pricePr: "15000", priced: false, client: "Spot" };
   const [form, setForm] = useState(blank);
+  const [volumeDrafts, setVolumeDrafts] =
+    useState({});
 
   const months = useMemo(() => ["ALL", ...new Set(obligations.map(o => o.month))].sort(), [obligations]);
   const clients = useMemo(() => ["ALL", ...new Set(obligations.map(o => o.client))], [obligations]);
@@ -5334,6 +5342,33 @@ function ObligationTab({ obligations, onAdd, onDelete, canEdit = true }) {
     if (c === "ALL") return "ALL";
     if (c === "Autre") return "Other";
     return c;
+  };
+
+  const saveVolume = async obligation => {
+    if (
+      !Object.prototype.hasOwnProperty.call(
+        volumeDrafts,
+        obligation.id
+      )
+    ) {
+      return;
+    }
+
+    const rawVolume =
+      volumeDrafts[obligation.id];
+
+    await onUpdate(
+      obligation.id,
+      rawVolume
+    );
+
+    setVolumeDrafts(current => {
+      const next = { ...current };
+
+      delete next[obligation.id];
+
+      return next;
+    });
   };
 
   return (
@@ -5467,7 +5502,76 @@ function ObligationTab({ obligations, onAdd, onDelete, canEdit = true }) {
                   <td style={{ ...CG, fontSize: "14px", color: "#e2e8f0", padding: "9px 14px" }}>{ML(o.month)}</td>
                   <td style={{ padding: "9px 14px" }}><Badge color={cc(o.client)}>{clientLabel(o.client)}</Badge></td>
                   <td style={{ padding: "9px 14px" }}><Badge color={o.product === "CARBURANT" ? "sky" : "purple"}>{PARAMS[o.product].label}</Badge></td>
-                  <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{N(o.volume_m3, 0)}</td>
+                  <td
+                    style={{
+                      padding: "9px 14px"
+                    }}
+                  >
+                    {canEdit ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={
+                          volumeDrafts[o.id] ??
+                          o.volume_m3 ??
+                          ""
+                        }
+                        onFocus={event => {
+                          event.currentTarget.select();
+                        }}
+                        onChange={event => {
+                          setVolumeDrafts(current => ({
+                            ...current,
+                            [o.id]: event.target.value
+                          }));
+                        }}
+                        onBlur={() => {
+                          saveVolume(o);
+                        }}
+                        onKeyDown={event => {
+                          if (event.key === "Enter") {
+                            event.currentTarget.blur();
+                          }
+
+                          if (event.key === "Escape") {
+                            setVolumeDrafts(current => {
+                              const next = { ...current };
+
+                              delete next[o.id];
+
+                              return next;
+                            });
+
+                            event.currentTarget.blur();
+                          }
+                        }}
+                        title="Edit volume and press Enter to save"
+                        style={{
+                          ...S,
+                          width: "110px",
+                          background: THEME.panelAlt,
+                          border: `1px solid ${THEME.border}`,
+                          color: THEME.textPrimary,
+                          borderRadius: "2px",
+                          padding: "6px 8px",
+                          fontSize: "11px",
+                          fontWeight: 500,
+                          outline: "none"
+                        }}
+                      />
+                    ) : (
+                      <span
+                        style={{
+                          ...S,
+                          fontSize: "11px",
+                          color: THEME.textPrimary
+                        }}
+                      >
+                        {N(o.volume_m3, 0)} m³
+                      </span>
+                    )}
+                  </td>
                   <td style={{ ...S, fontSize: "12px", color: "#2563eb", padding: "9px 14px" }}>{N(o.clGwhc, 3)}</td>
                   <td style={{ ...S, fontSize: "12px", color: "#d4a843", padding: "9px 14px" }}>{N(o.prGwhc, 3)}</td>
                   <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "9px 14px" }}>{N(o.priceCl / 1000, 2)}</td>
@@ -7743,6 +7847,8 @@ export default function App() {
   const canEdit = currentUser?.role === "trader" || currentUser?.role === "approver";
   const canApprove = currentUser?.role === "approver";
   const canCreate = currentUser?.role === "trader";
+  const canManageObligations =
+    currentUser?.role === "trader";
 
   async function loadAll({ silent = false } = {}) {
     try {
@@ -8246,6 +8352,104 @@ export default function App() {
     await addAudit({action:"OBLIG_ADDED",entity:o.id,detail:`${o.month} ${o.product} ${o.volume_m3}m³`});
   },[persist,addAudit]);
 
+  const handleUpdateObligation = useCallback(
+    async (id, rawVolumeM3) => {
+      const obligationBefore = obligations.find(
+        obligation => obligation.id === id
+      );
+
+      if (!obligationBefore) {
+        return false;
+      }
+
+      const volumeM3 = Number(rawVolumeM3);
+
+      if (
+        !Number.isFinite(volumeM3) ||
+        volumeM3 < 0
+      ) {
+        alert("Please enter a valid positive volume.");
+        return false;
+      }
+
+      if (
+        Math.abs(
+          volumeM3 -
+          Number(obligationBefore.volume_m3)
+        ) < 0.000001
+      ) {
+        return true;
+      }
+
+      const cee = calcCEE(
+        volumeM3,
+        obligationBefore.product
+      );
+
+      const updatedObligation = {
+        ...obligationBefore,
+        volume_m3: volumeM3,
+        clGwhc: cee.classique,
+        prGwhc: cee.precarite
+      };
+
+      // Immediate refresh of every dashboard component
+      setObligations(current =>
+        current.map(obligation =>
+          obligation.id === id
+            ? updatedObligation
+            : obligation
+        )
+      );
+
+      const { data, error } = await supabase
+        .from("obligations")
+        .update({
+          volume_m3: volumeM3,
+          cl_gwhc: cee.classique,
+          pr_gwhc: cee.precarite
+        })
+        .eq("id", id)
+        .select(
+          "id, volume_m3, cl_gwhc, pr_gwhc"
+        )
+        .maybeSingle();
+
+      if (error || !data) {
+        console.error(
+          "Obligation update error:",
+          error
+        );
+
+        alert(
+          "The obligation could not be updated."
+        );
+
+        // Restore the real database state
+        await loadAll({ silent: true });
+
+        return false;
+      }
+
+      await addAudit({
+        action: "OBLIG_UPDATED",
+        entity: id,
+        detail:
+          `${obligationBefore.month} · ` +
+          `${obligationBefore.client} · ` +
+          `${N(obligationBefore.volume_m3, 0)} → ` +
+          `${N(volumeM3, 0)} m³`
+      });
+
+      return true;
+    },
+    [
+      obligations,
+      addAudit,
+      loadAll
+    ]
+  );
+
   const handleLogin = async () => {
     setLoginError(null);
 
@@ -8472,12 +8676,19 @@ export default function App() {
             onUpdate={handleUpdateTrade}
           />
         )}
-        {tab==="obligation" && (
+        {tab === "obligation" && (
           <ObligationTab
             obligations={obligations}
             onAdd={handleAddObligation}
-            onDelete={id => setObligations(os => os.filter(o => o.id !== id))}
-            canEdit={canEdit}
+            onUpdate={handleUpdateObligation}
+            onDelete={id =>
+              setObligations(current =>
+                current.filter(
+                  obligation => obligation.id !== id
+                )
+              )
+            }
+            canEdit={canManageObligations}
           />
         )}
         {tab === "market" && (
