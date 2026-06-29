@@ -124,24 +124,28 @@ function sumVol(trades, ceeType, month = null, pricedOnly = false, approvedOnly 
 }
 
 function pnlBuyAvg(trades, ceeType, month = null) {
-  let rows = trades.filter(t =>
+  const rows = trades.filter(t =>
     t.ceeType === ceeType &&
     t.priced === true &&
     (month ? t.month === month : true)
   );
 
-  // Excel alignment — Jan-26 specific exclusion:
-  // these rows are in the business volume but excluded from the Excel weighted buy price.
-  if (month === "2026-01" && ceeType === "CLASSIQUE") {
-    rows = rows.filter(t => !(Math.abs(t.volume - 30.32) < 0.001 && Math.abs(t.price - 8100) < 0.01));
+  const volume = rows.reduce(
+    (sum, trade) => sum + Number(trade.volume || 0),
+    0
+  );
+
+  if (volume <= 0) {
+    return 0;
   }
 
-  if (month === "2026-01" && ceeType === "PRECARITE") {
-    rows = rows.filter(t => t.id !== "xlsx_pr_001");
-  }
-
-  const v = rows.reduce((s, t) => s + t.volume, 0);
-  return v > 0 ? rows.reduce((s, t) => s + t.price * t.volume, 0) / v : 0;
+  return rows.reduce(
+    (sum, trade) =>
+      sum +
+      Number(trade.price || 0) *
+      Number(trade.volume || 0),
+    0
+  ) / volume;
 }
 
 function oblMonth(obligations, month, ceeType, pricedOnly = false) {
