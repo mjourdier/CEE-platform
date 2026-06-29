@@ -899,223 +899,469 @@ function Reporting({
   );
 
   const buildRegulatoryMetrics = (ceeType) => {
-    const rows = regulatoryBaseTrades.filter(t => t.ceeType === ceeType);
+    // Scope inchangé :
+    // - trades P6 via trades2026 ;
+    // - trades pricés uniquement pour les indicateurs de risque.
+    const rows = regulatoryBaseTrades.filter(
+      trade => trade.ceeType === ceeType
+    );
 
-    // Pending approval list includes both priced and unpriced trades
-    const approvalRows = regulatoryApprovalTrades.filter(t => t.ceeType === ceeType);
+    // Le suivi des approbations conserve les trades pricés et non pricés.
+    const approvalRows = regulatoryApprovalTrades.filter(
+      trade => trade.ceeType === ceeType
+    );
 
-    const isYes = (v) =>
-      v === true || String(v ?? "").trim().toLowerCase() === "yes";
+    const isYes = value =>
+      value === true ||
+      String(value ?? "").trim().toLowerCase() === "yes";
 
-    const isInternallyApproved = (t) => isYes(t.approval);
+    const isInternallyApproved = trade =>
+      isYes(trade.approval);
 
-    const creditedOf = (t) => {
-      const vol = Number(t.volume || 0);
-      const credited = Number(t.volumeCredited ?? t.volumeDeposited ?? 0);
+    const creditedOf = trade => {
+      const volume = Number(trade.volume || 0);
 
-      return Math.max(0, Math.min(credited, vol));
+      const credited = Number(
+        trade.volumeCredited ??
+        trade.volumeDeposited ??
+        0
+      );
+
+      return Math.max(
+        0,
+        Math.min(credited, volume)
+      );
     };
 
-    const remainingToCreditOf = (t) => {
-      const vol = Number(t.volume || 0);
+    const remainingToCreditOf = trade => {
+      const volume = Number(trade.volume || 0);
 
       const remainingRaw = Number(
-        t.volumeRemainingToBeCredited ??
-        t.volumeRemainingToBeDeposited ??
-        vol - creditedOf(t)
+        trade.volumeRemainingToBeCredited ??
+        trade.volumeRemainingToBeDeposited ??
+        volume - creditedOf(trade)
       );
 
       return Math.max(0, remainingRaw);
     };
 
-    const totalPurchased = rows.reduce((s, t) => s + Number(t.volume || 0), 0);
+    const totalPurchased = rows.reduce(
+      (sum, trade) =>
+        sum + Number(trade.volume || 0),
+      0
+    );
 
-    const volume = (predicate) =>
+    const volume = predicate =>
       rows
         .filter(predicate)
-        .reduce((s, t) => s + Number(t.volume || 0), 0);
+        .reduce(
+          (sum, trade) =>
+            sum + Number(trade.volume || 0),
+          0
+        );
 
-    const creditedVolume = rows.reduce((s, t) => s + creditedOf(t), 0);
-
-    const validatedVolume = volume(t => t.validated === true);
-
-    const creditedAndValidatedVolume = rows.reduce((s, t) => {
-      if (t.validated !== true) return s;
-      return s + creditedOf(t);
-    }, 0);
-
-    const paidVolume = volume(t => t.payment === true);
-
-    const paidCreditedNotValidatedVolume = rows.reduce((s, t) => {
-      if (t.payment !== true || t.validated === true) return s;
-      return s + creditedOf(t);
-    }, 0);
-
-    const paidNotCreditedVolume = rows.reduce((s, t) => {
-      if (t.payment !== true) return s;
-      return s + remainingToCreditOf(t);
-    }, 0);
-
-    const paidNotCreditedExposure = rows.reduce((s, t) => {
-      if (t.payment !== true || t.validated === true) return s;
-      return s + Number(t.riskPerformanceMt || 0);
-    }, 0);
-
-    // ------------------------------------------------------------
-    // Unpaid & not validated performance risk
-    // Scope remains P6 + priced trades through `rows`.
-    // ------------------------------------------------------------
-
-    const unpaidNotValidatedRows = rows
-      .filter(t => t.payment !== true && t.validated !== true)
-      .map(t => ({
-        id: t.id,
-        vendor: t.vendor || "Unknown",
-        rating: t.cpRanking || "N/A",
-        month: t.month,
-        volume: Number(t.volume || 0),
-        price: Number(t.price || 0),
-        exposure: Number(t.riskPerformanceMt || 0)
-      }))
-      .sort((a, b) => Math.abs(b.exposure) - Math.abs(a.exposure));
-
-    const unpaidNotValidatedVolume = unpaidNotValidatedRows.reduce(
-      (sum, trade) => sum + trade.volume,
+    const creditedVolume = rows.reduce(
+      (sum, trade) =>
+        sum + creditedOf(trade),
       0
     );
 
-    const unpaidNotValidatedExposure = unpaidNotValidatedRows.reduce(
-      (sum, trade) => sum + trade.exposure,
-      0
+    const validatedVolume = volume(
+      trade => trade.validated === true
     );
 
-    const unpaidNotValidatedRiskMap = unpaidNotValidatedRows.reduce(
-      (map, trade) => {
-        if (!map[trade.vendor]) {
-          map[trade.vendor] = {
-            vendor: trade.vendor,
-            rating: trade.rating,
-            volume: 0,
-            exposure: 0
-          };
+    const creditedAndValidatedVolume = rows.reduce(
+      (sum, trade) => {
+        if (trade.validated !== true) {
+          return sum;
         }
 
-        map[trade.vendor].volume += trade.volume;
-        map[trade.vendor].exposure += trade.exposure;
-
-        return map;
+        return sum + creditedOf(trade);
       },
-      {}
+      0
     );
 
-    const unpaidNotValidatedCounterpartyData = Object.values(
-      unpaidNotValidatedRiskMap
-    )
-      .filter(row =>
-        Math.abs(row.volume) > 0.001 ||
-        Math.abs(row.exposure) > 0.001
-      )
-      .sort((a, b) => Math.abs(b.exposure) - Math.abs(a.exposure));
+    const paidVolume = volume(
+      trade => trade.payment === true
+    );
 
-    const pendingApprovalRows = approvalRows
-      .filter(t => !isInternallyApproved(t))
-      .map(t => ({
-        id: t.id,
-        vendor: t.vendor || "Unknown",
-        volume: Number(t.volume || 0),
-        price: Number(t.price || 0),
-        month: t.month,
-        status: t.status,
-        approval: t.approval,
-        priced: t.priced
+    const paidCreditedNotValidatedVolume = rows.reduce(
+      (sum, trade) => {
+        if (
+          trade.payment !== true ||
+          trade.validated === true
+        ) {
+          return sum;
+        }
+
+        return sum + creditedOf(trade);
+      },
+      0
+    );
+
+    const paidNotCreditedVolume = rows.reduce(
+      (sum, trade) => {
+        if (trade.payment !== true) {
+          return sum;
+        }
+
+        return sum + remainingToCreditOf(trade);
+      },
+      0
+    );
+
+    // ========================================================================
+    // RISQUE DE PERFORMANCE CONSOLIDÉ
+    //
+    // Total des CEE non validés =
+    // CEE payés et non validés
+    // + CEE non payés et non validés.
+    //
+    // Le montant riskPerformanceMt reste directement issu de l'Excel.
+    // ========================================================================
+
+    const totalNotValidatedRows = rows
+      .filter(trade => trade.validated !== true)
+      .map(trade => ({
+        id: trade.id,
+        vendor: trade.vendor || "Unknown",
+        rating: trade.cpRanking || "N/A",
+        month: trade.month,
+        volume: Number(trade.volume || 0),
+        price: Number(trade.price || 0),
+        payment: trade.payment === true,
+        creditedVolume: creditedOf(trade),
+        remainingToCreditVolume: remainingToCreditOf(trade),
+        exposure: Number(trade.riskPerformanceMt || 0)
       }))
-      .sort((a, b) => b.volume - a.volume);
+      .sort(
+        (a, b) =>
+          Math.abs(b.exposure) -
+          Math.abs(a.exposure)
+      );
 
-    const ratingMap = {};
+    const paidNotValidatedRows =
+      totalNotValidatedRows.filter(
+        trade => trade.payment === true
+      );
 
-    rows.forEach(t => {
-      const rating = t.cpRanking || "N/A";
-      ratingMap[rating] = (ratingMap[rating] || 0) + Number(t.volume || 0);
-    });
+    const unpaidNotValidatedRows =
+      totalNotValidatedRows.filter(
+        trade => trade.payment !== true
+      );
 
-    const ratingData = Object.entries(ratingMap)
-      .map(([rating, volume]) => ({
-        rating,
-        volume: Math.round(volume)
-      }))
-      .sort((a, b) => b.volume - a.volume);
+    const aggregateRiskRows = riskRows =>
+      riskRows.reduce(
+        (result, trade) => ({
+          volume:
+            result.volume +
+            Number(trade.volume || 0),
 
-    const cpRiskMap = {};
+          exposure:
+            result.exposure +
+            Number(trade.exposure || 0)
+        }),
+        {
+          volume: 0,
+          exposure: 0
+        }
+      );
 
-    rows.forEach(t => {
-      const vendor = t.vendor || "Unknown";
-      const rating = t.cpRanking || "N/A";
+    const paidNotValidated =
+      aggregateRiskRows(paidNotValidatedRows);
 
-      const paidNotCreditedVolume =
-        t.payment === true
-          ? remainingToCreditOf(t)
-          : 0;
+    const unpaidNotValidated =
+      aggregateRiskRows(unpaidNotValidatedRows);
 
-      const creditedNotValidatedVolume =
-        t.payment === true && t.validated !== true
-          ? creditedOf(t)
-          : 0;
+    const totalNotValidated =
+      aggregateRiskRows(totalNotValidatedRows);
 
-      // Risk Performance MT comes directly from Excel.
-      // It is aggregated for paid and not fully validated lines.
-      const currentPerformanceRisk =
-        t.payment === true && t.validated !== true
-          ? Number(t.riskPerformanceMt || 0)
-          : 0;
+    // ========================================================================
+    // VUE CONSOLIDÉE PAR CONTREPARTIE
+    //
+    // Elle rassemble :
+    // - les volumes payés mais non crédités ;
+    // - les volumes crédités mais non validés ;
+    // - le risque payé et non validé ;
+    // - le risque non payé et non validé ;
+    // - le risque total non validé.
+    // ========================================================================
 
-      if (!cpRiskMap[vendor]) {
-        cpRiskMap[vendor] = {
+    const counterpartyMap = {};
+
+    rows.forEach(trade => {
+      const vendor =
+        trade.vendor || "Unknown";
+
+      const rating =
+        trade.cpRanking || "N/A";
+
+      const tradeVolume =
+        Number(trade.volume || 0);
+
+      const exposure =
+        Number(trade.riskPerformanceMt || 0);
+
+      if (!counterpartyMap[vendor]) {
+        counterpartyMap[vendor] = {
           vendor,
           rating,
+
           paidNotCreditedVolume: 0,
           creditedNotValidatedVolume: 0,
-          exposure: 0
+
+          paidVolume: 0,
+          unpaidVolume: 0,
+          totalVolume: 0,
+
+          paidExposure: 0,
+          unpaidExposure: 0,
+          totalExposure: 0
         };
       }
 
-      cpRiskMap[vendor].paidNotCreditedVolume += paidNotCreditedVolume;
-      cpRiskMap[vendor].creditedNotValidatedVolume += creditedNotValidatedVolume;
-      cpRiskMap[vendor].exposure += currentPerformanceRisk;
+      const row =
+        counterpartyMap[vendor];
+
+      if (trade.payment === true) {
+        row.paidNotCreditedVolume +=
+          remainingToCreditOf(trade);
+      }
+
+      if (
+        trade.payment === true &&
+        trade.validated !== true
+      ) {
+        row.creditedNotValidatedVolume +=
+          creditedOf(trade);
+      }
+
+      if (trade.validated !== true) {
+        row.totalVolume += tradeVolume;
+        row.totalExposure += exposure;
+
+        if (trade.payment === true) {
+          row.paidVolume += tradeVolume;
+          row.paidExposure += exposure;
+        } else {
+          row.unpaidVolume += tradeVolume;
+          row.unpaidExposure += exposure;
+        }
+      }
     });
 
-    const counterpartyRiskData = Object.values(cpRiskMap)
-      .filter(r =>
-        Math.abs(r.paidNotCreditedVolume) > 0.001 ||
-        Math.abs(r.creditedNotValidatedVolume) > 0.001 ||
-        Math.abs(r.exposure) > 0.001
-      )
-      .sort((a, b) => Math.abs(b.exposure) - Math.abs(a.exposure));
+    // Ancienne structure conservée pour compatibilité.
+    const counterpartyRiskData =
+      Object.values(counterpartyMap)
+        .filter(row =>
+          Math.abs(row.paidNotCreditedVolume) > 0.001 ||
+          Math.abs(row.creditedNotValidatedVolume) > 0.001 ||
+          Math.abs(row.paidExposure) > 0.001
+        )
+        .map(row => ({
+          vendor: row.vendor,
+          rating: row.rating,
 
-    const pct = (num, denom = totalPurchased) =>
-      denom > 0 ? num / denom * 100 : 0;
+          paidNotCreditedVolume:
+            row.paidNotCreditedVolume,
+
+          creditedNotValidatedVolume:
+            row.creditedNotValidatedVolume,
+
+          exposure:
+            row.paidExposure
+        }))
+        .sort(
+          (a, b) =>
+            Math.abs(b.exposure) -
+            Math.abs(a.exposure)
+        );
+
+    const totalNotValidatedCounterpartyData =
+      Object.values(counterpartyMap)
+        .filter(row =>
+          Math.abs(row.totalVolume) > 0.001 ||
+          Math.abs(row.totalExposure) > 0.001
+        )
+        .sort(
+          (a, b) =>
+            Math.abs(b.totalExposure) -
+            Math.abs(a.totalExposure)
+        );
+
+    // Ancienne structure également conservée.
+    const unpaidNotValidatedCounterpartyData =
+      Object.values(counterpartyMap)
+        .filter(row =>
+          Math.abs(row.unpaidVolume) > 0.001 ||
+          Math.abs(row.unpaidExposure) > 0.001
+        )
+        .map(row => ({
+          vendor: row.vendor,
+          rating: row.rating,
+          volume: row.unpaidVolume,
+          exposure: row.unpaidExposure
+        }))
+        .sort(
+          (a, b) =>
+            Math.abs(b.exposure) -
+            Math.abs(a.exposure)
+        );
+
+    // ========================================================================
+    // APPROBATIONS INTERNES
+    // ========================================================================
+
+    const pendingApprovalRows = approvalRows
+      .filter(
+        trade =>
+          !isInternallyApproved(trade)
+      )
+      .map(trade => ({
+        id: trade.id,
+        vendor:
+          trade.vendor || "Unknown",
+        volume:
+          Number(trade.volume || 0),
+        price:
+          Number(trade.price || 0),
+        month:
+          trade.month,
+        status:
+          trade.status,
+        approval:
+          trade.approval,
+        priced:
+          trade.priced
+      }))
+      .sort(
+        (a, b) =>
+          b.volume - a.volume
+      );
+
+    // ========================================================================
+    // RÉPARTITION PAR RATING
+    // ========================================================================
+
+    const ratingMap = {};
+
+    rows.forEach(trade => {
+      const rating =
+        trade.cpRanking || "N/A";
+
+      ratingMap[rating] =
+        (ratingMap[rating] || 0) +
+        Number(trade.volume || 0);
+    });
+
+    const ratingData =
+      Object.entries(ratingMap)
+        .map(([rating, ratingVolume]) => ({
+          rating,
+          volume:
+            Math.round(ratingVolume)
+        }))
+        .sort(
+          (a, b) =>
+            b.volume - a.volume
+        );
+
+    const pct = (
+      numerator,
+      denominator = totalPurchased
+    ) =>
+      denominator > 0
+        ? numerator / denominator * 100
+        : 0;
 
     return {
       ceeType,
       rows,
       totalPurchased,
 
-      approvedPct: pct(volume(t => isInternallyApproved(t))),
-      signedContractPct: pct(volume(t => t.contractSigned === true)),
-      creditedPct: pct(creditedVolume),
-      validatedPct: pct(validatedVolume),
-      creditedAndValidatedPct: pct(creditedAndValidatedVolume),
+      // Statut général
+      approvedPct: pct(
+        volume(
+          trade =>
+            isInternallyApproved(trade)
+        )
+      ),
 
-      paidPct: pct(paidVolume),
-      paidCreditedNotValidatedPct: pct(paidCreditedNotValidatedVolume, paidVolume),
-      paidNotCreditedPct: pct(paidNotCreditedVolume, paidVolume),
-      paidNotCreditedExposure,
+      signedContractPct: pct(
+        volume(
+          trade =>
+            trade.contractSigned === true
+        )
+      ),
 
-      unpaidNotValidatedPct: pct(unpaidNotValidatedVolume),
-      unpaidNotValidatedVolume,
-      unpaidNotValidatedExposure,
+      paidPct:
+        pct(paidVolume),
+
+      // EMMY
+      creditedPct:
+        pct(creditedVolume),
+
+      validatedPct:
+        pct(validatedVolume),
+
+      creditedAndValidatedPct:
+        pct(creditedAndValidatedVolume),
+
+      // Exceptions sur les volumes payés
+      paidCreditedNotValidatedPct:
+        pct(
+          paidCreditedNotValidatedVolume,
+          paidVolume
+        ),
+
+      paidNotCreditedPct:
+        pct(
+          paidNotCreditedVolume,
+          paidVolume
+        ),
+
+      paidNotCreditedVolume,
+
+      // Ancien nom conservé pour éviter toute rupture.
+      paidNotCreditedExposure:
+        paidNotValidated.exposure,
+
+      // Risque payé et non validé
+      paidNotValidatedVolume:
+        paidNotValidated.volume,
+
+      paidNotValidatedExposure:
+        paidNotValidated.exposure,
+
+      paidNotValidatedRows,
+
+      // Risque non payé et non validé
+      unpaidNotValidatedPct:
+        pct(unpaidNotValidated.volume),
+
+      unpaidNotValidatedVolume:
+        unpaidNotValidated.volume,
+
+      unpaidNotValidatedExposure:
+        unpaidNotValidated.exposure,
+
       unpaidNotValidatedRows,
       unpaidNotValidatedCounterpartyData,
 
+      // Total demandé par Maxime
+      totalNotValidatedPct:
+        pct(totalNotValidated.volume),
+
+      totalNotValidatedVolume:
+        totalNotValidated.volume,
+
+      totalNotValidatedExposure:
+        totalNotValidated.exposure,
+
+      totalNotValidatedRows,
+      totalNotValidatedCounterpartyData,
+
+      // Contrôles complémentaires
       pendingApprovalRows,
       ratingData,
       counterpartyRiskData
@@ -1160,647 +1406,211 @@ function Reporting({
   );
 
   const RegulatoryBlock = ({ title, data }) => {
-    const riskColor = (v) =>
-      v < 0 ? "#34d399" : v > 0 ? "#f87171" : "#4a6080";
+    const riskColor = value =>
+      value < 0
+        ? THEME.green
+        : value > 0
+          ? THEME.red
+          : THEME.textMuted;
+
+    const percentageColor = value =>
+      value >= 95
+        ? "emerald"
+        : value >= 80
+          ? "amber"
+          : "rose";
+
+    const cardStyle = {
+      background: THEME.panel,
+      border: `1px solid ${THEME.borderSoft}`,
+      borderRadius: "3px",
+      padding: "20px 22px"
+    };
+
+    const innerCardStyle = {
+      background: THEME.panelAlt,
+      border: `1px solid ${THEME.borderSoft}`,
+      borderRadius: "3px",
+      padding: "16px"
+    };
 
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "18px"
+        }}
+      >
         {/* ======================================================
-            GLOBAL KPIs
+            1. SYNTHÈSE DU PORTEFEUILLE
         ====================================================== */}
-        <div
-          style={{
-            background: "#111827",
-            border: "1px solid #1e2d45",
-            borderRadius: "2px",
-            padding: "18px"
-          }}
-        >
-          <p
-            style={{
-              ...S,
-              fontSize: "9px",
-              color: "#38bdf8",
-              textTransform: "uppercase",
-              letterSpacing: "0.18em",
-              marginBottom: "8px"
-            }}
-          >
-            {title}
-          </p>
+        <div style={cardStyle}>
+          <SectionTitle>
+            {title} — Portfolio Status
+          </SectionTitle>
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(4,1fr)",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(190px, 1fr))",
               gap: "10px"
             }}
           >
             <KPI
               label={`Total ${title} Purchased`}
-              value={`${N(data.totalPurchased, 0)} GWhc`}
+              value={`${N(
+                data.totalPurchased,
+                0
+              )} GWhc`}
               color="sky"
-              sub="Priced purchased volume"
+              sub="Priced P6 purchases"
             />
 
             <KPI
               label="Approved internally"
-              value={`${N(data.approvedPct, 1)}%`}
-              color={
-                data.approvedPct >= 95
-                  ? "emerald"
-                  : data.approvedPct >= 80
-                    ? "amber"
-                    : "rose"
-              }
+              value={`${N(
+                data.approvedPct,
+                1
+              )}%`}
+              color={percentageColor(
+                data.approvedPct
+              )}
               sub="Approved / purchased"
             />
 
             <KPI
               label="Signed contract"
-              value={`${N(data.signedContractPct, 1)}%`}
-              color={
-                data.signedContractPct >= 95
-                  ? "emerald"
-                  : data.signedContractPct >= 80
-                    ? "amber"
-                    : "rose"
-              }
-              sub="Contract signed / purchased"
+              value={`${N(
+                data.signedContractPct,
+                1
+              )}%`}
+              color={percentageColor(
+                data.signedContractPct
+              )}
+              sub="Signed / purchased"
             />
 
             <KPI
               label="Paid"
-              value={`${N(data.paidPct, 1)}%`}
-              color={
-                data.paidPct >= 95
-                  ? "emerald"
-                  : data.paidPct >= 80
-                    ? "amber"
-                    : "rose"
-              }
+              value={`${N(
+                data.paidPct,
+                1
+              )}%`}
+              color={percentageColor(
+                data.paidPct
+              )}
               sub="Paid / purchased"
             />
           </div>
         </div>
 
         {/* ======================================================
-            REGULATORY RISK + CURRENT PERFORMANCE RISK
+            2. RISQUE DE PERFORMANCE TOTAL
         ====================================================== */}
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "16px"
+            ...cardStyle,
+            borderTop:
+              `2px solid ${
+                data.totalNotValidatedExposure > 0
+                  ? THEME.red
+                  : THEME.green
+              }`
           }}
         >
-          {/* Regulatory Risk */}
           <div
             style={{
-              background: "#111827",
-              border: "1px solid #252219",
-              borderRadius: "2px",
-              padding: "18px"
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: "16px",
+              flexWrap: "wrap",
+              marginBottom: "16px"
             }}
           >
-            <SectionTitle>Regulatory Risk</SectionTitle>
+            <div>
+              <SectionTitle>
+                Total Performance Risk —
+                Unvalidated CEE
+              </SectionTitle>
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3,1fr)",
-                gap: "10px",
-                marginBottom: "16px"
-              }}
-            >
-              <KPI
-                label="Credited on EMMY"
-                value={`${N(data.creditedPct, 1)}%`}
-                color={
-                  data.creditedPct >= 95
-                    ? "emerald"
-                    : data.creditedPct >= 80
-                      ? "amber"
-                      : "rose"
-                }
-              />
-
-              <KPI
-                label="Validated on EMMY"
-                value={`${N(data.validatedPct, 1)}%`}
-                color={
-                  data.validatedPct >= 95
-                    ? "emerald"
-                    : data.validatedPct >= 80
-                      ? "amber"
-                      : "rose"
-                }
-              />
-
-              <KPI
-                label="Credited & validated"
-                value={`${N(data.creditedAndValidatedPct, 1)}%`}
-                color={
-                  data.creditedAndValidatedPct >= 95
-                    ? "emerald"
-                    : data.creditedAndValidatedPct >= 80
-                      ? "amber"
-                      : "rose"
-                }
-              />
-            </div>
-
-            <p
-              style={{
-                ...S,
-                fontSize: "9px",
-                color: "#38bdf8",
-                textTransform: "uppercase",
-                letterSpacing: "0.14em",
-                marginBottom: "8px"
-              }}
-            >
-              Pending approval volumes
-            </p>
-
-            <div
-              style={{
-                maxHeight: "220px",
-                overflowY: "auto",
-                border: "1px solid #1e1c18"
-              }}
-            >
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse"
-                }}
-              >
-                <thead>
-                  <tr>
-                    {[
-                      "Counterparty",
-                      "Month",
-                      "Volume",
-                      "Priced",
-                      "Status"
-                    ].map(header => (
-                      <TH key={header}>{header}</TH>
-                    ))}
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {data.pendingApprovalRows.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        style={{
-                          ...S,
-                          padding: "10px 14px",
-                          color: "#4a6080"
-                        }}
-                      >
-                        No pending approval.
-                      </td>
-                    </tr>
-                  ) : (
-                    data.pendingApprovalRows.map(row => (
-                      <tr
-                        key={row.id}
-                        style={{
-                          borderBottom: "1px solid #1a1815"
-                        }}
-                      >
-                        <td
-                          style={{
-                            ...S,
-                            padding: "9px 14px",
-                            color: "#e2e8f0"
-                          }}
-                        >
-                          {row.vendor}
-                        </td>
-
-                        <td
-                          style={{
-                            ...S,
-                            padding: "9px 14px",
-                            color: "#4a6080"
-                          }}
-                        >
-                          {row.month ? ML(row.month) : "—"}
-                        </td>
-
-                        <td
-                          style={{
-                            ...S,
-                            padding: "9px 14px",
-                            color: "#e2e8f0"
-                          }}
-                        >
-                          {N(row.volume, 2)} GWhc
-                        </td>
-
-                        <td style={{ padding: "9px 14px" }}>
-                          <Badge
-                            color={
-                              row.priced === true
-                                ? "green"
-                                : "gray"
-                            }
-                          >
-                            {row.priced === true
-                              ? "Priced"
-                              : "Unpriced"}
-                          </Badge>
-                        </td>
-
-                        <td style={{ padding: "9px 14px" }}>
-                          <Badge color="amber">
-                            {String(row.approval ?? "").trim() === "No"
-                              ? "Approval No"
-                              : row.status}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Existing paid performance risk */}
-          <div
-            style={{
-              background: "#111827",
-              border: "1px solid #252219",
-              borderRadius: "2px",
-              padding: "18px"
-            }}
-          >
-            <SectionTitle>Performance Risk</SectionTitle>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(3,1fr)",
-                gap: "10px",
-                marginBottom: "16px"
-              }}
-            >
-              <KPI
-                label="Paid credited not validated"
-                value={`${N(data.paidCreditedNotValidatedPct, 1)}%`}
-                color={
-                  data.paidCreditedNotValidatedPct > 0
-                    ? "amber"
-                    : "emerald"
-                }
-                sub="Of paid volume"
-              />
-
-              <KPI
-                label="Paid not credited"
-                value={`${N(data.paidNotCreditedPct, 1)}%`}
-                color={
-                  data.paidNotCreditedPct > 0
-                    ? "rose"
-                    : "emerald"
-                }
-                sub="Of paid volume"
-              />
-
-              <KPI
-                label="Financial exposure"
-                value={fM(data.paidNotCreditedExposure)}
-                color={
-                  data.paidNotCreditedExposure > 0
-                    ? "rose"
-                    : data.paidNotCreditedExposure < 0
-                      ? "emerald"
-                      : "gray"
-                }
-                sub="Paid but not credited"
-              />
-            </div>
-
-            {data.counterpartyRiskData.length === 0 ? (
-              <div
+              <p
                 style={{
                   ...S,
-                  height: "220px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#4a6080"
+                  fontSize: "11px",
+                  color: THEME.textMuted,
+                  lineHeight: 1.55,
+                  marginTop: "-6px"
                 }}
               >
-                No current performance risk.
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart
-                  data={data.counterpartyRiskData}
-                  layout="vertical"
-                  barSize={14}
-                >
-                  <CartesianGrid
-                    strokeDasharray="2 4"
-                    stroke="#1e2d45"
-                    horizontal={false}
-                  />
-
-                  <XAxis
-                    type="number"
-                    tick={{
-                      ...S,
-                      fontSize: 9,
-                      fill: "#3a5070"
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-
-                  <YAxis
-                    type="category"
-                    dataKey="vendor"
-                    tick={{
-                      ...S,
-                      fontSize: 9,
-                      fill: "#4a6080"
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={170}
-                  />
-
-                  <Tooltip content={<ChartTip />} />
-
-                  <ReferenceLine
-                    x={0}
-                    stroke="#1e2d45"
-                  />
-
-                  <Bar
-                    dataKey="exposure"
-                    name="Current performance risk (€)"
-                    radius={[0, 1, 1, 0]}
-                  >
-                    {data.counterpartyRiskData.map(entry => (
-                      <Cell
-                        key={`risk-cell-${entry.vendor}`}
-                        fill={riskColor(entry.exposure)}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* ======================================================
-            RATING + EXISTING PERFORMANCE RISK TABLE
-        ====================================================== */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "16px"
-          }}
-        >
-          <div
-            style={{
-              background: "#111827",
-              border: "1px solid #252219",
-              borderRadius: "2px",
-              padding: "18px"
-            }}
-          >
-            <SectionTitle>
-              Volumes by Counterparty Rating
-            </SectionTitle>
-
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart
-                data={data.ratingData}
-                barSize={24}
-              >
-                <CartesianGrid
-                  strokeDasharray="2 4"
-                  stroke="#1e2d45"
-                  vertical={false}
-                />
-
-                <XAxis
-                  dataKey="rating"
-                  tick={{
-                    ...S,
-                    fontSize: 9,
-                    fill: "#3a5070"
-                  }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-
-                <YAxis
-                  tick={{
-                    ...S,
-                    fontSize: 9,
-                    fill: "#3a5070"
-                  }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={50}
-                />
-
-                <Tooltip content={<ChartTip />} />
-
-                <Bar
-                  dataKey="volume"
-                  name="Volume (GWhc)"
-                  fill="#38bdf8"
-                  radius={[1, 1, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div
-            style={{
-              background: "#111827",
-              border: "1px solid #252219",
-              borderRadius: "2px",
-              padding: "18px"
-            }}
-          >
-            <SectionTitle>
-              Performance Risk by Counterparty
-            </SectionTitle>
-
-            <div
-              style={{
-                maxHeight: "240px",
-                overflowY: "auto",
-                border: "1px solid #1e1c18"
-              }}
-            >
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse"
-                }}
-              >
-                <thead>
-                  <tr>
-                    {[
-                      "Counterparty",
-                      "Rating",
-                      "Paid not credited",
-                      "Credited not validated",
-                      "Exposure"
-                    ].map(header => (
-                      <TH key={header}>{header}</TH>
-                    ))}
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {data.counterpartyRiskData.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        style={{
-                          ...S,
-                          padding: "10px 14px",
-                          color: "#4a6080"
-                        }}
-                      >
-                        No current performance risk.
-                      </td>
-                    </tr>
-                  ) : (
-                    data.counterpartyRiskData.map(row => (
-                      <tr
-                        key={row.vendor}
-                        style={{
-                          borderBottom: "1px solid #1a1815"
-                        }}
-                      >
-                        <td
-                          style={{
-                            ...S,
-                            padding: "9px 14px",
-                            color: "#e2e8f0"
-                          }}
-                        >
-                          {row.vendor}
-                        </td>
-
-                        <td style={{ padding: "9px 14px" }}>
-                          <Badge
-                            color={
-                              row.rating === "AAA"
-                                ? "green"
-                                : row.rating === "N/A"
-                                  ? "gray"
-                                  : "amber"
-                            }
-                          >
-                            {row.rating}
-                          </Badge>
-                        </td>
-
-                        <td
-                          style={{
-                            ...S,
-                            padding: "9px 14px",
-                            color: "#f87171"
-                          }}
-                        >
-                          {N(row.paidNotCreditedVolume, 2)} GWhc
-                        </td>
-
-                        <td
-                          style={{
-                            ...S,
-                            padding: "9px 14px",
-                            color: "#d4a843"
-                          }}
-                        >
-                          {N(row.creditedNotValidatedVolume, 2)} GWhc
-                        </td>
-
-                        <td
-                          style={{
-                            ...S,
-                            padding: "9px 14px",
-                            color: riskColor(row.exposure),
-                            fontWeight: 700
-                          }}
-                        >
-                          {fM(row.exposure)}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                Priced P6 trades not validated on EMMY.
+                Total risk equals paid risk plus unpaid risk.
+              </p>
             </div>
-          </div>
-        </div>
 
-        {/* ======================================================
-            NEW: UNPAID & NOT VALIDATED PERFORMANCE RISK
-        ====================================================== */}
-        <div
-          style={{
-            background: "#111827",
-            border: "1px solid #252219",
-            borderRadius: "2px",
-            padding: "18px"
-          }}
-        >
-          <SectionTitle>
-            Unpaid & Not Validated Performance Risk
-          </SectionTitle>
+            <Badge
+              color={
+                data.totalNotValidatedExposure > 0
+                  ? "red"
+                  : data.totalNotValidatedExposure < 0
+                    ? "green"
+                    : "gray"
+              }
+            >
+              Paid + unpaid
+            </Badge>
+          </div>
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(3,1fr)",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(200px, 1fr))",
               gap: "10px",
               marginBottom: "18px"
             }}
           >
             <KPI
-              label="Unpaid & not validated"
-              value={`${N(data.unpaidNotValidatedPct, 1)}%`}
+              large
+              label="Total unvalidated risk"
+              value={fM(
+                data.totalNotValidatedExposure
+              )}
               color={
-                data.unpaidNotValidatedPct > 0
+                data.totalNotValidatedExposure > 0
                   ? "rose"
-                  : "emerald"
+                  : data.totalNotValidatedExposure < 0
+                    ? "emerald"
+                    : "gray"
               }
-              sub="Of purchased volume"
+              sub="Paid + unpaid exposure"
             />
 
             <KPI
-              label="Volume concerned"
-              value={`${N(data.unpaidNotValidatedVolume, 2)} GWhc`}
+              label="Paid & not validated"
+              value={fM(
+                data.paidNotValidatedExposure
+              )}
               color={
-                data.unpaidNotValidatedVolume > 0
-                  ? "amber"
-                  : "emerald"
+                data.paidNotValidatedExposure > 0
+                  ? "rose"
+                  : data.paidNotValidatedExposure < 0
+                    ? "emerald"
+                    : "gray"
               }
-              sub="P6 priced trades"
+              sub={`${N(
+                data.paidNotValidatedVolume,
+                2
+              )} GWhc`}
             />
 
             <KPI
-              label="Financial exposure"
-              value={fM(data.unpaidNotValidatedExposure)}
+              label="Unpaid & not validated"
+              value={fM(
+                data.unpaidNotValidatedExposure
+              )}
               color={
                 data.unpaidNotValidatedExposure > 0
                   ? "rose"
@@ -1808,70 +1618,88 @@ function Reporting({
                     ? "emerald"
                     : "gray"
               }
-              sub="Unpaid and not validated"
+              sub={`${N(
+                data.unpaidNotValidatedVolume,
+                2
+              )} GWhc`}
+            />
+
+            <KPI
+              label="Total unvalidated volume"
+              value={`${N(
+                data.totalNotValidatedVolume,
+                2
+              )} GWhc`}
+              color={
+                data.totalNotValidatedVolume > 0
+                  ? "amber"
+                  : "emerald"
+              }
+              sub={`${N(
+                data.totalNotValidatedPct,
+                1
+              )}% of purchased volume`}
             />
           </div>
 
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1.4fr",
+              gridTemplateColumns:
+                "minmax(0, 0.85fr) minmax(0, 1.45fr)",
               gap: "16px",
               alignItems: "start"
             }}
           >
-            {/* New counterparty chart */}
-            <div
-              style={{
-                background: "#0d1526",
-                border: "1px solid #1e2d45",
-                borderRadius: "2px",
-                padding: "14px"
-              }}
-            >
+            {/* Graphique synthétique */}
+            <div style={innerCardStyle}>
               <p
                 style={{
                   ...S,
                   fontSize: "9px",
-                  color: "#38bdf8",
+                  color: THEME.sectionTitle,
                   textTransform: "uppercase",
                   letterSpacing: "0.14em",
-                  marginBottom: "10px"
+                  marginBottom: "12px"
                 }}
               >
-                Exposure by counterparty
+                Total risk by counterparty
               </p>
 
-              {data.unpaidNotValidatedCounterpartyData.length === 0 ? (
+              {data.totalNotValidatedCounterpartyData.length === 0 ? (
                 <div
                   style={{
                     ...S,
-                    minHeight: "220px",
+                    minHeight: "240px",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: "#4a6080"
+                    color: THEME.textMuted,
+                    textAlign: "center"
                   }}
                 >
-                  No unpaid and unvalidated performance risk.
+                  No unvalidated performance risk.
                 </div>
               ) : (
                 <ResponsiveContainer
                   width="100%"
                   height={Math.max(
-                    220,
-                    data.unpaidNotValidatedCounterpartyData.length * 42
+                    240,
+                    data.totalNotValidatedCounterpartyData.length * 38
                   )}
                 >
                   <BarChart
-                    data={data.unpaidNotValidatedCounterpartyData}
+                    data={
+                      data.totalNotValidatedCounterpartyData
+                    }
                     layout="vertical"
                     barSize={14}
                   >
                     <CartesianGrid
-                      strokeDasharray="2 4"
-                      stroke="#1e2d45"
+                      strokeDasharray="3 6"
+                      stroke={THEME.border}
                       horizontal={false}
+                      opacity={0.8}
                     />
 
                     <XAxis
@@ -1879,7 +1707,7 @@ function Reporting({
                       tick={{
                         ...S,
                         fontSize: 9,
-                        fill: "#3a5070"
+                        fill: THEME.textMuted
                       }}
                       axisLine={false}
                       tickLine={false}
@@ -1891,72 +1719,645 @@ function Reporting({
                       tick={{
                         ...S,
                         fontSize: 9,
-                        fill: "#4a6080"
+                        fill: THEME.textSecondary
                       }}
                       axisLine={false}
                       tickLine={false}
-                      width={170}
+                      width={165}
                     />
 
                     <Tooltip content={<ChartTip />} />
 
                     <ReferenceLine
                       x={0}
-                      stroke="#1e2d45"
+                      stroke={THEME.border}
                     />
 
                     <Bar
-                      dataKey="exposure"
-                      name="Unpaid & not validated risk (€)"
-                      radius={[0, 1, 1, 0]}
+                      dataKey="totalExposure"
+                      name="Total unvalidated risk (€)"
+                      radius={[0, 2, 2, 0]}
                     >
-                      {data.unpaidNotValidatedCounterpartyData.map(entry => (
-                        <Cell
-                          key={`unpaid-risk-${entry.vendor}`}
-                          fill={riskColor(entry.exposure)}
-                        />
-                      ))}
+                      {data.totalNotValidatedCounterpartyData.map(
+                        entry => (
+                          <Cell
+                            key={`total-risk-${entry.vendor}`}
+                            fill={riskColor(
+                              entry.totalExposure
+                            )}
+                          />
+                        )
+                      )}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
             </div>
 
-            {/* New detailed trades table */}
+            {/* Tableau consolidé */}
+            <div style={innerCardStyle}>
+              <p
+                style={{
+                  ...S,
+                  fontSize: "9px",
+                  color: THEME.sectionTitle,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.14em",
+                  marginBottom: "12px"
+                }}
+              >
+                Risk reconciliation by counterparty
+              </p>
+
+              <div
+                style={{
+                  maxHeight: "330px",
+                  overflowY: "auto",
+                  overflowX: "auto",
+                  border:
+                    `1px solid ${THEME.borderSoft}`
+                }}
+              >
+                <table
+                  style={{
+                    width: "100%",
+                    minWidth: "980px",
+                    borderCollapse: "collapse"
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      {[
+                        "Counterparty",
+                        "Rating",
+                        "Paid not credited",
+                        "Credited not validated",
+                        "Paid risk",
+                        "Unpaid risk",
+                        "Total risk"
+                      ].map(header => (
+                        <TH key={header}>
+                          {header}
+                        </TH>
+                      ))}
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {data.totalNotValidatedCounterpartyData.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={7}
+                          style={{
+                            ...S,
+                            padding: "18px 14px",
+                            color: THEME.textMuted,
+                            textAlign: "center"
+                          }}
+                        >
+                          No unvalidated performance risk.
+                        </td>
+                      </tr>
+                    ) : (
+                      data.totalNotValidatedCounterpartyData.map(
+                        row => (
+                          <tr
+                            key={row.vendor}
+                            style={{
+                              borderBottom:
+                                `1px solid ${THEME.borderSoft}`
+                            }}
+                          >
+                            <td
+                              style={{
+                                ...S,
+                                padding: "10px 14px",
+                                color: THEME.textPrimary
+                              }}
+                            >
+                              {row.vendor}
+                            </td>
+
+                            <td
+                              style={{
+                                padding: "10px 14px"
+                              }}
+                            >
+                              <Badge
+                                color={
+                                  row.rating === "AAA"
+                                    ? "green"
+                                    : row.rating === "N/A"
+                                      ? "gray"
+                                      : "amber"
+                                }
+                              >
+                                {row.rating}
+                              </Badge>
+                            </td>
+
+                            <td
+                              style={{
+                                ...S,
+                                padding: "10px 14px",
+                                color: THEME.red,
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {N(
+                                row.paidNotCreditedVolume,
+                                2
+                              )} GWhc
+                            </td>
+
+                            <td
+                              style={{
+                                ...S,
+                                padding: "10px 14px",
+                                color: THEME.amber,
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {N(
+                                row.creditedNotValidatedVolume,
+                                2
+                              )} GWhc
+                            </td>
+
+                            <td
+                              style={{
+                                ...S,
+                                padding: "10px 14px",
+                                color: riskColor(
+                                  row.paidExposure
+                                ),
+                                fontWeight: 600,
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {fM(
+                                row.paidExposure
+                              )}
+                            </td>
+
+                            <td
+                              style={{
+                                ...S,
+                                padding: "10px 14px",
+                                color: riskColor(
+                                  row.unpaidExposure
+                                ),
+                                fontWeight: 600,
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {fM(
+                                row.unpaidExposure
+                              )}
+                            </td>
+
+                            <td
+                              style={{
+                                ...S,
+                                padding: "10px 14px",
+                                color: riskColor(
+                                  row.totalExposure
+                                ),
+                                fontWeight: 700,
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {fM(
+                                row.totalExposure
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ======================================================
+            3. WORKFLOW OPÉRATIONNEL
+        ====================================================== */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns:
+              "minmax(0, 1fr) minmax(0, 1.15fr)",
+            gap: "16px",
+            alignItems: "stretch"
+          }}
+        >
+          {/* EMMY et paiement */}
+          <div style={cardStyle}>
+            <SectionTitle>
+              EMMY & Settlement Workflow
+            </SectionTitle>
+
             <div
               style={{
-                background: "#0d1526",
-                border: "1px solid #1e2d45",
-                borderRadius: "2px",
-                padding: "14px"
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(3, minmax(0, 1fr))",
+                gap: "10px",
+                marginBottom: "16px"
+              }}
+            >
+              <KPI
+                label="Credited on EMMY"
+                value={`${N(
+                  data.creditedPct,
+                  1
+                )}%`}
+                color={percentageColor(
+                  data.creditedPct
+                )}
+              />
+
+              <KPI
+                label="Validated on EMMY"
+                value={`${N(
+                  data.validatedPct,
+                  1
+                )}%`}
+                color={percentageColor(
+                  data.validatedPct
+                )}
+              />
+
+              <KPI
+                label="Credited & validated"
+                value={`${N(
+                  data.creditedAndValidatedPct,
+                  1
+                )}%`}
+                color={percentageColor(
+                  data.creditedAndValidatedPct
+                )}
+              />
+            </div>
+
+            <div
+              style={{
+                borderTop:
+                  `1px solid ${THEME.borderSoft}`,
+                paddingTop: "14px"
               }}
             >
               <p
                 style={{
                   ...S,
                   fontSize: "9px",
-                  color: "#38bdf8",
+                  color: THEME.sectionTitle,
                   textTransform: "uppercase",
                   letterSpacing: "0.14em",
                   marginBottom: "10px"
                 }}
               >
-                Unpaid & not validated trades
+                Paid-flow exceptions
               </p>
 
               <div
                 style={{
-                  maxHeight: "320px",
+                  display: "grid",
+                  gridTemplateColumns:
+                    "repeat(2, minmax(0, 1fr))",
+                  gap: "10px"
+                }}
+              >
+                <KPI
+                  label="Paid, credited, not validated"
+                  value={`${N(
+                    data.paidCreditedNotValidatedPct,
+                    1
+                  )}%`}
+                  color={
+                    data.paidCreditedNotValidatedPct > 0
+                      ? "amber"
+                      : "emerald"
+                  }
+                  sub="Of paid volume"
+                />
+
+                <KPI
+                  label="Paid, not credited"
+                  value={`${N(
+                    data.paidNotCreditedPct,
+                    1
+                  )}%`}
+                  color={
+                    data.paidNotCreditedPct > 0
+                      ? "rose"
+                      : "emerald"
+                  }
+                  sub={`${N(
+                    data.paidNotCreditedVolume,
+                    2
+                  )} GWhc`}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Approbations en attente */}
+          <div style={cardStyle}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "12px",
+                marginBottom: "12px"
+              }}
+            >
+              <SectionTitle>
+                Pending Internal Approvals
+              </SectionTitle>
+
+              <Badge
+                color={
+                  data.pendingApprovalRows.length > 0
+                    ? "amber"
+                    : "green"
+                }
+              >
+                {data.pendingApprovalRows.length}
+              </Badge>
+            </div>
+
+            <div
+              style={{
+                maxHeight: "280px",
+                overflowY: "auto",
+                overflowX: "auto",
+                border:
+                  `1px solid ${THEME.borderSoft}`
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  minWidth: "620px",
+                  borderCollapse: "collapse"
+                }}
+              >
+                <thead>
+                  <tr>
+                    {[
+                      "Counterparty",
+                      "Month",
+                      "Volume",
+                      "Pricing",
+                      "Status"
+                    ].map(header => (
+                      <TH key={header}>
+                        {header}
+                      </TH>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {data.pendingApprovalRows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        style={{
+                          ...S,
+                          padding: "18px 14px",
+                          color: THEME.textMuted,
+                          textAlign: "center"
+                        }}
+                      >
+                        No pending internal approval.
+                      </td>
+                    </tr>
+                  ) : (
+                    data.pendingApprovalRows.map(
+                      row => (
+                        <tr
+                          key={row.id}
+                          style={{
+                            borderBottom:
+                              `1px solid ${THEME.borderSoft}`
+                          }}
+                        >
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color: THEME.textPrimary
+                            }}
+                          >
+                            {row.vendor}
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color: THEME.textMuted,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {row.month
+                              ? ML(row.month)
+                              : "—"}
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color: THEME.textSecondary,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {N(
+                              row.volume,
+                              2
+                            )} GWhc
+                          </td>
+
+                          <td
+                            style={{
+                              padding: "10px 14px"
+                            }}
+                          >
+                            <Badge
+                              color={
+                                row.priced === true
+                                  ? "green"
+                                  : "gray"
+                              }
+                            >
+                              {row.priced === true
+                                ? "Priced"
+                                : "Unpriced"}
+                            </Badge>
+                          </td>
+
+                          <td
+                            style={{
+                              padding: "10px 14px"
+                            }}
+                          >
+                            <Badge color="amber">
+                              {String(
+                                row.approval ?? ""
+                              ).trim() === "No"
+                                ? "Approval No"
+                                : row.status || "Pending"}
+                            </Badge>
+                          </td>
+                        </tr>
+                      )
+                    )
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* ======================================================
+            4. ANALYSES SECONDAIRES REPLIABLES
+        ====================================================== */}
+        <details
+          style={{
+            background: THEME.panel,
+            border:
+              `1px solid ${THEME.borderSoft}`,
+            borderRadius: "3px",
+            overflow: "hidden"
+          }}
+        >
+          <summary
+            style={{
+              ...S,
+              padding: "15px 18px",
+              color: THEME.textSecondary,
+              fontSize: "10px",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.12em",
+              cursor: "pointer",
+              userSelect: "none",
+              background: THEME.panelAlt
+            }}
+          >
+            Supporting analysis — rating and detailed
+            unvalidated trades
+          </summary>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "minmax(0, 0.75fr) minmax(0, 1.5fr)",
+              gap: "16px",
+              padding: "18px"
+            }}
+          >
+            {/* Rating */}
+            <div style={innerCardStyle}>
+              <p
+                style={{
+                  ...S,
+                  fontSize: "9px",
+                  color: THEME.sectionTitle,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.14em",
+                  marginBottom: "10px"
+                }}
+              >
+                Purchased volume by rating
+              </p>
+
+              <ResponsiveContainer
+                width="100%"
+                height={250}
+              >
+                <BarChart
+                  data={data.ratingData}
+                  barSize={28}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 6"
+                    stroke={THEME.border}
+                    vertical={false}
+                    opacity={0.8}
+                  />
+
+                  <XAxis
+                    dataKey="rating"
+                    tick={{
+                      ...S,
+                      fontSize: 10,
+                      fill: THEME.textSecondary
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+
+                  <YAxis
+                    tick={{
+                      ...S,
+                      fontSize: 9,
+                      fill: THEME.textMuted
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={50}
+                  />
+
+                  <Tooltip content={<ChartTip />} />
+
+                  <Bar
+                    dataKey="volume"
+                    name="Volume (GWhc)"
+                    fill={THEME.sky}
+                    radius={[2, 2, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Détail de tous les trades non validés */}
+            <div style={innerCardStyle}>
+              <p
+                style={{
+                  ...S,
+                  fontSize: "9px",
+                  color: THEME.sectionTitle,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.14em",
+                  marginBottom: "10px"
+                }}
+              >
+                Detailed unvalidated trades
+              </p>
+
+              <div
+                style={{
+                  maxHeight: "340px",
                   overflowY: "auto",
                   overflowX: "auto",
-                  border: "1px solid #1e1c18"
+                  border:
+                    `1px solid ${THEME.borderSoft}`
                 }}
               >
                 <table
                   style={{
                     width: "100%",
-                    borderCollapse: "collapse",
-                    minWidth: "820px"
+                    minWidth: "850px",
+                    borderCollapse: "collapse"
                   }}
                 >
                   <thead>
@@ -1968,125 +2369,150 @@ function Reporting({
                         "Volume",
                         "Price",
                         "Payment",
-                        "Validation",
                         "Exposure"
                       ].map(header => (
-                        <TH key={header}>{header}</TH>
+                        <TH key={header}>
+                          {header}
+                        </TH>
                       ))}
                     </tr>
                   </thead>
 
                   <tbody>
-                    {data.unpaidNotValidatedRows.length === 0 ? (
+                    {data.totalNotValidatedRows.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={8}
+                          colSpan={7}
                           style={{
                             ...S,
-                            padding: "12px 14px",
-                            color: "#4a6080"
+                            padding: "18px 14px",
+                            color: THEME.textMuted,
+                            textAlign: "center"
                           }}
                         >
-                          No unpaid and unvalidated trade.
+                          No unvalidated trade.
                         </td>
                       </tr>
                     ) : (
-                      data.unpaidNotValidatedRows.map(row => (
-                        <tr
-                          key={row.id}
-                          style={{
-                            borderBottom: "1px solid #1a1815"
-                          }}
-                        >
-                          <td
+                      data.totalNotValidatedRows.map(
+                        row => (
+                          <tr
+                            key={row.id}
                             style={{
-                              ...S,
-                              padding: "9px 14px",
-                              color: "#e2e8f0"
+                              borderBottom:
+                                `1px solid ${THEME.borderSoft}`
                             }}
                           >
-                            {row.vendor}
-                          </td>
-
-                          <td style={{ padding: "9px 14px" }}>
-                            <Badge
-                              color={
-                                row.rating === "AAA"
-                                  ? "green"
-                                  : row.rating === "N/A"
-                                    ? "gray"
-                                    : "amber"
-                              }
+                            <td
+                              style={{
+                                ...S,
+                                padding: "10px 14px",
+                                color: THEME.textPrimary
+                              }}
                             >
-                              {row.rating}
-                            </Badge>
-                          </td>
+                              {row.vendor}
+                            </td>
 
-                          <td
-                            style={{
-                              ...S,
-                              padding: "9px 14px",
-                              color: "#4a6080",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {row.month ? ML(row.month) : "—"}
-                          </td>
+                            <td
+                              style={{
+                                padding: "10px 14px"
+                              }}
+                            >
+                              <Badge
+                                color={
+                                  row.rating === "AAA"
+                                    ? "green"
+                                    : row.rating === "N/A"
+                                      ? "gray"
+                                      : "amber"
+                                }
+                              >
+                                {row.rating}
+                              </Badge>
+                            </td>
 
-                          <td
-                            style={{
-                              ...S,
-                              padding: "9px 14px",
-                              color: "#e2e8f0",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {N(row.volume, 2)} GWhc
-                          </td>
+                            <td
+                              style={{
+                                ...S,
+                                padding: "10px 14px",
+                                color: THEME.textMuted,
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {row.month
+                                ? ML(row.month)
+                                : "—"}
+                            </td>
 
-                          <td
-                            style={{
-                              ...S,
-                              padding: "9px 14px",
-                              color: "#e2e8f0",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {N(row.price, 2)} €/GWhc
-                          </td>
+                            <td
+                              style={{
+                                ...S,
+                                padding: "10px 14px",
+                                color: THEME.textSecondary,
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {N(
+                                row.volume,
+                                2
+                              )} GWhc
+                            </td>
 
-                          <td style={{ padding: "9px 14px" }}>
-                            <Badge color="red">
-                              Unpaid
-                            </Badge>
-                          </td>
+                            <td
+                              style={{
+                                ...S,
+                                padding: "10px 14px",
+                                color: THEME.textSecondary,
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {N(
+                                row.price,
+                                2
+                              )} €/GWhc
+                            </td>
 
-                          <td style={{ padding: "9px 14px" }}>
-                            <Badge color="amber">
-                              Not validated
-                            </Badge>
-                          </td>
+                            <td
+                              style={{
+                                padding: "10px 14px"
+                              }}
+                            >
+                              <Badge
+                                color={
+                                  row.payment
+                                    ? "green"
+                                    : "red"
+                                }
+                              >
+                                {row.payment
+                                  ? "Paid"
+                                  : "Unpaid"}
+                              </Badge>
+                            </td>
 
-                          <td
-                            style={{
-                              ...S,
-                              padding: "9px 14px",
-                              color: riskColor(row.exposure),
-                              fontWeight: 700,
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {fM(row.exposure)}
-                          </td>
-                        </tr>
-                      ))
+                            <td
+                              style={{
+                                ...S,
+                                padding: "10px 14px",
+                                color: riskColor(
+                                  row.exposure
+                                ),
+                                fontWeight: 700,
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {fM(row.exposure)}
+                            </td>
+                          </tr>
+                        )
+                      )
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
-        </div>
+        </details>
       </div>
     );
   };
