@@ -892,8 +892,9 @@ function Reporting({
   const covPct = totalOblP > 0 ? Math.min(totalBoughtP / totalOblP * 100, 100) : 0;
 
   // Regulatory & performance risk datasets
+  // Scope: all P6 trades, with a Priced / Unpriced breakdown.
   const regulatoryBaseTrades = useMemo(
-    () => trades2026.filter(t => t.priced === true),
+    () => trades2026,
     [trades2026]
   );
 
@@ -903,14 +904,18 @@ function Reporting({
   );
 
   const buildRegulatoryMetrics = (ceeType) => {
-    // Scope inchangé :
-    // - trades P6 via trades2026 ;
-    // - trades pricés uniquement pour les indicateurs de risque.
     const rows = regulatoryBaseTrades.filter(
       trade => trade.ceeType === ceeType
     );
 
-    // Le suivi des approbations conserve les trades pricés et non pricés.
+    const pricedRows = rows.filter(
+      trade => trade.priced === true
+    );
+
+    const unpricedRows = rows.filter(
+      trade => trade.priced !== true
+    );
+
     const approvalRows = regulatoryApprovalTrades.filter(
       trade => trade.ceeType === ceeType
     );
@@ -949,109 +954,173 @@ function Reporting({
       return Math.max(0, remainingRaw);
     };
 
-    const totalPurchased = rows.reduce(
-      (sum, trade) =>
-        sum + Number(trade.volume || 0),
-      0
-    );
+    const calculateScopeMetrics = scopeRows => {
+      const totalPurchased = scopeRows.reduce(
+        (sum, trade) =>
+          sum + Number(trade.volume || 0),
+        0
+      );
 
-    const volume = predicate =>
-      rows
-        .filter(predicate)
-        .reduce(
-          (sum, trade) =>
-            sum + Number(trade.volume || 0),
+      const volume = predicate =>
+        scopeRows
+          .filter(predicate)
+          .reduce(
+            (sum, trade) =>
+              sum + Number(trade.volume || 0),
+            0
+          );
+
+      const creditedVolume = scopeRows.reduce(
+        (sum, trade) =>
+          sum + creditedOf(trade),
+        0
+      );
+
+      const validatedVolume = volume(
+        trade => trade.validated === true
+      );
+
+      const creditedAndValidatedVolume =
+        scopeRows.reduce(
+          (sum, trade) => {
+            if (trade.validated !== true) {
+              return sum;
+            }
+
+            return sum + creditedOf(trade);
+          },
           0
         );
 
-    const creditedVolume = rows.reduce(
-      (sum, trade) =>
-        sum + creditedOf(trade),
-      0
-    );
+      const paidVolume = volume(
+        trade => trade.payment === true
+      );
 
-    const validatedVolume = volume(
-      trade => trade.validated === true
-    );
+      const paidCreditedNotValidatedVolume =
+        scopeRows.reduce(
+          (sum, trade) => {
+            if (
+              trade.payment !== true ||
+              trade.validated === true
+            ) {
+              return sum;
+            }
 
-    const creditedAndValidatedVolume = rows.reduce(
-      (sum, trade) => {
-        if (trade.validated !== true) {
-          return sum;
-        }
+            return sum + creditedOf(trade);
+          },
+          0
+        );
 
-        return sum + creditedOf(trade);
-      },
-      0
-    );
+      const paidNotCreditedVolume =
+        scopeRows.reduce(
+          (sum, trade) => {
+            if (trade.payment !== true) {
+              return sum;
+            }
 
-    const paidVolume = volume(
-      trade => trade.payment === true
-    );
+            return sum + remainingToCreditOf(trade);
+          },
+          0
+        );
 
-    const paidCreditedNotValidatedVolume = rows.reduce(
-      (sum, trade) => {
-        if (
-          trade.payment !== true ||
-          trade.validated === true
-        ) {
-          return sum;
-        }
+      const pct = (
+        numerator,
+        denominator = totalPurchased
+      ) =>
+        denominator > 0
+          ? numerator / denominator * 100
+          : 0;
 
-        return sum + creditedOf(trade);
-      },
-      0
-    );
+      return {
+        totalPurchased,
 
-    const paidNotCreditedVolume = rows.reduce(
-      (sum, trade) => {
-        if (trade.payment !== true) {
-          return sum;
-        }
+        approvedPct: pct(
+          volume(
+            trade =>
+              isInternallyApproved(trade)
+          )
+        ),
 
-        return sum + remainingToCreditOf(trade);
-      },
-      0
-    );
+        signedContractPct: pct(
+          volume(
+            trade =>
+              trade.contractSigned === true
+          )
+        ),
+
+        paidPct: pct(paidVolume),
+
+        creditedPct: pct(creditedVolume),
+
+        validatedPct: pct(validatedVolume),
+
+        creditedAndValidatedPct: pct(
+          creditedAndValidatedVolume
+        ),
+
+        paidCreditedNotValidatedPct: pct(
+          paidCreditedNotValidatedVolume,
+          paidVolume
+        ),
+
+        paidNotCreditedPct: pct(
+          paidNotCreditedVolume,
+          paidVolume
+        ),
+
+        paidVolume,
+        paidNotCreditedVolume
+      };
+    };
+
+    const totalMetrics =
+      calculateScopeMetrics(rows);
+
+    const pricedMetrics =
+      calculateScopeMetrics(pricedRows);
+
+    const unpricedMetrics =
+      calculateScopeMetrics(unpricedRows);
 
     // ========================================================================
-    // RISQUE DE PERFORMANCE CONSOLIDÉ
-    //
-    // Total des CEE non validés =
-    // CEE payés et non validés
-    // + CEE non payés et non validés.
-    //
-    // Le montant riskPerformanceMt reste directement issu de l'Excel.
+    // PERFORMANCE RISK
+    // All P6 trades, whether priced or unpriced.
     // ========================================================================
 
     const totalNotValidatedRows = rows
-      .filter(trade => trade.validated !== true)
+      .filter(
+        trade =>
+          trade.validated !== true
+      )
       .map(trade => ({
         id: trade.id,
-        vendor: trade.vendor || "Unknown",
-        rating: trade.cpRanking || "N/A",
-        month: trade.month,
-        volume: Number(trade.volume || 0),
-        price: Number(trade.price || 0),
-        payment: trade.payment === true,
-        creditedVolume: creditedOf(trade),
-        remainingToCreditVolume: remainingToCreditOf(trade),
-        exposure: Number(trade.riskPerformanceMt || 0)
+        vendor:
+          trade.vendor || "Unknown",
+        rating:
+          trade.cpRanking || "N/A",
+        month:
+          trade.month,
+        volume:
+          Number(trade.volume || 0),
+        price:
+          Number(trade.price || 0),
+        payment:
+          trade.payment === true,
+        priced:
+          trade.priced === true,
+        creditedVolume:
+          creditedOf(trade),
+        remainingToCreditVolume:
+          remainingToCreditOf(trade),
+        exposure:
+          Number(
+            trade.riskPerformanceMt || 0
+          )
       }))
       .sort(
         (a, b) =>
           Math.abs(b.exposure) -
           Math.abs(a.exposure)
-      );
-
-    const paidNotValidatedRows =
-      totalNotValidatedRows.filter(
-        trade => trade.payment === true
-      );
-
-    const unpaidNotValidatedRows =
-      totalNotValidatedRows.filter(
-        trade => trade.payment !== true
       );
 
     const aggregateRiskRows = riskRows =>
@@ -1071,24 +1140,75 @@ function Reporting({
         }
       );
 
+    const totalNotValidated =
+      aggregateRiskRows(
+        totalNotValidatedRows
+      );
+
+    const totalNotValidatedPriced =
+      aggregateRiskRows(
+        totalNotValidatedRows.filter(
+          trade => trade.priced === true
+        )
+      );
+
+    const totalNotValidatedUnpriced =
+      aggregateRiskRows(
+        totalNotValidatedRows.filter(
+          trade => trade.priced !== true
+        )
+      );
+
+    const paidNotValidatedRows =
+      totalNotValidatedRows.filter(
+        trade => trade.payment === true
+      );
+
+    const unpaidNotValidatedRows =
+      totalNotValidatedRows.filter(
+        trade => trade.payment !== true
+      );
+
     const paidNotValidated =
-      aggregateRiskRows(paidNotValidatedRows);
+      aggregateRiskRows(
+        paidNotValidatedRows
+      );
+
+    const paidNotValidatedPriced =
+      aggregateRiskRows(
+        paidNotValidatedRows.filter(
+          trade => trade.priced === true
+        )
+      );
+
+    const paidNotValidatedUnpriced =
+      aggregateRiskRows(
+        paidNotValidatedRows.filter(
+          trade => trade.priced !== true
+        )
+      );
 
     const unpaidNotValidated =
-      aggregateRiskRows(unpaidNotValidatedRows);
+      aggregateRiskRows(
+        unpaidNotValidatedRows
+      );
 
-    const totalNotValidated =
-      aggregateRiskRows(totalNotValidatedRows);
+    const unpaidNotValidatedPriced =
+      aggregateRiskRows(
+        unpaidNotValidatedRows.filter(
+          trade => trade.priced === true
+        )
+      );
+
+    const unpaidNotValidatedUnpriced =
+      aggregateRiskRows(
+        unpaidNotValidatedRows.filter(
+          trade => trade.priced !== true
+        )
+      );
 
     // ========================================================================
-    // VUE CONSOLIDÉE PAR CONTREPARTIE
-    //
-    // Elle rassemble :
-    // - les volumes payés mais non crédités ;
-    // - les volumes crédités mais non validés ;
-    // - le risque payé et non validé ;
-    // - le risque non payé et non validé ;
-    // - le risque total non validé.
+    // PERFORMANCE RISK BY COUNTERPARTY
     // ========================================================================
 
     const counterpartyMap = {};
@@ -1100,12 +1220,6 @@ function Reporting({
       const rating =
         trade.cpRanking || "N/A";
 
-      const tradeVolume =
-        Number(trade.volume || 0);
-
-      const exposure =
-        Number(trade.riskPerformanceMt || 0);
-
       if (!counterpartyMap[vendor]) {
         counterpartyMap[vendor] = {
           vendor,
@@ -1114,13 +1228,14 @@ function Reporting({
           paidNotCreditedVolume: 0,
           creditedNotValidatedVolume: 0,
 
-          paidVolume: 0,
-          unpaidVolume: 0,
-          totalVolume: 0,
-
           paidExposure: 0,
           unpaidExposure: 0,
-          totalExposure: 0
+
+          pricedExposure: 0,
+          unpricedExposure: 0,
+
+          totalExposure: 0,
+          totalVolume: 0
         };
       }
 
@@ -1141,45 +1256,30 @@ function Reporting({
       }
 
       if (trade.validated !== true) {
-        row.totalVolume += tradeVolume;
+        const exposure =
+          Number(
+            trade.riskPerformanceMt || 0
+          );
+
+        const tradeVolume =
+          Number(trade.volume || 0);
+
         row.totalExposure += exposure;
+        row.totalVolume += tradeVolume;
 
         if (trade.payment === true) {
-          row.paidVolume += tradeVolume;
           row.paidExposure += exposure;
         } else {
-          row.unpaidVolume += tradeVolume;
           row.unpaidExposure += exposure;
+        }
+
+        if (trade.priced === true) {
+          row.pricedExposure += exposure;
+        } else {
+          row.unpricedExposure += exposure;
         }
       }
     });
-
-    // Ancienne structure conservée pour compatibilité.
-    const counterpartyRiskData =
-      Object.values(counterpartyMap)
-        .filter(row =>
-          Math.abs(row.paidNotCreditedVolume) > 0.001 ||
-          Math.abs(row.creditedNotValidatedVolume) > 0.001 ||
-          Math.abs(row.paidExposure) > 0.001
-        )
-        .map(row => ({
-          vendor: row.vendor,
-          rating: row.rating,
-
-          paidNotCreditedVolume:
-            row.paidNotCreditedVolume,
-
-          creditedNotValidatedVolume:
-            row.creditedNotValidatedVolume,
-
-          exposure:
-            row.paidExposure
-        }))
-        .sort(
-          (a, b) =>
-            Math.abs(b.exposure) -
-            Math.abs(a.exposure)
-        );
 
     const totalNotValidatedCounterpartyData =
       Object.values(counterpartyMap)
@@ -1193,27 +1293,8 @@ function Reporting({
             Math.abs(a.totalExposure)
         );
 
-    // Ancienne structure également conservée.
-    const unpaidNotValidatedCounterpartyData =
-      Object.values(counterpartyMap)
-        .filter(row =>
-          Math.abs(row.unpaidVolume) > 0.001 ||
-          Math.abs(row.unpaidExposure) > 0.001
-        )
-        .map(row => ({
-          vendor: row.vendor,
-          rating: row.rating,
-          volume: row.unpaidVolume,
-          exposure: row.unpaidExposure
-        }))
-        .sort(
-          (a, b) =>
-            Math.abs(b.exposure) -
-            Math.abs(a.exposure)
-        );
-
     // ========================================================================
-    // APPROBATIONS INTERNES
+    // PENDING APPROVALS
     // ========================================================================
 
     const pendingApprovalRows = approvalRows
@@ -1222,7 +1303,8 @@ function Reporting({
           !isInternallyApproved(trade)
       )
       .map(trade => ({
-        id: trade.id,
+        id:
+          trade.id,
         vendor:
           trade.vendor || "Unknown",
         volume:
@@ -1244,7 +1326,7 @@ function Reporting({
       );
 
     // ========================================================================
-    // RÉPARTITION PAR RATING
+    // RATING
     // ========================================================================
 
     const ratingMap = {};
@@ -1260,115 +1342,193 @@ function Reporting({
 
     const ratingData =
       Object.entries(ratingMap)
-        .map(([rating, ratingVolume]) => ({
-          rating,
-          volume:
-            Math.round(ratingVolume)
-        }))
+        .map(
+          ([rating, ratingVolume]) => ({
+            rating,
+            volume:
+              Math.round(ratingVolume)
+          })
+        )
         .sort(
           (a, b) =>
             b.volume - a.volume
         );
 
-    const pct = (
-      numerator,
-      denominator = totalPurchased
-    ) =>
-      denominator > 0
-        ? numerator / denominator * 100
+    const totalPurchased =
+      totalMetrics.totalPurchased;
+
+    const pctOfTotalPurchased = value =>
+      totalPurchased > 0
+        ? value / totalPurchased * 100
         : 0;
 
     return {
       ceeType,
       rows,
-      totalPurchased,
 
-      // Statut général
-      approvedPct: pct(
-        volume(
-          trade =>
-            isInternallyApproved(trade)
-        )
-      ),
+      // Total purchased
+      totalPurchased:
+        totalMetrics.totalPurchased,
 
-      signedContractPct: pct(
-        volume(
-          trade =>
-            trade.contractSigned === true
-        )
-      ),
+      totalPurchasedPriced:
+        pricedMetrics.totalPurchased,
 
+      totalPurchasedUnpriced:
+        unpricedMetrics.totalPurchased,
+
+      // Approved
+      approvedPct:
+        totalMetrics.approvedPct,
+
+      approvedPctPriced:
+        pricedMetrics.approvedPct,
+
+      approvedPctUnpriced:
+        unpricedMetrics.approvedPct,
+
+      // Contracts
+      signedContractPct:
+        totalMetrics.signedContractPct,
+
+      signedContractPctPriced:
+        pricedMetrics.signedContractPct,
+
+      signedContractPctUnpriced:
+        unpricedMetrics.signedContractPct,
+
+      // Paid
       paidPct:
-        pct(paidVolume),
+        totalMetrics.paidPct,
+
+      paidPctPriced:
+        pricedMetrics.paidPct,
+
+      paidPctUnpriced:
+        unpricedMetrics.paidPct,
 
       // EMMY
       creditedPct:
-        pct(creditedVolume),
+        totalMetrics.creditedPct,
+
+      creditedPctPriced:
+        pricedMetrics.creditedPct,
+
+      creditedPctUnpriced:
+        unpricedMetrics.creditedPct,
 
       validatedPct:
-        pct(validatedVolume),
+        totalMetrics.validatedPct,
+
+      validatedPctPriced:
+        pricedMetrics.validatedPct,
+
+      validatedPctUnpriced:
+        unpricedMetrics.validatedPct,
 
       creditedAndValidatedPct:
-        pct(creditedAndValidatedVolume),
+        totalMetrics.creditedAndValidatedPct,
 
-      // Exceptions sur les volumes payés
+      creditedAndValidatedPctPriced:
+        pricedMetrics.creditedAndValidatedPct,
+
+      creditedAndValidatedPctUnpriced:
+        unpricedMetrics.creditedAndValidatedPct,
+
+      // Paid-flow exceptions
       paidCreditedNotValidatedPct:
-        pct(
-          paidCreditedNotValidatedVolume,
-          paidVolume
-        ),
+        totalMetrics.paidCreditedNotValidatedPct,
+
+      paidCreditedNotValidatedPctPriced:
+        pricedMetrics.paidCreditedNotValidatedPct,
+
+      paidCreditedNotValidatedPctUnpriced:
+        unpricedMetrics.paidCreditedNotValidatedPct,
 
       paidNotCreditedPct:
-        pct(
-          paidNotCreditedVolume,
-          paidVolume
-        ),
+        totalMetrics.paidNotCreditedPct,
 
-      paidNotCreditedVolume,
+      paidNotCreditedPctPriced:
+        pricedMetrics.paidNotCreditedPct,
 
-      // Ancien nom conservé pour éviter toute rupture.
-      paidNotCreditedExposure:
-        paidNotValidated.exposure,
+      paidNotCreditedPctUnpriced:
+        unpricedMetrics.paidNotCreditedPct,
 
-      // Risque payé et non validé
-      paidNotValidatedVolume:
-        paidNotValidated.volume,
+      paidNotCreditedVolume:
+        totalMetrics.paidNotCreditedVolume,
 
-      paidNotValidatedExposure:
-        paidNotValidated.exposure,
+      paidNotCreditedVolumePriced:
+        pricedMetrics.paidNotCreditedVolume,
 
-      paidNotValidatedRows,
+      paidNotCreditedVolumeUnpriced:
+        unpricedMetrics.paidNotCreditedVolume,
 
-      // Risque non payé et non validé
-      unpaidNotValidatedPct:
-        pct(unpaidNotValidated.volume),
+      // Total unvalidated risk
+      totalNotValidatedExposure:
+        totalNotValidated.exposure,
 
-      unpaidNotValidatedVolume:
-        unpaidNotValidated.volume,
+      totalNotValidatedExposurePriced:
+        totalNotValidatedPriced.exposure,
 
-      unpaidNotValidatedExposure:
-        unpaidNotValidated.exposure,
-
-      unpaidNotValidatedRows,
-      unpaidNotValidatedCounterpartyData,
-
-      // Total demandé par Maxime
-      totalNotValidatedPct:
-        pct(totalNotValidated.volume),
+      totalNotValidatedExposureUnpriced:
+        totalNotValidatedUnpriced.exposure,
 
       totalNotValidatedVolume:
         totalNotValidated.volume,
 
-      totalNotValidatedExposure:
-        totalNotValidated.exposure,
+      totalNotValidatedVolumePriced:
+        totalNotValidatedPriced.volume,
 
+      totalNotValidatedVolumeUnpriced:
+        totalNotValidatedUnpriced.volume,
+
+      totalNotValidatedPct:
+        pctOfTotalPurchased(
+          totalNotValidated.volume
+        ),
+
+      // Paid risk
+      paidNotValidatedExposure:
+        paidNotValidated.exposure,
+
+      paidNotValidatedExposurePriced:
+        paidNotValidatedPriced.exposure,
+
+      paidNotValidatedExposureUnpriced:
+        paidNotValidatedUnpriced.exposure,
+
+      paidNotValidatedVolume:
+        paidNotValidated.volume,
+
+      paidNotValidatedVolumePriced:
+        paidNotValidatedPriced.volume,
+
+      paidNotValidatedVolumeUnpriced:
+        paidNotValidatedUnpriced.volume,
+
+      // Unpaid risk
+      unpaidNotValidatedExposure:
+        unpaidNotValidated.exposure,
+
+      unpaidNotValidatedExposurePriced:
+        unpaidNotValidatedPriced.exposure,
+
+      unpaidNotValidatedExposureUnpriced:
+        unpaidNotValidatedUnpriced.exposure,
+
+      unpaidNotValidatedVolume:
+        unpaidNotValidated.volume,
+
+      unpaidNotValidatedVolumePriced:
+        unpaidNotValidatedPriced.volume,
+
+      unpaidNotValidatedVolumeUnpriced:
+        unpaidNotValidatedUnpriced.volume,
+
+      // Detailed data
       totalNotValidatedRows,
       totalNotValidatedCounterpartyData,
-
-      // Contrôles complémentaires
       pendingApprovalRows,
-      ratingData,
-      counterpartyRiskData
+      ratingData
     };
   };
 
@@ -1424,16 +1584,37 @@ function Reporting({
           ? "amber"
           : "rose";
 
+    const pctDetail = (
+      priced,
+      unpriced
+    ) =>
+      `Priced: ${N(priced, 1)}% · Unpriced: ${N(unpriced, 1)}%`;
+
+    const volumeDetail = (
+      priced,
+      unpriced,
+      decimals = 0
+    ) =>
+      `Priced: ${N(priced, decimals)} GWhc · Unpriced: ${N(unpriced, decimals)} GWhc`;
+
+    const exposureDetail = (
+      priced,
+      unpriced
+    ) =>
+      `Priced: ${fM(priced)} · Unpriced: ${fM(unpriced)}`;
+
     const cardStyle = {
       background: THEME.panel,
-      border: `1px solid ${THEME.borderSoft}`,
+      border:
+        `1px solid ${THEME.borderSoft}`,
       borderRadius: "3px",
       padding: "20px 22px"
     };
 
     const innerCardStyle = {
       background: THEME.panelAlt,
-      border: `1px solid ${THEME.borderSoft}`,
+      border:
+        `1px solid ${THEME.borderSoft}`,
       borderRadius: "3px",
       padding: "16px"
     };
@@ -1447,7 +1628,7 @@ function Reporting({
         }}
       >
         {/* ======================================================
-            1. SYNTHÈSE DU PORTEFEUILLE
+            1. PORTFOLIO STATUS
         ====================================================== */}
         <div style={cardStyle}>
           <SectionTitle>
@@ -1469,7 +1650,11 @@ function Reporting({
                 0
               )} GWhc`}
               color="sky"
-              sub="Priced P6 purchases"
+              sub={volumeDetail(
+                data.totalPurchasedPriced,
+                data.totalPurchasedUnpriced,
+                0
+              )}
             />
 
             <KPI
@@ -1481,7 +1666,10 @@ function Reporting({
               color={percentageColor(
                 data.approvedPct
               )}
-              sub="Approved / purchased"
+              sub={pctDetail(
+                data.approvedPctPriced,
+                data.approvedPctUnpriced
+              )}
             />
 
             <KPI
@@ -1493,7 +1681,10 @@ function Reporting({
               color={percentageColor(
                 data.signedContractPct
               )}
-              sub="Signed / purchased"
+              sub={pctDetail(
+                data.signedContractPctPriced,
+                data.signedContractPctUnpriced
+              )}
             />
 
             <KPI
@@ -1505,13 +1696,16 @@ function Reporting({
               color={percentageColor(
                 data.paidPct
               )}
-              sub="Paid / purchased"
+              sub={pctDetail(
+                data.paidPctPriced,
+                data.paidPctUnpriced
+              )}
             />
           </div>
         </div>
 
         {/* ======================================================
-            2. RISQUE DE PERFORMANCE TOTAL
+            2. TOTAL PERFORMANCE RISK
         ====================================================== */}
         <div
           style={{
@@ -1549,8 +1743,8 @@ function Reporting({
                   marginTop: "-6px"
                 }}
               >
-                Priced P6 trades not validated on EMMY.
-                Total risk equals paid risk plus unpaid risk.
+                All P6 trades not validated on EMMY.
+                Main values include priced and unpriced trades.
               </p>
             </div>
 
@@ -1563,7 +1757,7 @@ function Reporting({
                     : "gray"
               }
             >
-              Paid + unpaid
+              Priced + unpriced
             </Badge>
           </div>
 
@@ -1571,7 +1765,7 @@ function Reporting({
             style={{
               display: "grid",
               gridTemplateColumns:
-                "repeat(auto-fit, minmax(200px, 1fr))",
+                "repeat(auto-fit, minmax(210px, 1fr))",
               gap: "10px",
               marginBottom: "18px"
             }}
@@ -1589,7 +1783,10 @@ function Reporting({
                     ? "emerald"
                     : "gray"
               }
-              sub="Paid + unpaid exposure"
+              sub={exposureDetail(
+                data.totalNotValidatedExposurePriced,
+                data.totalNotValidatedExposureUnpriced
+              )}
             />
 
             <KPI
@@ -1604,10 +1801,10 @@ function Reporting({
                     ? "emerald"
                     : "gray"
               }
-              sub={`${N(
-                data.paidNotValidatedVolume,
-                2
-              )} GWhc`}
+              sub={exposureDetail(
+                data.paidNotValidatedExposurePriced,
+                data.paidNotValidatedExposureUnpriced
+              )}
             />
 
             <KPI
@@ -1622,10 +1819,10 @@ function Reporting({
                     ? "emerald"
                     : "gray"
               }
-              sub={`${N(
-                data.unpaidNotValidatedVolume,
-                2
-              )} GWhc`}
+              sub={exposureDetail(
+                data.unpaidNotValidatedExposurePriced,
+                data.unpaidNotValidatedExposureUnpriced
+              )}
             />
 
             <KPI
@@ -1639,10 +1836,11 @@ function Reporting({
                   ? "amber"
                   : "emerald"
               }
-              sub={`${N(
-                data.totalNotValidatedPct,
-                1
-              )}% of purchased volume`}
+              sub={volumeDetail(
+                data.totalNotValidatedVolumePriced,
+                data.totalNotValidatedVolumeUnpriced,
+                2
+              )}
             />
           </div>
 
@@ -1655,7 +1853,6 @@ function Reporting({
               alignItems: "start"
             }}
           >
-            {/* Graphique synthétique */}
             <div style={innerCardStyle}>
               <p
                 style={{
@@ -1678,8 +1875,7 @@ function Reporting({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    color: THEME.textMuted,
-                    textAlign: "center"
+                    color: THEME.textMuted
                   }}
                 >
                   No unvalidated performance risk.
@@ -1758,7 +1954,6 @@ function Reporting({
               )}
             </div>
 
-            {/* Tableau consolidé */}
             <div style={innerCardStyle}>
               <p
                 style={{
@@ -1785,7 +1980,7 @@ function Reporting({
                 <table
                   style={{
                     width: "100%",
-                    minWidth: "980px",
+                    minWidth: "920px",
                     borderCollapse: "collapse"
                   }}
                 >
@@ -1794,10 +1989,10 @@ function Reporting({
                       {[
                         "Counterparty",
                         "Rating",
-                        "Paid not credited",
-                        "Credited not validated",
                         "Paid risk",
                         "Unpaid risk",
+                        "Priced risk",
+                        "Unpriced risk",
                         "Total risk"
                       ].map(header => (
                         <TH key={header}>
@@ -1860,81 +2055,27 @@ function Reporting({
                               </Badge>
                             </td>
 
-                            <td
-                              style={{
-                                ...S,
-                                padding: "10px 14px",
-                                color: THEME.red,
-                                whiteSpace: "nowrap"
-                              }}
-                            >
-                              {N(
-                                row.paidNotCreditedVolume,
-                                2
-                              )} GWhc
-                            </td>
-
-                            <td
-                              style={{
-                                ...S,
-                                padding: "10px 14px",
-                                color: THEME.amber,
-                                whiteSpace: "nowrap"
-                              }}
-                            >
-                              {N(
-                                row.creditedNotValidatedVolume,
-                                2
-                              )} GWhc
-                            </td>
-
-                            <td
-                              style={{
-                                ...S,
-                                padding: "10px 14px",
-                                color: riskColor(
-                                  row.paidExposure
-                                ),
-                                fontWeight: 600,
-                                whiteSpace: "nowrap"
-                              }}
-                            >
-                              {fM(
-                                row.paidExposure
-                              )}
-                            </td>
-
-                            <td
-                              style={{
-                                ...S,
-                                padding: "10px 14px",
-                                color: riskColor(
-                                  row.unpaidExposure
-                                ),
-                                fontWeight: 600,
-                                whiteSpace: "nowrap"
-                              }}
-                            >
-                              {fM(
-                                row.unpaidExposure
-                              )}
-                            </td>
-
-                            <td
-                              style={{
-                                ...S,
-                                padding: "10px 14px",
-                                color: riskColor(
-                                  row.totalExposure
-                                ),
-                                fontWeight: 700,
-                                whiteSpace: "nowrap"
-                              }}
-                            >
-                              {fM(
-                                row.totalExposure
-                              )}
-                            </td>
+                            {[
+                              row.paidExposure,
+                              row.unpaidExposure,
+                              row.pricedExposure,
+                              row.unpricedExposure,
+                              row.totalExposure
+                            ].map((value, index) => (
+                              <td
+                                key={`${row.vendor}-${index}`}
+                                style={{
+                                  ...S,
+                                  padding: "10px 14px",
+                                  color: riskColor(value),
+                                  fontWeight:
+                                    index === 4 ? 700 : 600,
+                                  whiteSpace: "nowrap"
+                                }}
+                              >
+                                {fM(value)}
+                              </td>
+                            ))}
                           </tr>
                         )
                       )
@@ -1947,7 +2088,7 @@ function Reporting({
         </div>
 
         {/* ======================================================
-            3. WORKFLOW OPÉRATIONNEL
+            3. EMMY & SETTLEMENT WORKFLOW
         ====================================================== */}
         <div
           style={{
@@ -1958,7 +2099,6 @@ function Reporting({
             alignItems: "stretch"
           }}
         >
-          {/* EMMY et paiement */}
           <div style={cardStyle}>
             <SectionTitle>
               EMMY & Settlement Workflow
@@ -1982,6 +2122,10 @@ function Reporting({
                 color={percentageColor(
                   data.creditedPct
                 )}
+                sub={pctDetail(
+                  data.creditedPctPriced,
+                  data.creditedPctUnpriced
+                )}
               />
 
               <KPI
@@ -1993,6 +2137,10 @@ function Reporting({
                 color={percentageColor(
                   data.validatedPct
                 )}
+                sub={pctDetail(
+                  data.validatedPctPriced,
+                  data.validatedPctUnpriced
+                )}
               />
 
               <KPI
@@ -2003,6 +2151,10 @@ function Reporting({
                 )}%`}
                 color={percentageColor(
                   data.creditedAndValidatedPct
+                )}
+                sub={pctDetail(
+                  data.creditedAndValidatedPctPriced,
+                  data.creditedAndValidatedPctUnpriced
                 )}
               />
             </div>
@@ -2046,7 +2198,10 @@ function Reporting({
                       ? "amber"
                       : "emerald"
                   }
-                  sub="Of paid volume"
+                  sub={pctDetail(
+                    data.paidCreditedNotValidatedPctPriced,
+                    data.paidCreditedNotValidatedPctUnpriced
+                  )}
                 />
 
                 <KPI
@@ -2060,16 +2215,15 @@ function Reporting({
                       ? "rose"
                       : "emerald"
                   }
-                  sub={`${N(
-                    data.paidNotCreditedVolume,
-                    2
-                  )} GWhc`}
+                  sub={pctDetail(
+                    data.paidNotCreditedPctPriced,
+                    data.paidNotCreditedPctUnpriced
+                  )}
                 />
               </div>
             </div>
           </div>
 
-          {/* Approbations en attente */}
           <div style={cardStyle}>
             <div
               style={{
@@ -2231,7 +2385,7 @@ function Reporting({
         </div>
 
         {/* ======================================================
-            4. ANALYSES SECONDAIRES REPLIABLES
+            4. SUPPORTING ANALYSIS
         ====================================================== */}
         <details
           style={{
@@ -2256,8 +2410,7 @@ function Reporting({
               background: THEME.panelAlt
             }}
           >
-            Supporting analysis — rating and detailed
-            unvalidated trades
+            Supporting analysis — rating and detailed unvalidated trades
           </summary>
 
           <div
@@ -2269,7 +2422,6 @@ function Reporting({
               padding: "18px"
             }}
           >
-            {/* Rating */}
             <div style={innerCardStyle}>
               <p
                 style={{
@@ -2333,7 +2485,6 @@ function Reporting({
               </ResponsiveContainer>
             </div>
 
-            {/* Détail de tous les trades non validés */}
             <div style={innerCardStyle}>
               <p
                 style={{
@@ -2360,7 +2511,7 @@ function Reporting({
                 <table
                   style={{
                     width: "100%",
-                    minWidth: "850px",
+                    minWidth: "920px",
                     borderCollapse: "collapse"
                   }}
                 >
@@ -2372,6 +2523,7 @@ function Reporting({
                         "Month",
                         "Volume",
                         "Price",
+                        "Pricing",
                         "Payment",
                         "Exposure"
                       ].map(header => (
@@ -2386,7 +2538,7 @@ function Reporting({
                     {data.totalNotValidatedRows.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           style={{
                             ...S,
                             padding: "18px 14px",
@@ -2474,6 +2626,24 @@ function Reporting({
                                 row.price,
                                 2
                               )} €/GWhc
+                            </td>
+
+                            <td
+                              style={{
+                                padding: "10px 14px"
+                              }}
+                            >
+                              <Badge
+                                color={
+                                  row.priced
+                                    ? "green"
+                                    : "gray"
+                                }
+                              >
+                                {row.priced
+                                  ? "Priced"
+                                  : "Unpriced"}
+                              </Badge>
                             </td>
 
                             <td
