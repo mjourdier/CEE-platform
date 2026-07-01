@@ -2273,8 +2273,6 @@ function Reporting({
                 >
                   Contractual exposure on P6 trades that are
                   both paid and not validated on EMMY.
-                  Values are sourced from the Default Risk
-                  column of the reference Excel file.
                 </p>
               </div>
 
