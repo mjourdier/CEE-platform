@@ -1115,6 +1115,11 @@ function Reporting({
         exposure:
           Number(
             trade.riskPerformanceMt || 0
+          ),
+
+        defaultRisk:
+          Number(
+            trade.defaultRisk || 0
           )
       }))
       .sort(
@@ -1206,6 +1211,126 @@ function Reporting({
           trade => trade.priced !== true
         )
       );
+
+    // ========================================================================
+    // DEFAULT RISK — UNPAID & NOT VALIDATED
+    //
+    // Périmètre :
+    // - P6 ;
+    // - Payment !== true ;
+    // - Validated !== true ;
+    // - Priced et Unpriced.
+    //
+    // Cette mesure utilise la nouvelle colonne Supabase `default_risk`.
+    // Elle reste distincte de `risk_performance_mt`.
+    // ========================================================================
+
+    const paidDefaultRiskRows =
+      totalNotValidatedRows
+        .filter(
+          trade => trade.payment === true
+        )
+        .map(trade => ({
+          id: trade.id,
+          vendor: trade.vendor,
+          rating: trade.rating,
+          month: trade.month,
+          volume: Number(trade.volume || 0),
+          price: Number(trade.price || 0),
+          priced: trade.priced === true,
+          defaultRisk: Number(trade.defaultRisk || 0)
+        }))
+        .sort(
+          (a, b) =>
+            Math.abs(b.defaultRisk) -
+            Math.abs(a.defaultRisk)
+        );
+
+    const aggregateDefaultRiskRows = riskRows =>
+      riskRows.reduce(
+        (result, trade) => ({
+          volume:
+            result.volume +
+            Number(trade.volume || 0),
+
+          defaultRisk:
+            result.defaultRisk +
+            Number(trade.defaultRisk || 0)
+        }),
+        {
+          volume: 0,
+          defaultRisk: 0
+        }
+      );
+
+    const paidDefaultRisk =
+      aggregateDefaultRiskRows(
+        paidDefaultRiskRows
+      );
+
+    const paidDefaultRiskPriced =
+      aggregateDefaultRiskRows(
+        paidDefaultRiskRows.filter(
+          trade => trade.priced === true
+        )
+      );
+
+    const paidDefaultRiskUnpriced =
+      aggregateDefaultRiskRows(
+        paidDefaultRiskRows.filter(
+          trade => trade.priced !== true
+        )
+      );
+
+    const paidDefaultRiskCounterpartyMap =
+      paidDefaultRiskRows.reduce(
+        (map, trade) => {
+          if (!map[trade.vendor]) {
+            map[trade.vendor] = {
+              vendor: trade.vendor,
+              rating: trade.rating,
+
+              pricedVolume: 0,
+              unpricedVolume: 0,
+              totalVolume: 0,
+
+              pricedDefaultRisk: 0,
+              unpricedDefaultRisk: 0,
+              totalDefaultRisk: 0
+            };
+          }
+
+          const row = map[trade.vendor];
+
+          row.totalVolume += trade.volume;
+          row.totalDefaultRisk += trade.defaultRisk;
+
+          if (trade.priced === true) {
+            row.pricedVolume += trade.volume;
+            row.pricedDefaultRisk += trade.defaultRisk;
+          } else {
+            row.unpricedVolume += trade.volume;
+            row.unpricedDefaultRisk += trade.defaultRisk;
+          }
+
+          return map;
+        },
+        {}
+      );
+
+    const paidDefaultRiskCounterpartyData =
+      Object.values(
+        paidDefaultRiskCounterpartyMap
+      )
+        .filter(row =>
+          Math.abs(row.totalVolume) > 0.001 ||
+          Math.abs(row.totalDefaultRisk) > 0.01
+        )
+        .sort(
+          (a, b) =>
+            Math.abs(b.totalDefaultRisk) -
+            Math.abs(a.totalDefaultRisk)
+        );
 
     // ========================================================================
     // PERFORMANCE RISK BY COUNTERPARTY
@@ -1524,6 +1649,28 @@ function Reporting({
       unpaidNotValidatedVolumeUnpriced:
         unpaidNotValidatedUnpriced.volume,
 
+      // Default Risk — unpaid & not validated
+      paidDefaultRisk:
+        paidDefaultRisk.defaultRisk,
+
+      paidDefaultRiskPriced:
+        paidDefaultRiskPriced.defaultRisk,
+
+      paidDefaultRiskUnpriced:
+        paidDefaultRiskUnpriced.defaultRisk,
+
+      paidDefaultRiskVolume:
+        paidDefaultRisk.volume,
+
+      paidDefaultRiskVolumePriced:
+        paidDefaultRiskPriced.volume,
+
+      paidDefaultRiskVolumeUnpriced:
+        paidDefaultRiskUnpriced.volume,
+
+      paidDefaultRiskRows,
+      paidDefaultRiskCounterpartyData,
+      
       // Detailed data
       totalNotValidatedRows,
       totalNotValidatedCounterpartyData,
@@ -1710,12 +1857,11 @@ function Reporting({
         <div
           style={{
             ...cardStyle,
-            borderTop:
-              `2px solid ${
-                data.totalNotValidatedExposure > 0
-                  ? THEME.red
-                  : THEME.green
-              }`
+            borderTop: `2px solid ${
+              data.totalNotValidatedExposure > 0
+                ? THEME.red
+                : THEME.green
+            }`
           }}
         >
           <div
@@ -1730,8 +1876,7 @@ function Reporting({
           >
             <div>
               <SectionTitle>
-                Total Performance Risk —
-                Unvalidated CEE
+                Total Performance Risk — Unvalidated CEE
               </SectionTitle>
 
               <p
@@ -1844,6 +1989,9 @@ function Reporting({
             />
           </div>
 
+          {/* ======================================================
+              RISK PERFORMANCE MTM — EXISTING VIEW
+          ====================================================== */}
           <div
             style={{
               display: "grid",
@@ -1973,8 +2121,7 @@ function Reporting({
                   maxHeight: "330px",
                   overflowY: "auto",
                   overflowX: "auto",
-                  border:
-                    `1px solid ${THEME.borderSoft}`
+                  border: `1px solid ${THEME.borderSoft}`
                 }}
               >
                 <table
@@ -2083,6 +2230,425 @@ function Reporting({
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+
+          {/* ======================================================
+              DEFAULT RISK — UNPAID & NOT VALIDATED
+          ====================================================== */}
+          <div
+            style={{
+              marginTop: "18px",
+              background: THEME.panelAlt,
+              border: `1px solid ${THEME.borderSoft}`,
+              borderTop: `2px solid ${THEME.amber}`,
+              borderRadius: "3px",
+              padding: "18px"
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: "16px",
+                flexWrap: "wrap",
+                marginBottom: "16px"
+              }}
+            >
+              <div>
+                <SectionTitle>
+                  Paid & Not Validated — Default Risk
+                </SectionTitle>
+
+                <p
+                  style={{
+                    ...S,
+                    fontSize: "11px",
+                    lineHeight: 1.55,
+                    color: THEME.textMuted,
+                    marginTop: "-6px",
+                    marginBottom: 0
+                  }}
+                >
+                  Contractual exposure on P6 trades that are
+                  both unpaid and not validated on EMMY.
+                  Values are sourced from the Default Risk
+                  column of the reference Excel file.
+                </p>
+              </div>
+
+              <Badge color="amber">
+                Payment Yes · Validated No
+              </Badge>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(3, minmax(200px, 1fr))",
+                gap: "10px",
+                marginBottom: "18px"
+              }}
+            >
+              <KPI
+                label="Total Default Risk"
+                value={fM(
+                  data.paidDefaultRisk
+                )}
+                color={
+                  data.paidDefaultRisk > 0
+                    ? "rose"
+                    : "emerald"
+                }
+                sub={
+                  `Priced: ${fM(
+                    data.paidDefaultRiskPriced
+                  )} · Unpriced: ${fM(
+                    data.paidDefaultRiskUnpriced
+                  )}`
+                }
+              />
+
+              <KPI
+                label="Exposed Volume"
+                value={`${N(
+                  data.paidDefaultRiskVolume,
+                  2
+                )} GWhc`}
+                color={
+                  data.paidDefaultRiskVolume > 0
+                    ? "amber"
+                    : "emerald"
+                }
+                sub={
+                  `Priced: ${N(
+                    data.paidDefaultRiskVolumePriced,
+                    2
+                  )} GWhc · Unpriced: ${N(
+                    data.paidDefaultRiskVolumeUnpriced,
+                    2
+                  )} GWhc`
+                }
+              />
+
+              <KPI
+                label="Counterparties Exposed"
+                value={N(
+                  data.paidDefaultRiskCounterpartyData.length,
+                  0
+                )}
+                color={
+                  data.paidDefaultRiskCounterpartyData.length > 0
+                    ? "rose"
+                    : "emerald"
+                }
+                sub="Distinct counterparties"
+              />
+            </div>
+
+            <div
+              style={{
+                overflowX: "auto",
+                maxHeight: "360px",
+                overflowY: "auto",
+                border: `1px solid ${THEME.borderSoft}`,
+                borderRadius: "2px"
+              }}
+            >
+              <table
+                style={{
+                  width: "100%",
+                  minWidth: "940px",
+                  borderCollapse: "collapse"
+                }}
+              >
+                <thead>
+                  <tr>
+                    {[
+                      "Counterparty",
+                      "Rating",
+                      "Priced volume",
+                      "Unpriced volume",
+                      "Total volume",
+                      "Priced default risk",
+                      "Unpriced default risk",
+                      "Total default risk"
+                    ].map(header => (
+                      <TH key={header}>
+                        {header}
+                      </TH>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {data.paidDefaultRiskCounterpartyData.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        style={{
+                          ...S,
+                          padding: "20px 14px",
+                          color: THEME.textMuted,
+                          textAlign: "center"
+                        }}
+                      >
+                        No unpaid and unvalidated
+                        Default Risk exposure.
+                      </td>
+                    </tr>
+                  ) : (
+                    data.paidDefaultRiskCounterpartyData.map(
+                      row => (
+                        <tr
+                          key={row.vendor}
+                          style={{
+                            borderBottom:
+                              `1px solid ${THEME.borderSoft}`
+                          }}
+                        >
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color: THEME.textPrimary,
+                              fontWeight: 600
+                            }}
+                          >
+                            {row.vendor}
+                          </td>
+
+                          <td
+                            style={{
+                              padding: "10px 14px"
+                            }}
+                          >
+                            <Badge
+                              color={
+                                row.rating === "AAA"
+                                  ? "green"
+                                  : row.rating === "N/A"
+                                    ? "gray"
+                                    : "amber"
+                              }
+                            >
+                              {row.rating}
+                            </Badge>
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color: THEME.textSecondary,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {N(
+                              row.pricedVolume,
+                              2
+                            )} GWhc
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color: THEME.textSecondary,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {N(
+                              row.unpricedVolume,
+                              2
+                            )} GWhc
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color: THEME.textPrimary,
+                              fontWeight: 600,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {N(
+                              row.totalVolume,
+                              2
+                            )} GWhc
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color:
+                                row.pricedDefaultRisk > 0
+                                  ? THEME.red
+                                  : THEME.textMuted,
+                              fontWeight: 600,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {fM(
+                              row.pricedDefaultRisk
+                            )}
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color:
+                                row.unpricedDefaultRisk > 0
+                                  ? THEME.red
+                                  : THEME.textMuted,
+                              fontWeight: 600,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {fM(
+                              row.unpricedDefaultRisk
+                            )}
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color:
+                                row.totalDefaultRisk > 0
+                                  ? THEME.red
+                                  : THEME.textMuted,
+                              fontWeight: 700,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {fM(
+                              row.totalDefaultRisk
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    )
+                  )}
+                </tbody>
+
+                {data.paidDefaultRiskCounterpartyData.length > 0 && (
+                  <tfoot>
+                    <tr
+                      style={{
+                        background: THEME.tableHeader,
+                        borderTop: `1px solid ${THEME.border}`
+                      }}
+                    >
+                      <td
+                        colSpan={2}
+                        style={{
+                          ...S,
+                          padding: "11px 14px",
+                          color: THEME.sky,
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.08em"
+                        }}
+                      >
+                        Total {title}
+                      </td>
+
+                      <td
+                        style={{
+                          ...S,
+                          padding: "11px 14px",
+                          color: THEME.textSecondary,
+                          fontWeight: 700,
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        {N(
+                          data.paidDefaultRiskVolumePriced,
+                          2
+                        )} GWhc
+                      </td>
+
+                      <td
+                        style={{
+                          ...S,
+                          padding: "11px 14px",
+                          color: THEME.textSecondary,
+                          fontWeight: 700,
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        {N(
+                          data.paidDefaultRiskVolumeUnpriced,
+                          2
+                        )} GWhc
+                      </td>
+
+                      <td
+                        style={{
+                          ...S,
+                          padding: "11px 14px",
+                          color: THEME.textPrimary,
+                          fontWeight: 700,
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        {N(
+                          data.paidDefaultRiskVolume,
+                          2
+                        )} GWhc
+                      </td>
+
+                      <td
+                        style={{
+                          ...S,
+                          padding: "11px 14px",
+                          color: THEME.red,
+                          fontWeight: 700,
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        {fM(
+                          data.paidDefaultRiskPriced
+                        )}
+                      </td>
+
+                      <td
+                        style={{
+                          ...S,
+                          padding: "11px 14px",
+                          color: THEME.red,
+                          fontWeight: 700,
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        {fM(
+                          data.paidDefaultRiskUnpriced
+                        )}
+                      </td>
+
+                      <td
+                        style={{
+                          ...S,
+                          padding: "11px 14px",
+                          color: THEME.red,
+                          fontWeight: 800,
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        {fM(
+                          data.paidDefaultRisk
+                        )}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
             </div>
           </div>
         </div>
@@ -8524,6 +9090,11 @@ export default function App() {
         paymentDate: t.payment_date,
         cpRanking: t.cp_ranking,
         riskPerformanceMt: t.risk_performance_mt != null ? +t.risk_performance_mt : null,
+
+        defaultRisk:
+          t.default_risk != null
+            ? Number(t.default_risk)
+            : 0,
 
         // Business aliases for the new Excel wording
         volumeCredited: t.volume_deposited != null ? +t.volume_deposited : null,
