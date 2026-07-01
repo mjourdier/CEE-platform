@@ -2300,13 +2300,7 @@ function Reporting({
                     ? "rose"
                     : "emerald"
                 }
-                sub={
-                  `Priced: ${fM(
-                    data.paidDefaultRiskPriced
-                  )} · Unpriced: ${fM(
-                    data.paidDefaultRiskUnpriced
-                  )}`
-                }
+                sub="Paid and not validated CEE"
               />
 
               <KPI
@@ -2320,15 +2314,7 @@ function Reporting({
                     ? "amber"
                     : "emerald"
                 }
-                sub={
-                  `Priced: ${N(
-                    data.paidDefaultRiskVolumePriced,
-                    2
-                  )} GWhc · Unpriced: ${N(
-                    data.paidDefaultRiskVolumeUnpriced,
-                    2
-                  )} GWhc`
-                }
+                sub="Paid and not validated volume"
               />
 
               <KPI
@@ -2358,7 +2344,7 @@ function Reporting({
               <table
                 style={{
                   width: "100%",
-                  minWidth: "940px",
+                  minWidth: "620px",
                   borderCollapse: "collapse"
                 }}
               >
@@ -2367,12 +2353,8 @@ function Reporting({
                     {[
                       "Counterparty",
                       "Rating",
-                      "Priced volume",
-                      "Unpriced volume",
-                      "Total volume",
-                      "Priced default risk",
-                      "Unpriced default risk",
-                      "Total default risk"
+                      "Exposed volume",
+                      "Default risk"
                     ].map(header => (
                       <TH key={header}>
                         {header}
@@ -2385,7 +2367,7 @@ function Reporting({
                   {data.paidDefaultRiskCounterpartyData.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={8}
+                        colSpan={4}
                         style={{
                           ...S,
                           padding: "20px 14px",
@@ -2393,145 +2375,74 @@ function Reporting({
                           textAlign: "center"
                         }}
                       >
-                        No unpaid and unvalidated
-                        Default Risk exposure.
+                        No paid and unvalidated Default Risk exposure.
                       </td>
                     </tr>
                   ) : (
-                    data.paidDefaultRiskCounterpartyData.map(
-                      row => (
-                        <tr
-                          key={row.vendor}
+                    data.paidDefaultRiskCounterpartyData.map(row => (
+                      <tr
+                        key={row.vendor}
+                        style={{
+                          borderBottom: `1px solid ${THEME.borderSoft}`
+                        }}
+                      >
+                        <td
                           style={{
-                            borderBottom:
-                              `1px solid ${THEME.borderSoft}`
+                            ...S,
+                            padding: "10px 14px",
+                            color: THEME.textPrimary,
+                            fontWeight: 600
                           }}
                         >
-                          <td
-                            style={{
-                              ...S,
-                              padding: "10px 14px",
-                              color: THEME.textPrimary,
-                              fontWeight: 600
-                            }}
-                          >
-                            {row.vendor}
-                          </td>
+                          {row.vendor}
+                        </td>
 
-                          <td
-                            style={{
-                              padding: "10px 14px"
-                            }}
+                        <td
+                          style={{
+                            padding: "10px 14px"
+                          }}
+                        >
+                          <Badge
+                            color={
+                              row.rating === "AAA"
+                                ? "green"
+                                : row.rating === "N/A"
+                                  ? "gray"
+                                  : "amber"
+                            }
                           >
-                            <Badge
-                              color={
-                                row.rating === "AAA"
-                                  ? "green"
-                                  : row.rating === "N/A"
-                                    ? "gray"
-                                    : "amber"
-                              }
-                            >
-                              {row.rating}
-                            </Badge>
-                          </td>
+                            {row.rating}
+                          </Badge>
+                        </td>
 
-                          <td
-                            style={{
-                              ...S,
-                              padding: "10px 14px",
-                              color: THEME.textSecondary,
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {N(
-                              row.pricedVolume,
-                              2
-                            )} GWhc
-                          </td>
+                        <td
+                          style={{
+                            ...S,
+                            padding: "10px 14px",
+                            color: THEME.textPrimary,
+                            fontWeight: 600,
+                            whiteSpace: "nowrap"
+                          }}
+                        >
+                          {N(row.totalVolume, 2)} GWhc
+                        </td>
 
-                          <td
-                            style={{
-                              ...S,
-                              padding: "10px 14px",
-                              color: THEME.textSecondary,
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {N(
-                              row.unpricedVolume,
-                              2
-                            )} GWhc
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "10px 14px",
-                              color: THEME.textPrimary,
-                              fontWeight: 600,
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {N(
-                              row.totalVolume,
-                              2
-                            )} GWhc
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "10px 14px",
-                              color:
-                                row.pricedDefaultRisk > 0
-                                  ? THEME.red
-                                  : THEME.textMuted,
-                              fontWeight: 600,
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {fM(
-                              row.pricedDefaultRisk
-                            )}
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "10px 14px",
-                              color:
-                                row.unpricedDefaultRisk > 0
-                                  ? THEME.red
-                                  : THEME.textMuted,
-                              fontWeight: 600,
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {fM(
-                              row.unpricedDefaultRisk
-                            )}
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "10px 14px",
-                              color:
-                                row.totalDefaultRisk > 0
-                                  ? THEME.red
-                                  : THEME.textMuted,
-                              fontWeight: 700,
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {fM(
-                              row.totalDefaultRisk
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    )
+                        <td
+                          style={{
+                            ...S,
+                            padding: "10px 14px",
+                            color:
+                              row.totalDefaultRisk > 0
+                                ? THEME.red
+                                : THEME.textMuted,
+                            fontWeight: 700,
+                            whiteSpace: "nowrap"
+                          }}
+                        >
+                          {fM(row.totalDefaultRisk)}
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
 
@@ -2561,73 +2472,12 @@ function Reporting({
                         style={{
                           ...S,
                           padding: "11px 14px",
-                          color: THEME.textSecondary,
-                          fontWeight: 700,
-                          whiteSpace: "nowrap"
-                        }}
-                      >
-                        {N(
-                          data.paidDefaultRiskVolumePriced,
-                          2
-                        )} GWhc
-                      </td>
-
-                      <td
-                        style={{
-                          ...S,
-                          padding: "11px 14px",
-                          color: THEME.textSecondary,
-                          fontWeight: 700,
-                          whiteSpace: "nowrap"
-                        }}
-                      >
-                        {N(
-                          data.paidDefaultRiskVolumeUnpriced,
-                          2
-                        )} GWhc
-                      </td>
-
-                      <td
-                        style={{
-                          ...S,
-                          padding: "11px 14px",
                           color: THEME.textPrimary,
                           fontWeight: 700,
                           whiteSpace: "nowrap"
                         }}
                       >
-                        {N(
-                          data.paidDefaultRiskVolume,
-                          2
-                        )} GWhc
-                      </td>
-
-                      <td
-                        style={{
-                          ...S,
-                          padding: "11px 14px",
-                          color: THEME.red,
-                          fontWeight: 700,
-                          whiteSpace: "nowrap"
-                        }}
-                      >
-                        {fM(
-                          data.paidDefaultRiskPriced
-                        )}
-                      </td>
-
-                      <td
-                        style={{
-                          ...S,
-                          padding: "11px 14px",
-                          color: THEME.red,
-                          fontWeight: 700,
-                          whiteSpace: "nowrap"
-                        }}
-                      >
-                        {fM(
-                          data.paidDefaultRiskUnpriced
-                        )}
+                        {N(data.paidDefaultRiskVolume, 2)} GWhc
                       </td>
 
                       <td
@@ -2639,9 +2489,7 @@ function Reporting({
                           whiteSpace: "nowrap"
                         }}
                       >
-                        {fM(
-                          data.paidDefaultRisk
-                        )}
+                        {fM(data.paidDefaultRisk)}
                       </td>
                     </tr>
                   </tfoot>
