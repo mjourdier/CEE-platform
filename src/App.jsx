@@ -671,7 +671,21 @@ function Reporting({
   displayDate
 }) {
   const [report, setReport] = useState("executive");
-  const [regulatoryType, setRegulatoryType] = useState("CLASSIQUE");
+
+  const [regulatoryType, setRegulatoryType] =
+    useState("CLASSIQUE");
+
+  // Ligne sélectionnée dans la future matrice de risque.
+  // Contiendra les statuts Credited / Validated / Paid
+  // ainsi que les contrats correspondant à cette combinaison.
+  const [selectedRiskBucket, setSelectedRiskBucket] =
+    useState(null);
+
+  useEffect(() => {
+    // Ferme automatiquement le détail lorsqu'on passe
+    // de Classique à Précarité, ou inversement.
+    setSelectedRiskBucket(null);
+  }, [regulatoryType]);
 
   const latestSpot = useMemo(() => {
     if (!prices.length) {
@@ -1695,6 +1709,399 @@ function Reporting({
   const activeRegulatoryTitle =
     regulatoryType === "CLASSIQUE" ? "Classique" : "Précarité";
 
+  // ==========================================================================
+  // NEW RISK MATRIX — P6 ONLY
+  // Temporary addition: the previous regulatory calculations remain in place
+  // until RegulatoryBlock is replaced in the next step.
+  // ==========================================================================
+
+  const RISK_STATUS_COMBINATIONS = [
+    {
+      credited: false,
+      validated: false,
+      paid: false,
+      label: "Not credited · Not validated · Unpaid"
+    },
+    {
+      credited: false,
+      validated: false,
+      paid: true,
+      label: "Paid · Not credited · Not validated"
+    },
+    {
+      credited: false,
+      validated: true,
+      paid: false,
+      label: "Validated · Not credited · Unpaid"
+    },
+    {
+      credited: false,
+      validated: true,
+      paid: true,
+      label: "Paid & validated · Not credited"
+    },
+    {
+      credited: true,
+      validated: false,
+      paid: false,
+      label: "Credited · Not validated · Unpaid"
+    },
+    {
+      credited: true,
+      validated: false,
+      paid: true,
+      label: "Paid & credited · Not validated"
+    },
+    {
+      credited: true,
+      validated: true,
+      paid: false,
+      label: "Credited & validated · Unpaid"
+    },
+    {
+      credited: true,
+      validated: true,
+      paid: true,
+      label: "Fully completed"
+    }
+  ];
+
+  const buildRiskMatrix = ceeType => {
+    const CREDIT_EPSILON = 0.01;
+
+    const rows = trades2026.filter(
+      trade => trade.ceeType === ceeType
+    );
+
+    // Same credited-status logic as the Supabase control query:
+    // Credited = Yes only when the remaining volume is effectively zero.
+    const remainingToCreditOf = trade => {
+      const explicitRemaining =
+        trade.volumeRemainingToBeCredited ??
+        trade.volumeRemainingToBeDeposited;
+
+      if (
+        explicitRemaining !== null &&
+        explicitRemaining !== undefined &&
+        explicitRemaining !== ""
+      ) {
+        const numericRemaining =
+          Number(explicitRemaining);
+
+        if (Number.isFinite(numericRemaining)) {
+          return numericRemaining;
+        }
+      }
+
+      const volume =
+        Number(trade.volume || 0);
+
+      const creditedVolume =
+        Number(
+          trade.volumeCredited ??
+          trade.volumeDeposited ??
+          0
+        );
+
+      return volume - creditedVolume;
+    };
+
+    const isCredited = trade =>
+      Math.abs(
+        remainingToCreditOf(trade)
+      ) <= CREDIT_EPSILON;
+
+    const contracts = rows.map(trade => {
+      const volume =
+        Number(trade.volume || 0);
+
+      const riskPerformance =
+        Number(trade.riskPerformanceMt || 0);
+
+      const defaultRisk =
+        Number(trade.defaultRisk || 0);
+
+      const regulatoryRisk =
+        Number(trade.regulatoryRisk || 0);
+
+      return {
+        id: trade.id,
+
+        vendor:
+          trade.vendor || "Unknown",
+
+        rating:
+          trade.cpRanking || "N/A",
+
+        month:
+          trade.month,
+
+        volume,
+
+        price:
+          Number(trade.price || 0),
+
+        priced:
+          trade.priced === true,
+
+        credited:
+          isCredited(trade),
+
+        validated:
+          trade.validated === true,
+
+        paid:
+          trade.payment === true,
+
+        remainingToCredit:
+          remainingToCreditOf(trade),
+
+        riskPerformance,
+        defaultRisk,
+        regulatoryRisk,
+
+        totalRisk:
+          riskPerformance +
+          defaultRisk +
+          regulatoryRisk
+      };
+    });
+
+    const aggregateContracts = contractRows =>
+      contractRows.reduce(
+        (result, contract) => ({
+          tradeCount:
+            result.tradeCount + 1,
+
+          volume:
+            result.volume +
+            Number(contract.volume || 0),
+
+          riskPerformance:
+            result.riskPerformance +
+            Number(
+              contract.riskPerformance || 0
+            ),
+
+          defaultRisk:
+            result.defaultRisk +
+            Number(
+              contract.defaultRisk || 0
+            ),
+
+          regulatoryRisk:
+            result.regulatoryRisk +
+            Number(
+              contract.regulatoryRisk || 0
+            ),
+
+          totalRisk:
+            result.totalRisk +
+            Number(contract.totalRisk || 0)
+        }),
+        {
+          tradeCount: 0,
+          volume: 0,
+          riskPerformance: 0,
+          defaultRisk: 0,
+          regulatoryRisk: 0,
+          totalRisk: 0
+        }
+      );
+
+    const portfolioTotals =
+      aggregateContracts(contracts);
+
+    const buckets =
+      RISK_STATUS_COMBINATIONS.map(
+        status => {
+          const bucketContracts =
+            contracts
+              .filter(
+                contract =>
+                  contract.credited ===
+                    status.credited &&
+                  contract.validated ===
+                    status.validated &&
+                  contract.paid ===
+                    status.paid
+              )
+              .sort(
+                (a, b) =>
+                  Math.abs(b.totalRisk) -
+                  Math.abs(a.totalRisk)
+              );
+
+          const bucketTotals =
+            aggregateContracts(
+              bucketContracts
+            );
+
+          const counterpartyMap =
+            bucketContracts.reduce(
+              (map, contract) => {
+                const vendor =
+                  contract.vendor ||
+                  "Unknown";
+
+                if (!map[vendor]) {
+                  map[vendor] = {
+                    vendor,
+                    rating:
+                      contract.rating ||
+                      "N/A",
+
+                    tradeCount: 0,
+                    volume: 0,
+
+                    riskPerformance: 0,
+                    defaultRisk: 0,
+                    regulatoryRisk: 0,
+                    totalRisk: 0
+                  };
+                }
+
+                const counterparty =
+                  map[vendor];
+
+                counterparty.tradeCount += 1;
+
+                counterparty.volume +=
+                  contract.volume;
+
+                counterparty.riskPerformance +=
+                  contract.riskPerformance;
+
+                counterparty.defaultRisk +=
+                  contract.defaultRisk;
+
+                counterparty.regulatoryRisk +=
+                  contract.regulatoryRisk;
+
+                counterparty.totalRisk +=
+                  contract.totalRisk;
+
+                return map;
+              },
+              {}
+            );
+
+          const counterparties =
+            Object.values(
+              counterpartyMap
+            ).sort(
+              (a, b) =>
+                Math.abs(b.totalRisk) -
+                Math.abs(a.totalRisk)
+            );
+
+          return {
+            key: [
+              status.credited
+                ? "credited"
+                : "not-credited",
+
+              status.validated
+                ? "validated"
+                : "not-validated",
+
+              status.paid
+                ? "paid"
+                : "unpaid"
+            ].join("-"),
+
+            label:
+              status.label,
+
+            credited:
+              status.credited,
+
+            validated:
+              status.validated,
+
+            paid:
+              status.paid,
+
+            tradeCount:
+              bucketTotals.tradeCount,
+
+            volume:
+              bucketTotals.volume,
+
+            portfolioPct:
+              portfolioTotals.volume > 0
+                ? bucketTotals.volume /
+                  portfolioTotals.volume *
+                  100
+                : 0,
+
+            riskPerformance:
+              bucketTotals.riskPerformance,
+
+            defaultRisk:
+              bucketTotals.defaultRisk,
+
+            regulatoryRisk:
+              bucketTotals.regulatoryRisk,
+
+            totalRisk:
+              bucketTotals.totalRisk,
+
+            contracts:
+              bucketContracts,
+
+            counterparties
+          };
+        }
+      );
+
+    return {
+      ceeType,
+
+      tradeCount:
+        portfolioTotals.tradeCount,
+
+      totalVolume:
+        portfolioTotals.volume,
+
+      totalRiskPerformance:
+        portfolioTotals.riskPerformance,
+
+      totalDefaultRisk:
+        portfolioTotals.defaultRisk,
+
+      totalRegulatoryRisk:
+        portfolioTotals.regulatoryRisk,
+
+      totalRisk:
+        portfolioTotals.totalRisk,
+
+      buckets,
+      contracts
+    };
+  };
+
+  const riskMatrixClassique = useMemo(
+    () =>
+      buildRiskMatrix(
+        "CLASSIQUE"
+      ),
+    [trades2026]
+  );
+
+  const riskMatrixPrecarite = useMemo(
+    () =>
+      buildRiskMatrix(
+        "PRECARITE"
+      ),
+    [trades2026]
+  );
+
+  const activeRiskMatrixData =
+    regulatoryType === "CLASSIQUE"
+      ? riskMatrixClassique
+      : riskMatrixPrecarite;
+
   const REPORTS = [
     { id: "executive", label: "Executive Summary" },
     { id: "position", label: "Position & Coverage" },
@@ -1724,528 +2131,106 @@ function Reporting({
           ? THEME.red
           : THEME.textMuted;
 
-    const percentageColor = value =>
-      value >= 95
-        ? "emerald"
-        : value >= 80
-          ? "amber"
-          : "rose";
+    const statusBadgeColor = value =>
+      value === true
+        ? "green"
+        : "gray";
 
-    const pctDetail = (
-      priced,
-      unpriced
-    ) =>
-      `Priced: ${N(priced, 1)}% · Unpriced: ${N(unpriced, 1)}%`;
+    const riskCompositionBase =
+      Math.abs(data.totalRiskPerformance) +
+      Math.abs(data.totalDefaultRisk) +
+      Math.abs(data.totalRegulatoryRisk);
 
-    const volumeDetail = (
-      priced,
-      unpriced,
-      decimals = 0
-    ) =>
-      `Priced: ${N(priced, decimals)} GWhc · Unpriced: ${N(unpriced, decimals)} GWhc`;
+    const riskShare = value =>
+      riskCompositionBase > 0
+        ? Math.abs(value) / riskCompositionBase * 100
+        : 0;
 
-    const exposureDetail = (
-      priced,
-      unpriced
-    ) =>
-      `Priced: ${fM(priced)} · Unpriced: ${fM(unpriced)}`;
+    const dominantRiskLabel = bucket => {
+      if (bucket.tradeCount === 0) {
+        return "No active contracts";
+      }
+
+      const risks = [
+        {
+          label: "Performance risk",
+          value: bucket.riskPerformance
+        },
+        {
+          label: "Default risk",
+          value: bucket.defaultRisk
+        },
+        {
+          label: "Regulatory risk",
+          value: bucket.regulatoryRisk
+        }
+      ].sort(
+        (a, b) =>
+          Math.abs(b.value) - Math.abs(a.value)
+      );
+
+      if (Math.abs(risks[0].value) < 0.01) {
+        return "No material risk";
+      }
+
+      return `${risks[0].label} dominant`;
+    };
+
+    const EyeIcon = () => (
+      <svg
+        width="13"
+        height="13"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+        <circle cx="12" cy="12" r="2.5" />
+      </svg>
+    );
+
 
     const cardStyle = {
       background: THEME.panel,
-      border:
-        `1px solid ${THEME.borderSoft}`,
+      border: `1px solid ${THEME.borderSoft}`,
       borderRadius: "3px",
       padding: "20px 22px"
     };
 
-    const innerCardStyle = {
-      background: THEME.panelAlt,
-      border:
-        `1px solid ${THEME.borderSoft}`,
-      borderRadius: "3px",
-      padding: "16px"
-    };
+    const detailChartData =
+      selectedRiskBucket?.counterparties?.map(
+        counterparty => ({
+          vendor: counterparty.vendor,
+          riskPerformance:
+            counterparty.riskPerformance,
+          defaultRisk:
+            counterparty.defaultRisk,
+          regulatoryRisk:
+            counterparty.regulatoryRisk,
+          totalRisk:
+            counterparty.totalRisk,
+          volume:
+            counterparty.volume
+        })
+      ) || [];
 
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "18px"
-        }}
-      >
-        {/* ======================================================
-            1. PORTFOLIO STATUS
-        ====================================================== */}
-        <div style={cardStyle}>
-          <SectionTitle>
-            {title} — Portfolio Status
-          </SectionTitle>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(190px, 1fr))",
-              gap: "10px"
-            }}
-          >
-            <KPI
-              label={`Total ${title} Purchased`}
-              value={`${N(
-                data.totalPurchased,
-                0
-              )} GWhc`}
-              color="sky"
-              sub={volumeDetail(
-                data.totalPurchasedPriced,
-                data.totalPurchasedUnpriced,
-                0
-              )}
-            />
-
-            <KPI
-              label="Approved internally"
-              value={`${N(
-                data.approvedPct,
-                1
-              )}%`}
-              color={percentageColor(
-                data.approvedPct
-              )}
-              sub={pctDetail(
-                data.approvedPctPriced,
-                data.approvedPctUnpriced
-              )}
-            />
-
-            <KPI
-              label="Signed contract"
-              value={`${N(
-                data.signedContractPct,
-                1
-              )}%`}
-              color={percentageColor(
-                data.signedContractPct
-              )}
-              sub={pctDetail(
-                data.signedContractPctPriced,
-                data.signedContractPctUnpriced
-              )}
-            />
-
-            <KPI
-              label="Paid"
-              value={`${N(
-                data.paidPct,
-                1
-              )}%`}
-              color={percentageColor(
-                data.paidPct
-              )}
-              sub={pctDetail(
-                data.paidPctPriced,
-                data.paidPctUnpriced
-              )}
-            />
-          </div>
-        </div>
-
-        {/* ======================================================
-            2. TOTAL PERFORMANCE RISK
-        ====================================================== */}
+      <>
         <div
           style={{
-            ...cardStyle,
-            borderTop: `2px solid ${
-              data.totalNotValidatedExposure > 0
-                ? THEME.red
-                : THEME.green
-            }`
+            display: "flex",
+            flexDirection: "column",
+            gap: "18px"
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              gap: "16px",
-              flexWrap: "wrap",
-              marginBottom: "16px"
-            }}
-          >
-            <div>
-              <SectionTitle>
-                Total Performance Risk — Unvalidated CEE
-              </SectionTitle>
-
-              <p
-                style={{
-                  ...S,
-                  fontSize: "11px",
-                  color: THEME.textMuted,
-                  lineHeight: 1.55,
-                  marginTop: "-6px"
-                }}
-              >
-                All P6 trades not validated on EMMY.
-                Main values include priced and unpriced trades.
-              </p>
-            </div>
-
-            <Badge
-              color={
-                data.totalNotValidatedExposure > 0
-                  ? "red"
-                  : data.totalNotValidatedExposure < 0
-                    ? "green"
-                    : "gray"
-              }
-            >
-              Priced + unpriced
-            </Badge>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(210px, 1fr))",
-              gap: "10px",
-              marginBottom: "18px"
-            }}
-          >
-            <KPI
-              large
-              label="Total unvalidated risk"
-              value={fM(
-                data.totalNotValidatedExposure
-              )}
-              color={
-                data.totalNotValidatedExposure > 0
-                  ? "rose"
-                  : data.totalNotValidatedExposure < 0
-                    ? "emerald"
-                    : "gray"
-              }
-              sub={exposureDetail(
-                data.totalNotValidatedExposurePriced,
-                data.totalNotValidatedExposureUnpriced
-              )}
-            />
-
-            <KPI
-              label="Paid & not validated"
-              value={fM(
-                data.paidNotValidatedExposure
-              )}
-              color={
-                data.paidNotValidatedExposure > 0
-                  ? "rose"
-                  : data.paidNotValidatedExposure < 0
-                    ? "emerald"
-                    : "gray"
-              }
-              sub={exposureDetail(
-                data.paidNotValidatedExposurePriced,
-                data.paidNotValidatedExposureUnpriced
-              )}
-            />
-
-            <KPI
-              label="Unpaid & not validated"
-              value={fM(
-                data.unpaidNotValidatedExposure
-              )}
-              color={
-                data.unpaidNotValidatedExposure > 0
-                  ? "rose"
-                  : data.unpaidNotValidatedExposure < 0
-                    ? "emerald"
-                    : "gray"
-              }
-              sub={exposureDetail(
-                data.unpaidNotValidatedExposurePriced,
-                data.unpaidNotValidatedExposureUnpriced
-              )}
-            />
-
-            <KPI
-              label="Total unvalidated volume"
-              value={`${N(
-                data.totalNotValidatedVolume,
-                2
-              )} GWhc`}
-              color={
-                data.totalNotValidatedVolume > 0
-                  ? "amber"
-                  : "emerald"
-              }
-              sub={volumeDetail(
-                data.totalNotValidatedVolumePriced,
-                data.totalNotValidatedVolumeUnpriced,
-                2
-              )}
-            />
-          </div>
-
           {/* ======================================================
-              RISK PERFORMANCE MTM — EXISTING VIEW
+              1. GLOBAL RISK SUMMARY
           ====================================================== */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "minmax(0, 0.85fr) minmax(0, 1.45fr)",
-              gap: "16px",
-              alignItems: "start"
-            }}
-          >
-            <div style={innerCardStyle}>
-              <p
-                style={{
-                  ...S,
-                  fontSize: "9px",
-                  color: THEME.sectionTitle,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.14em",
-                  marginBottom: "12px"
-                }}
-              >
-                Total risk by counterparty
-              </p>
-
-              {data.totalNotValidatedCounterpartyData.length === 0 ? (
-                <div
-                  style={{
-                    ...S,
-                    minHeight: "240px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: THEME.textMuted
-                  }}
-                >
-                  No unvalidated performance risk.
-                </div>
-              ) : (
-                <ResponsiveContainer
-                  width="100%"
-                  height={Math.max(
-                    240,
-                    data.totalNotValidatedCounterpartyData.length * 38
-                  )}
-                >
-                  <BarChart
-                    data={
-                      data.totalNotValidatedCounterpartyData
-                    }
-                    layout="vertical"
-                    barSize={14}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 6"
-                      stroke={THEME.border}
-                      horizontal={false}
-                      opacity={0.8}
-                    />
-
-                    <XAxis
-                      type="number"
-                      tick={{
-                        ...S,
-                        fontSize: 9,
-                        fill: THEME.textMuted
-                      }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-
-                    <YAxis
-                      type="category"
-                      dataKey="vendor"
-                      tick={{
-                        ...S,
-                        fontSize: 9,
-                        fill: THEME.textSecondary
-                      }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={165}
-                    />
-
-                    <Tooltip content={<ChartTip />} />
-
-                    <ReferenceLine
-                      x={0}
-                      stroke={THEME.border}
-                    />
-
-                    <Bar
-                      dataKey="totalExposure"
-                      name="Total unvalidated risk (€)"
-                      radius={[0, 2, 2, 0]}
-                    >
-                      {data.totalNotValidatedCounterpartyData.map(
-                        entry => (
-                          <Cell
-                            key={`total-risk-${entry.vendor}`}
-                            fill={riskColor(
-                              entry.totalExposure
-                            )}
-                          />
-                        )
-                      )}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-
-            <div style={innerCardStyle}>
-              <p
-                style={{
-                  ...S,
-                  fontSize: "9px",
-                  color: THEME.sectionTitle,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.14em",
-                  marginBottom: "12px"
-                }}
-              >
-                Risk reconciliation by counterparty
-              </p>
-
-              <div
-                style={{
-                  maxHeight: "330px",
-                  overflowY: "auto",
-                  overflowX: "auto",
-                  border: `1px solid ${THEME.borderSoft}`
-                }}
-              >
-                <table
-                  style={{
-                    width: "100%",
-                    minWidth: "920px",
-                    borderCollapse: "collapse"
-                  }}
-                >
-                  <thead>
-                    <tr>
-                      {[
-                        "Counterparty",
-                        "Rating",
-                        "Paid risk",
-                        "Unpaid risk",
-                        "Priced risk",
-                        "Unpriced risk",
-                        "Total risk"
-                      ].map(header => (
-                        <TH key={header}>
-                          {header}
-                        </TH>
-                      ))}
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {data.totalNotValidatedCounterpartyData.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={7}
-                          style={{
-                            ...S,
-                            padding: "18px 14px",
-                            color: THEME.textMuted,
-                            textAlign: "center"
-                          }}
-                        >
-                          No unvalidated performance risk.
-                        </td>
-                      </tr>
-                    ) : (
-                      data.totalNotValidatedCounterpartyData.map(
-                        row => (
-                          <tr
-                            key={row.vendor}
-                            style={{
-                              borderBottom:
-                                `1px solid ${THEME.borderSoft}`
-                            }}
-                          >
-                            <td
-                              style={{
-                                ...S,
-                                padding: "10px 14px",
-                                color: THEME.textPrimary
-                              }}
-                            >
-                              {row.vendor}
-                            </td>
-
-                            <td
-                              style={{
-                                padding: "10px 14px"
-                              }}
-                            >
-                              <Badge
-                                color={
-                                  row.rating === "AAA"
-                                    ? "green"
-                                    : row.rating === "N/A"
-                                      ? "gray"
-                                      : "amber"
-                                }
-                              >
-                                {row.rating}
-                              </Badge>
-                            </td>
-
-                            {[
-                              row.paidExposure,
-                              row.unpaidExposure,
-                              row.pricedExposure,
-                              row.unpricedExposure,
-                              row.totalExposure
-                            ].map((value, index) => (
-                              <td
-                                key={`${row.vendor}-${index}`}
-                                style={{
-                                  ...S,
-                                  padding: "10px 14px",
-                                  color: riskColor(value),
-                                  fontWeight:
-                                    index === 4 ? 700 : 600,
-                                  whiteSpace: "nowrap"
-                                }}
-                              >
-                                {fM(value)}
-                              </td>
-                            ))}
-                          </tr>
-                        )
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          {/* ======================================================
-              DEFAULT RISK — UNPAID & NOT VALIDATED
-          ====================================================== */}
-          <div
-            style={{
-              marginTop: "18px",
-              background: THEME.panelAlt,
-              border: `1px solid ${THEME.borderSoft}`,
-              borderTop: `2px solid ${THEME.amber}`,
-              borderRadius: "3px",
-              padding: "18px"
-            }}
-          >
+          <div style={cardStyle}>
             <div
               style={{
                 display: "flex",
@@ -2258,26 +2243,26 @@ function Reporting({
             >
               <div>
                 <SectionTitle>
-                  Paid & Not Validated — Default Risk
+                  {title} — P6 Risk Summary
                 </SectionTitle>
 
                 <p
                   style={{
                     ...S,
                     fontSize: "11px",
-                    lineHeight: 1.55,
                     color: THEME.textMuted,
+                    lineHeight: 1.55,
                     marginTop: "-6px",
                     marginBottom: 0
                   }}
                 >
-                  Contractual exposure on P6 trades that are
-                  both paid and not validated on EMMY.
+                  Consolidated contractual risk across all
+                  Credited, Validated and Paid status combinations.
                 </p>
               </div>
 
-              <Badge color="amber">
-                Payment Yes · Validated No
+              <Badge color="sky">
+                {data.tradeCount} contracts · P6
               </Badge>
             </div>
 
@@ -2285,637 +2270,909 @@ function Reporting({
               style={{
                 display: "grid",
                 gridTemplateColumns:
-                  "repeat(3, minmax(200px, 1fr))",
-                gap: "10px",
-                marginBottom: "18px"
+                  "repeat(4, minmax(190px, 1fr))",
+                gap: "10px"
               }}
             >
               <KPI
-                label="Total Default Risk"
+                label="Total Risk"
+                value={fM(data.totalRisk)}
+                color={
+                  data.totalRisk > 0
+                    ? "rose"
+                    : data.totalRisk < 0
+                      ? "emerald"
+                      : "gray"
+                }
+                sub={
+                  `Performance ${N(
+                    riskShare(data.totalRiskPerformance),
+                    1
+                  )}% · Default ${N(
+                    riskShare(data.totalDefaultRisk),
+                    1
+                  )}% · Regulatory ${N(
+                    riskShare(data.totalRegulatoryRisk),
+                    1
+                  )}%`
+                }
+              />
+
+              <KPI
+                label="Risk Performance"
                 value={fM(
-                  data.paidDefaultRisk
+                  data.totalRiskPerformance
                 )}
                 color={
-                  data.paidDefaultRisk > 0
+                  data.totalRiskPerformance > 0
                     ? "rose"
-                    : "emerald"
+                    : data.totalRiskPerformance < 0
+                      ? "emerald"
+                      : "gray"
                 }
-                sub="Paid and not validated CEE"
+                sub="Performance / MtM exposure"
               />
 
               <KPI
-                label="Exposed Volume"
-                value={`${N(
-                  data.paidDefaultRiskVolume,
-                  2
-                )} GWhc`}
+                label="Default Risk"
+                value={fM(
+                  data.totalDefaultRisk
+                )}
                 color={
-                  data.paidDefaultRiskVolume > 0
+                  data.totalDefaultRisk > 0
+                    ? "rose"
+                    : "gray"
+                }
+                sub="Paid but not credited exposure"
+              />
+
+              <KPI
+                label="Regulatory Risk"
+                value={fM(
+                  data.totalRegulatoryRisk
+                )}
+                color={
+                  data.totalRegulatoryRisk > 0
                     ? "amber"
-                    : "emerald"
+                    : "gray"
                 }
-                sub="Paid and not validated volume"
+                sub="Paid and credited exposure"
               />
-
-              <KPI
-                label="Counterparties Exposed"
-                value={N(
-                  data.paidDefaultRiskCounterpartyData.length,
-                  0
-                )}
-                color={
-                  data.paidDefaultRiskCounterpartyData.length > 0
-                    ? "rose"
-                    : "emerald"
-                }
-                sub="Distinct counterparties"
-              />
-            </div>
-
-            <div
-              style={{
-                overflowX: "auto",
-                maxHeight: "360px",
-                overflowY: "auto",
-                border: `1px solid ${THEME.borderSoft}`,
-                borderRadius: "2px"
-              }}
-            >
-              <table
-                style={{
-                  width: "100%",
-                  minWidth: "620px",
-                  borderCollapse: "collapse"
-                }}
-              >
-                <thead>
-                  <tr>
-                    {[
-                      "Counterparty",
-                      "Rating",
-                      "Exposed volume",
-                      "Default risk"
-                    ].map(header => (
-                      <TH key={header}>
-                        {header}
-                      </TH>
-                    ))}
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {data.paidDefaultRiskCounterpartyData.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        style={{
-                          ...S,
-                          padding: "20px 14px",
-                          color: THEME.textMuted,
-                          textAlign: "center"
-                        }}
-                      >
-                        No paid and unvalidated Default Risk exposure.
-                      </td>
-                    </tr>
-                  ) : (
-                    data.paidDefaultRiskCounterpartyData.map(row => (
-                      <tr
-                        key={row.vendor}
-                        style={{
-                          borderBottom: `1px solid ${THEME.borderSoft}`
-                        }}
-                      >
-                        <td
-                          style={{
-                            ...S,
-                            padding: "10px 14px",
-                            color: THEME.textPrimary,
-                            fontWeight: 600
-                          }}
-                        >
-                          {row.vendor}
-                        </td>
-
-                        <td
-                          style={{
-                            padding: "10px 14px"
-                          }}
-                        >
-                          <Badge
-                            color={
-                              row.rating === "AAA"
-                                ? "green"
-                                : row.rating === "N/A"
-                                  ? "gray"
-                                  : "amber"
-                            }
-                          >
-                            {row.rating}
-                          </Badge>
-                        </td>
-
-                        <td
-                          style={{
-                            ...S,
-                            padding: "10px 14px",
-                            color: THEME.textPrimary,
-                            fontWeight: 600,
-                            whiteSpace: "nowrap"
-                          }}
-                        >
-                          {N(row.totalVolume, 2)} GWhc
-                        </td>
-
-                        <td
-                          style={{
-                            ...S,
-                            padding: "10px 14px",
-                            color:
-                              row.totalDefaultRisk > 0
-                                ? THEME.red
-                                : THEME.textMuted,
-                            fontWeight: 700,
-                            whiteSpace: "nowrap"
-                          }}
-                        >
-                          {fM(row.totalDefaultRisk)}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-
-                {data.paidDefaultRiskCounterpartyData.length > 0 && (
-                  <tfoot>
-                    <tr
-                      style={{
-                        background: THEME.tableHeader,
-                        borderTop: `1px solid ${THEME.border}`
-                      }}
-                    >
-                      <td
-                        colSpan={2}
-                        style={{
-                          ...S,
-                          padding: "11px 14px",
-                          color: THEME.sky,
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.08em"
-                        }}
-                      >
-                        Total {title}
-                      </td>
-
-                      <td
-                        style={{
-                          ...S,
-                          padding: "11px 14px",
-                          color: THEME.textPrimary,
-                          fontWeight: 700,
-                          whiteSpace: "nowrap"
-                        }}
-                      >
-                        {N(data.paidDefaultRiskVolume, 2)} GWhc
-                      </td>
-
-                      <td
-                        style={{
-                          ...S,
-                          padding: "11px 14px",
-                          color: THEME.red,
-                          fontWeight: 800,
-                          whiteSpace: "nowrap"
-                        }}
-                      >
-                        {fM(data.paidDefaultRisk)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          </div>
-        </div>
-
-        {/* ======================================================
-            3. EMMY & SETTLEMENT WORKFLOW
-        ====================================================== */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns:
-              "minmax(0, 1fr) minmax(0, 1.15fr)",
-            gap: "16px",
-            alignItems: "stretch"
-          }}
-        >
-          <div style={cardStyle}>
-            <SectionTitle>
-              EMMY & Settlement Workflow
-            </SectionTitle>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns:
-                  "repeat(3, minmax(0, 1fr))",
-                gap: "10px",
-                marginBottom: "16px"
-              }}
-            >
-              <KPI
-                label="Credited on EMMY"
-                value={`${N(
-                  data.creditedPct,
-                  1
-                )}%`}
-                color={percentageColor(
-                  data.creditedPct
-                )}
-                sub={pctDetail(
-                  data.creditedPctPriced,
-                  data.creditedPctUnpriced
-                )}
-              />
-
-              <KPI
-                label="Validated on EMMY"
-                value={`${N(
-                  data.validatedPct,
-                  1
-                )}%`}
-                color={percentageColor(
-                  data.validatedPct
-                )}
-                sub={pctDetail(
-                  data.validatedPctPriced,
-                  data.validatedPctUnpriced
-                )}
-              />
-
-              <KPI
-                label="Credited & validated"
-                value={`${N(
-                  data.creditedAndValidatedPct,
-                  1
-                )}%`}
-                color={percentageColor(
-                  data.creditedAndValidatedPct
-                )}
-                sub={pctDetail(
-                  data.creditedAndValidatedPctPriced,
-                  data.creditedAndValidatedPctUnpriced
-                )}
-              />
-            </div>
-
-            <div
-              style={{
-                borderTop:
-                  `1px solid ${THEME.borderSoft}`,
-                paddingTop: "14px"
-              }}
-            >
-              <p
-                style={{
-                  ...S,
-                  fontSize: "9px",
-                  color: THEME.sectionTitle,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.14em",
-                  marginBottom: "10px"
-                }}
-              >
-                Paid-flow exceptions
-              </p>
-
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "repeat(2, minmax(0, 1fr))",
-                  gap: "10px"
-                }}
-              >
-                <KPI
-                  label="Paid, credited, not validated"
-                  value={`${N(
-                    data.paidCreditedNotValidatedPct,
-                    1
-                  )}%`}
-                  color={
-                    data.paidCreditedNotValidatedPct > 0
-                      ? "amber"
-                      : "emerald"
-                  }
-                  sub={pctDetail(
-                    data.paidCreditedNotValidatedPctPriced,
-                    data.paidCreditedNotValidatedPctUnpriced
-                  )}
-                />
-
-                <KPI
-                  label="Paid, not credited"
-                  value={`${N(
-                    data.paidNotCreditedPct,
-                    1
-                  )}%`}
-                  color={
-                    data.paidNotCreditedPct > 0
-                      ? "rose"
-                      : "emerald"
-                  }
-                  sub={pctDetail(
-                    data.paidNotCreditedPctPriced,
-                    data.paidNotCreditedPctUnpriced
-                  )}
-                />
-              </div>
             </div>
           </div>
 
+          {/* ======================================================
+              2. STATUS RISK MATRIX
+          ====================================================== */}
           <div style={cardStyle}>
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                alignItems: "center",
-                gap: "12px",
-                marginBottom: "12px"
+                alignItems: "flex-start",
+                gap: "16px",
+                flexWrap: "wrap",
+                marginBottom: "14px"
               }}
             >
-              <SectionTitle>
-                Pending Internal Approvals
-              </SectionTitle>
+              <div>
+                <SectionTitle>
+                  Risk by Contract Status
+                </SectionTitle>
 
-              <Badge
-                color={
-                  data.pendingApprovalRows.length > 0
-                    ? "amber"
-                    : "green"
-                }
-              >
-                {data.pendingApprovalRows.length}
+                <p
+                  style={{
+                    ...S,
+                    fontSize: "11px",
+                    color: THEME.textMuted,
+                    lineHeight: 1.55,
+                    marginTop: "-6px",
+                    marginBottom: 0
+                  }}
+                >
+                  The eight possible combinations of EMMY crediting,
+                  validation and payment status.
+                </p>
+              </div>
+
+              <Badge color="gray">
+                8 status combinations
               </Badge>
             </div>
 
             <div
               style={{
-                maxHeight: "280px",
-                overflowY: "auto",
                 overflowX: "auto",
-                border:
-                  `1px solid ${THEME.borderSoft}`
+                border: `1px solid ${THEME.borderSoft}`,
+                borderRadius: "3px"
               }}
             >
               <table
                 style={{
                   width: "100%",
-                  minWidth: "620px",
-                  borderCollapse: "collapse"
+                  borderCollapse: "collapse",
+                  tableLayout: "fixed"
                 }}
               >
+                <colgroup>
+                  <col style={{ width: "20%" }} />
+                  <col style={{ width: "7%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "8%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "10%" }} />
+                  <col style={{ width: "11%" }} />
+                  <col style={{ width: "14%" }} />
+                </colgroup>
+
                 <thead>
                   <tr>
                     {[
-                      "Counterparty",
-                      "Month",
+                      "Contract status",
+                      "Contracts",
                       "Volume",
-                      "Pricing",
-                      "Status"
+                      "% portfolio",
+                      "Risk performance",
+                      "Default risk",
+                      "Regulatory risk",
+                      "Total risk"
                     ].map(header => (
                       <TH key={header}>
                         {header}
                       </TH>
                     ))}
+
+                    <th
+                      style={{
+                        ...S,
+                        position: "sticky",
+                        right: 0,
+                        zIndex: 4,
+                        fontSize: "10px",
+                        color: THEME.textLabel,
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.09em",
+                        padding: "9px 12px",
+                        textAlign: "center",
+                        whiteSpace: "nowrap",
+                        background: THEME.tableHeader,
+                        borderBottom: `1px solid ${THEME.border}`,
+                        boxShadow:
+                          "-10px 0 18px rgba(7, 11, 22, 0.28)"
+                      }}
+                    >
+                      Details
+                    </th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {data.pendingApprovalRows.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={5}
-                        style={{
-                          ...S,
-                          padding: "18px 14px",
-                          color: THEME.textMuted,
-                          textAlign: "center"
-                        }}
-                      >
-                        No pending internal approval.
-                      </td>
-                    </tr>
-                  ) : (
-                    data.pendingApprovalRows.map(
-                      row => (
+                  {data.buckets.map(
+                    (bucket, index) => {
+                      const hasContracts =
+                        bucket.tradeCount > 0;
+
+                      const rowBackground =
+                        index % 2 === 0
+                          ? THEME.panel
+                          : THEME.panelAlt;
+
+                      const accentColor =
+                        hasContracts
+                          ? riskColor(bucket.totalRisk)
+                          : THEME.borderSoft;
+
+                      return (
                         <tr
-                          key={row.id}
+                          key={bucket.key}
                           style={{
+                            background: rowBackground,
                             borderBottom:
-                              `1px solid ${THEME.borderSoft}`
+                              `1px solid ${THEME.borderSoft}`,
+                            opacity:
+                              hasContracts ? 1 : 0.48
                           }}
                         >
                           <td
                             style={{
                               ...S,
-                              padding: "10px 14px",
-                              color: THEME.textPrimary
+                              padding: "12px 12px",
+                              borderLeft:
+                                `3px solid ${accentColor}`,
+                              verticalAlign: "middle"
                             }}
                           >
-                            {row.vendor}
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "10px 14px",
-                              color: THEME.textMuted,
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {row.month
-                              ? ML(row.month)
-                              : "—"}
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "10px 14px",
-                              color: THEME.textSecondary,
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {N(
-                              row.volume,
-                              2
-                            )} GWhc
-                          </td>
-
-                          <td
-                            style={{
-                              padding: "10px 14px"
-                            }}
-                          >
-                            <Badge
-                              color={
-                                row.priced === true
-                                  ? "green"
-                                  : "gray"
-                              }
+                            <div
+                              style={{
+                                color:
+                                  hasContracts
+                                    ? THEME.textPrimary
+                                    : THEME.textMuted,
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                lineHeight: 1.3
+                              }}
                             >
-                              {row.priced === true
-                                ? "Priced"
-                                : "Unpriced"}
-                            </Badge>
+                              {bucket.label}
+                            </div>
+
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "5px",
+                                flexWrap: "wrap",
+                                marginTop: "7px"
+                              }}
+                            >
+                              <Badge
+                                color={
+                                  bucket.credited
+                                    ? "green"
+                                    : "gray"
+                                }
+                              >
+                                C: {bucket.credited ? "Yes" : "No"}
+                              </Badge>
+
+                              <Badge
+                                color={
+                                  bucket.validated
+                                    ? "green"
+                                    : "gray"
+                                }
+                              >
+                                V: {bucket.validated ? "Yes" : "No"}
+                              </Badge>
+
+                              <Badge
+                                color={
+                                  bucket.paid
+                                    ? "green"
+                                    : "gray"
+                                }
+                              >
+                                P: {bucket.paid ? "Yes" : "No"}
+                              </Badge>
+                            </div>
+
+                            <div
+                              style={{
+                                marginTop: "7px",
+                                color:
+                                  hasContracts
+                                    ? accentColor
+                                    : THEME.textMuted,
+                                fontSize: "9px",
+                                fontWeight: 500,
+                                letterSpacing: "0.02em"
+                              }}
+                            >
+                              {dominantRiskLabel(bucket)}
+                            </div>
                           </td>
 
                           <td
                             style={{
-                              padding: "10px 14px"
+                              ...S,
+                              padding: "12px 8px",
+                              color: THEME.textSecondary,
+                              fontWeight: 700,
+                              textAlign: "center",
+                              whiteSpace: "nowrap"
                             }}
                           >
-                            <Badge color="amber">
-                              {String(
-                                row.approval ?? ""
-                              ).trim() === "No"
-                                ? "Approval No"
-                                : row.status || "Pending"}
-                            </Badge>
+                            {N(bucket.tradeCount, 0)}
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "12px 8px",
+                              color: THEME.textSecondary,
+                              textAlign: "right",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {N(bucket.volume, 2)}
+                            <span
+                              style={{
+                                display: "block",
+                                fontSize: "8px",
+                                color: THEME.textMuted,
+                                marginTop: "2px"
+                              }}
+                            >
+                              GWhc
+                            </span>
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "12px 8px",
+                              color: THEME.sky,
+                              fontWeight: 700,
+                              textAlign: "center",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {N(bucket.portfolioPct, 1)}%
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "12px 8px",
+                              color: riskColor(
+                                bucket.riskPerformance
+                              ),
+                              fontWeight: 650,
+                              textAlign: "right",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {fM(bucket.riskPerformance)}
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "12px 8px",
+                              color:
+                                bucket.defaultRisk > 0
+                                  ? THEME.red
+                                  : THEME.textMuted,
+                              fontWeight: 650,
+                              textAlign: "right",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {fM(bucket.defaultRisk)}
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "12px 8px",
+                              color:
+                                bucket.regulatoryRisk > 0
+                                  ? THEME.amber
+                                  : THEME.textMuted,
+                              fontWeight: 650,
+                              textAlign: "right",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {fM(bucket.regulatoryRisk)}
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "12px 8px",
+                              textAlign: "right",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "flex-end",
+                                minWidth: "76px",
+                                padding: "5px 7px",
+                                borderRadius: "2px",
+                                color: riskColor(
+                                  bucket.totalRisk
+                                ),
+                                background:
+                                  bucket.totalRisk > 0
+                                    ? "rgba(248, 113, 113, 0.09)"
+                                    : bucket.totalRisk < 0
+                                      ? "rgba(52, 211, 153, 0.09)"
+                                      : "rgba(113, 135, 166, 0.08)",
+                                border:
+                                  `1px solid ${
+                                    bucket.totalRisk > 0
+                                      ? "rgba(248, 113, 113, 0.22)"
+                                      : bucket.totalRisk < 0
+                                        ? "rgba(52, 211, 153, 0.22)"
+                                        : THEME.borderSoft
+                                  }`,
+                                fontWeight: 800
+                              }}
+                            >
+                              {fM(bucket.totalRisk)}
+                            </span>
+                          </td>
+
+                          <td
+                            style={{
+                              position: "sticky",
+                              right: 0,
+                              zIndex: 2,
+                              padding: "12px 10px",
+                              textAlign: "center",
+                              background: rowBackground,
+                              boxShadow:
+                                "-10px 0 18px rgba(7, 11, 22, 0.24)"
+                            }}
+                          >
+                            {hasContracts ? (
+                              <button
+                                onClick={() =>
+                                  setSelectedRiskBucket(bucket)
+                                }
+                                style={{
+                                  ...S,
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: "6px",
+                                  width: "100%",
+                                  maxWidth: "125px",
+                                  background:
+                                    "rgba(56, 189, 248, 0.08)",
+                                  color: THEME.sky,
+                                  border:
+                                    "1px solid rgba(56, 189, 248, 0.28)",
+                                  borderRadius: "2px",
+                                  fontSize: "8px",
+                                  fontWeight: 700,
+                                  letterSpacing: "0.07em",
+                                  textTransform: "uppercase",
+                                  padding: "7px 8px",
+                                  cursor: "pointer",
+                                  whiteSpace: "nowrap"
+                                }}
+                              >
+                                <EyeIcon />
+                                View contracts
+                              </button>
+                            ) : (
+                              <span
+                                style={{
+                                  ...S,
+                                  color: THEME.textMuted,
+                                  fontSize: "11px"
+                                }}
+                              >
+                                —
+                              </span>
+                            )}
                           </td>
                         </tr>
-                      )
-                    )
+                      );
+                    }
                   )}
                 </tbody>
+
+                <tfoot>
+                  <tr
+                    style={{
+                      background: THEME.tableHeader,
+                      borderTop:
+                        `1px solid ${THEME.border}`
+                    }}
+                  >
+                    <td
+                      style={{
+                        ...S,
+                        padding: "13px 14px",
+                        color: THEME.sky,
+                        fontWeight: 800,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        borderLeft:
+                          `3px solid ${THEME.sky}`
+                      }}
+                    >
+                      Total {title} P6
+                    </td>
+
+                    <td
+                      style={{
+                        ...S,
+                        padding: "13px 8px",
+                        color: THEME.textPrimary,
+                        fontWeight: 700,
+                        textAlign: "center"
+                      }}
+                    >
+                      {N(data.tradeCount, 0)}
+                    </td>
+
+                    <td
+                      style={{
+                        ...S,
+                        padding: "13px 8px",
+                        color: THEME.textPrimary,
+                        fontWeight: 700,
+                        textAlign: "right",
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      {N(data.totalVolume, 2)} GWhc
+                    </td>
+
+                    <td
+                      style={{
+                        ...S,
+                        padding: "13px 8px",
+                        color: THEME.sky,
+                        fontWeight: 700,
+                        textAlign: "center"
+                      }}
+                    >
+                      100,0%
+                    </td>
+
+                    <td
+                      style={{
+                        ...S,
+                        padding: "13px 8px",
+                        color: riskColor(
+                          data.totalRiskPerformance
+                        ),
+                        fontWeight: 700,
+                        textAlign: "right",
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      {fM(data.totalRiskPerformance)}
+                    </td>
+
+                    <td
+                      style={{
+                        ...S,
+                        padding: "13px 8px",
+                        color:
+                          data.totalDefaultRisk > 0
+                            ? THEME.red
+                            : THEME.textMuted,
+                        fontWeight: 700,
+                        textAlign: "right",
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      {fM(data.totalDefaultRisk)}
+                    </td>
+
+                    <td
+                      style={{
+                        ...S,
+                        padding: "13px 8px",
+                        color:
+                          data.totalRegulatoryRisk > 0
+                            ? THEME.amber
+                            : THEME.textMuted,
+                        fontWeight: 700,
+                        textAlign: "right",
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      {fM(data.totalRegulatoryRisk)}
+                    </td>
+
+                    <td
+                      style={{
+                        ...S,
+                        padding: "13px 8px",
+                        color: riskColor(
+                          data.totalRisk
+                        ),
+                        fontWeight: 800,
+                        textAlign: "right",
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      {fM(data.totalRisk)}
+                    </td>
+
+                    <td
+                      style={{
+                        position: "sticky",
+                        right: 0,
+                        zIndex: 3,
+                        background:
+                          THEME.tableHeader,
+                        boxShadow:
+                          "-10px 0 18px rgba(7, 11, 22, 0.28)"
+                      }}
+                    />
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
         </div>
 
         {/* ======================================================
-            4. SUPPORTING ANALYSIS
+            3. SELECTED STATUS DETAIL MODAL
         ====================================================== */}
-        <details
-          style={{
-            background: THEME.panel,
-            border:
-              `1px solid ${THEME.borderSoft}`,
-            borderRadius: "3px",
-            overflow: "hidden"
-          }}
-        >
-          <summary
-            style={{
-              ...S,
-              padding: "15px 18px",
-              color: THEME.textSecondary,
-              fontSize: "10px",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.12em",
-              cursor: "pointer",
-              userSelect: "none",
-              background: THEME.panelAlt
-            }}
+        {selectedRiskBucket && (
+          <Modal
+            title={`${title} — ${selectedRiskBucket.label}`}
+            onClose={() =>
+              setSelectedRiskBucket(null)
+            }
+            wide
           >
-            Supporting analysis — rating and detailed unvalidated trades
-          </summary>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "minmax(0, 0.75fr) minmax(0, 1.5fr)",
-              gap: "16px",
-              padding: "18px"
-            }}
-          >
-            <div style={innerCardStyle}>
-              <p
-                style={{
-                  ...S,
-                  fontSize: "9px",
-                  color: THEME.sectionTitle,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.14em",
-                  marginBottom: "10px"
-                }}
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                flexWrap: "wrap",
+                marginBottom: "16px"
+              }}
+            >
+              <Badge
+                color={statusBadgeColor(
+                  selectedRiskBucket.credited
+                )}
               >
-                Purchased volume by rating
-              </p>
+                Credited:{" "}
+                {selectedRiskBucket.credited
+                  ? "Yes"
+                  : "No"}
+              </Badge>
 
-              <ResponsiveContainer
-                width="100%"
-                height={250}
+              <Badge
+                color={statusBadgeColor(
+                  selectedRiskBucket.validated
+                )}
               >
-                <BarChart
-                  data={data.ratingData}
-                  barSize={28}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 6"
-                    stroke={THEME.border}
-                    vertical={false}
-                    opacity={0.8}
-                  />
+                Validated:{" "}
+                {selectedRiskBucket.validated
+                  ? "Yes"
+                  : "No"}
+              </Badge>
 
-                  <XAxis
-                    dataKey="rating"
-                    tick={{
-                      ...S,
-                      fontSize: 10,
-                      fill: THEME.textSecondary
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-
-                  <YAxis
-                    tick={{
-                      ...S,
-                      fontSize: 9,
-                      fill: THEME.textMuted
-                    }}
-                    axisLine={false}
-                    tickLine={false}
-                    width={50}
-                  />
-
-                  <Tooltip content={<ChartTip />} />
-
-                  <Bar
-                    dataKey="volume"
-                    name="Volume (GWhc)"
-                    fill={THEME.sky}
-                    radius={[2, 2, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              <Badge
+                color={statusBadgeColor(
+                  selectedRiskBucket.paid
+                )}
+              >
+                Paid:{" "}
+                {selectedRiskBucket.paid
+                  ? "Yes"
+                  : "No"}
+              </Badge>
             </div>
 
-            <div style={innerCardStyle}>
-              <p
-                style={{
-                  ...S,
-                  fontSize: "9px",
-                  color: THEME.sectionTitle,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.14em",
-                  marginBottom: "10px"
-                }}
-              >
-                Detailed unvalidated trades
-              </p>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(5, minmax(135px, 1fr))",
+                gap: "8px",
+                marginBottom: "18px"
+              }}
+            >
+              <KPI
+                label="Volume"
+                value={`${N(
+                  selectedRiskBucket.volume,
+                  2
+                )} GWhc`}
+                color="sky"
+                sub={`${selectedRiskBucket.tradeCount} contracts`}
+              />
+
+              <KPI
+                label="Risk Performance"
+                value={fM(
+                  selectedRiskBucket.riskPerformance
+                )}
+                color={
+                  selectedRiskBucket.riskPerformance > 0
+                    ? "rose"
+                    : selectedRiskBucket.riskPerformance < 0
+                      ? "emerald"
+                      : "gray"
+                }
+              />
+
+              <KPI
+                label="Default Risk"
+                value={fM(
+                  selectedRiskBucket.defaultRisk
+                )}
+                color={
+                  selectedRiskBucket.defaultRisk > 0
+                    ? "rose"
+                    : "gray"
+                }
+              />
+
+              <KPI
+                label="Regulatory Risk"
+                value={fM(
+                  selectedRiskBucket.regulatoryRisk
+                )}
+                color={
+                  selectedRiskBucket.regulatoryRisk > 0
+                    ? "amber"
+                    : "gray"
+                }
+              />
+
+              <KPI
+                label="Total Risk"
+                value={fM(
+                  selectedRiskBucket.totalRisk
+                )}
+                color={
+                  selectedRiskBucket.totalRisk > 0
+                    ? "rose"
+                    : selectedRiskBucket.totalRisk < 0
+                      ? "emerald"
+                      : "gray"
+                }
+              />
+            </div>
+
+            <div
+              style={{
+                background:
+                  THEME.panelAlt,
+                border:
+                  `1px solid ${THEME.borderSoft}`,
+                borderRadius:
+                  "3px",
+                padding:
+                  "16px",
+                marginBottom:
+                  "18px"
+              }}
+            >
+              <SectionTitle>
+                Risk by Counterparty
+              </SectionTitle>
+
+              {detailChartData.length === 0 ? (
+                <div
+                  style={{
+                    ...S,
+                    height: "220px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: THEME.textMuted
+                  }}
+                >
+                  No contract in this status.
+                </div>
+              ) : (
+                <ResponsiveContainer
+                  width="100%"
+                  height={Math.max(
+                    240,
+                    detailChartData.length * 48
+                  )}
+                >
+                  <BarChart
+                    data={detailChartData}
+                    layout="vertical"
+                    barSize={18}
+                    margin={{
+                      top: 8,
+                      right: 18,
+                      left: 14,
+                      bottom: 8
+                    }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 6"
+                      stroke={THEME.border}
+                      horizontal={false}
+                    />
+
+                    <XAxis
+                      type="number"
+                      tick={{
+                        ...S,
+                        fontSize: 9,
+                        fill: THEME.textMuted
+                      }}
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={value =>
+                        `${N(
+                          value / 1000000,
+                          1
+                        )}M`
+                      }
+                    />
+
+                    <YAxis
+                      type="category"
+                      dataKey="vendor"
+                      tick={{
+                        ...S,
+                        fontSize: 9,
+                        fill: THEME.textSecondary
+                      }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={175}
+                    />
+
+                    <Tooltip
+                      formatter={(value, name) => [
+                        fM(Number(value)),
+                        name
+                      ]}
+                      contentStyle={{
+                        background:
+                          THEME.panelAlt,
+                        border:
+                          `1px solid ${THEME.border}`,
+                        borderRadius:
+                          "3px",
+                        color:
+                          THEME.textPrimary,
+                        fontFamily:
+                          "Inter, sans-serif",
+                        fontSize:
+                          "10px"
+                      }}
+                    />
+
+                    <Legend
+                      iconSize={9}
+                      wrapperStyle={{
+                        ...S,
+                        fontSize:
+                          "10px",
+                        color:
+                          THEME.textSecondary
+                      }}
+                    />
+
+                    <ReferenceLine
+                      x={0}
+                      stroke={THEME.border}
+                    />
+
+                    <Bar
+                      dataKey="riskPerformance"
+                      name="Risk Performance"
+                      stackId="risk"
+                      fill={THEME.red}
+                    />
+
+                    <Bar
+                      dataKey="defaultRisk"
+                      name="Default Risk"
+                      stackId="risk"
+                      fill="#f59e0b"
+                    />
+
+                    <Bar
+                      dataKey="regulatoryRisk"
+                      name="Regulatory Risk"
+                      stackId="risk"
+                      fill={THEME.sky}
+                      radius={[0, 2, 2, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            <div>
+              <SectionTitle>
+                Contracts Included
+              </SectionTitle>
 
               <div
                 style={{
-                  maxHeight: "340px",
-                  overflowY: "auto",
                   overflowX: "auto",
+                  maxHeight: "390px",
+                  overflowY: "auto",
                   border:
                     `1px solid ${THEME.borderSoft}`
                 }}
@@ -2923,7 +3180,7 @@ function Reporting({
                 <table
                   style={{
                     width: "100%",
-                    minWidth: "920px",
+                    minWidth: "1120px",
                     borderCollapse: "collapse"
                   }}
                 >
@@ -2935,9 +3192,10 @@ function Reporting({
                         "Month",
                         "Volume",
                         "Price",
-                        "Pricing",
-                        "Payment",
-                        "Exposure"
+                        "Risk performance",
+                        "Default risk",
+                        "Regulatory risk",
+                        "Total risk"
                       ].map(header => (
                         <TH key={header}>
                           {header}
@@ -2947,159 +3205,164 @@ function Reporting({
                   </thead>
 
                   <tbody>
-                    {data.totalNotValidatedRows.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={8}
+                    {selectedRiskBucket.contracts.map(
+                      contract => (
+                        <tr
+                          key={contract.id}
                           style={{
-                            ...S,
-                            padding: "18px 14px",
-                            color: THEME.textMuted,
-                            textAlign: "center"
+                            borderBottom:
+                              `1px solid ${THEME.borderSoft}`
                           }}
                         >
-                          No unvalidated trade.
-                        </td>
-                      </tr>
-                    ) : (
-                      data.totalNotValidatedRows.map(
-                        row => (
-                          <tr
-                            key={row.id}
+                          <td
                             style={{
-                              borderBottom:
-                                `1px solid ${THEME.borderSoft}`
+                              ...S,
+                              padding: "10px 14px",
+                              color:
+                                THEME.textPrimary,
+                              fontWeight: 600
                             }}
                           >
-                            <td
-                              style={{
-                                ...S,
-                                padding: "10px 14px",
-                                color: THEME.textPrimary
-                              }}
-                            >
-                              {row.vendor}
-                            </td>
+                            {contract.vendor}
+                          </td>
 
-                            <td
-                              style={{
-                                padding: "10px 14px"
-                              }}
+                          <td
+                            style={{
+                              padding: "10px 14px"
+                            }}
+                          >
+                            <Badge
+                              color={
+                                contract.rating === "AAA"
+                                  ? "green"
+                                  : contract.rating === "N/A"
+                                    ? "gray"
+                                    : "amber"
+                              }
                             >
-                              <Badge
-                                color={
-                                  row.rating === "AAA"
-                                    ? "green"
-                                    : row.rating === "N/A"
-                                      ? "gray"
-                                      : "amber"
-                                }
-                              >
-                                {row.rating}
-                              </Badge>
-                            </td>
+                              {contract.rating}
+                            </Badge>
+                          </td>
 
-                            <td
-                              style={{
-                                ...S,
-                                padding: "10px 14px",
-                                color: THEME.textMuted,
-                                whiteSpace: "nowrap"
-                              }}
-                            >
-                              {row.month
-                                ? ML(row.month)
-                                : "—"}
-                            </td>
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color:
+                                THEME.textMuted,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {contract.month
+                              ? ML(contract.month)
+                              : "—"}
+                          </td>
 
-                            <td
-                              style={{
-                                ...S,
-                                padding: "10px 14px",
-                                color: THEME.textSecondary,
-                                whiteSpace: "nowrap"
-                              }}
-                            >
-                              {N(
-                                row.volume,
-                                2
-                              )} GWhc
-                            </td>
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color:
+                                THEME.textSecondary,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {N(
+                              contract.volume,
+                              2
+                            )} GWhc
+                          </td>
 
-                            <td
-                              style={{
-                                ...S,
-                                padding: "10px 14px",
-                                color: THEME.textSecondary,
-                                whiteSpace: "nowrap"
-                              }}
-                            >
-                              {N(
-                                row.price,
-                                2
-                              )} €/GWhc
-                            </td>
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color:
+                                THEME.textSecondary,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {N(
+                              contract.price,
+                              0
+                            )} €/GWhc
+                          </td>
 
-                            <td
-                              style={{
-                                padding: "10px 14px"
-                              }}
-                            >
-                              <Badge
-                                color={
-                                  row.priced
-                                    ? "green"
-                                    : "gray"
-                                }
-                              >
-                                {row.priced
-                                  ? "Priced"
-                                  : "Unpriced"}
-                              </Badge>
-                            </td>
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color: riskColor(
+                                contract.riskPerformance
+                              ),
+                              fontWeight: 600,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {fM(
+                              contract.riskPerformance
+                            )}
+                          </td>
 
-                            <td
-                              style={{
-                                padding: "10px 14px"
-                              }}
-                            >
-                              <Badge
-                                color={
-                                  row.payment
-                                    ? "green"
-                                    : "red"
-                                }
-                              >
-                                {row.payment
-                                  ? "Paid"
-                                  : "Unpaid"}
-                              </Badge>
-                            </td>
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color:
+                                contract.defaultRisk > 0
+                                  ? THEME.red
+                                  : THEME.textMuted,
+                              fontWeight: 600,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {fM(
+                              contract.defaultRisk
+                            )}
+                          </td>
 
-                            <td
-                              style={{
-                                ...S,
-                                padding: "10px 14px",
-                                color: riskColor(
-                                  row.exposure
-                                ),
-                                fontWeight: 700,
-                                whiteSpace: "nowrap"
-                              }}
-                            >
-                              {fM(row.exposure)}
-                            </td>
-                          </tr>
-                        )
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color:
+                                contract.regulatoryRisk > 0
+                                  ? THEME.amber
+                                  : THEME.textMuted,
+                              fontWeight: 600,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {fM(
+                              contract.regulatoryRisk
+                            )}
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color: riskColor(
+                                contract.totalRisk
+                              ),
+                              fontWeight: 800,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {fM(
+                              contract.totalRisk
+                            )}
+                          </td>
+                        </tr>
                       )
                     )}
                   </tbody>
                 </table>
               </div>
             </div>
-          </div>
-        </details>
-      </div>
+          </Modal>
+        )}
+      </>
     );
   };
 
@@ -3920,7 +4183,7 @@ function Reporting({
 
           <RegulatoryBlock
             title={activeRegulatoryTitle}
-            data={activeRegulatoryData}
+            data={activeRiskMatrixData}
           />
         </div>
       )}
@@ -8935,11 +9198,19 @@ export default function App() {
         payment: t.payment,
         paymentDate: t.payment_date,
         cpRanking: t.cp_ranking,
-        riskPerformanceMt: t.risk_performance_mt != null ? +t.risk_performance_mt : null,
+        riskPerformanceMt:
+          t.risk_performance_mt != null
+            ? Number(t.risk_performance_mt)
+            : 0,
 
         defaultRisk:
           t.default_risk != null
             ? Number(t.default_risk)
+            : 0,
+
+        regulatoryRisk:
+          t.regulatory_risk != null
+            ? Number(t.regulatory_risk)
             : 0,
 
         // Business aliases for the new Excel wording
