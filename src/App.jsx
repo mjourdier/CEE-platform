@@ -177,6 +177,244 @@ function avgSellMonth(obligations, month, ceeType, pricedOnly = true) {
   return weightedVolume > 0 ? weightedSum / weightedVolume : 0;
 }
 
+function getCreditingVolumes(trade) {
+  const totalVolume = Math.max(
+    Number(trade?.volume || 0),
+    0
+  );
+
+  const creditedRaw =
+    trade?.volumeCredited ??
+    trade?.volumeDeposited;
+
+  const remainingRaw =
+    trade?.volumeRemainingToBeCredited ??
+    trade?.volumeRemainingToBeDeposited;
+
+  const hasCreditedVolume =
+    creditedRaw !== null &&
+    creditedRaw !== undefined &&
+    creditedRaw !== "" &&
+    Number.isFinite(Number(creditedRaw));
+
+  const hasRemainingVolume =
+    remainingRaw !== null &&
+    remainingRaw !== undefined &&
+    remainingRaw !== "" &&
+    Number.isFinite(Number(remainingRaw));
+
+  let creditedVolume;
+
+  if (hasCreditedVolume) {
+    creditedVolume =
+      Number(creditedRaw);
+  } else if (hasRemainingVolume) {
+    creditedVolume =
+      totalVolume - Number(remainingRaw);
+  } else {
+    creditedVolume = 0;
+  }
+
+  creditedVolume = Math.min(
+    Math.max(creditedVolume, 0),
+    totalVolume
+  );
+
+  const uncreditedVolume = Math.max(
+    totalVolume - creditedVolume,
+    0
+  );
+
+  return {
+    totalVolume,
+    creditedVolume,
+    uncreditedVolume
+  };
+}
+
+function calcPaidRiskSplit(trade) {
+  const {
+    creditedVolume,
+    uncreditedVolume
+  } = getCreditingVolumes(trade);
+
+  const price = Math.max(
+    Number(trade?.price || 0),
+    0
+  );
+
+  const isPaid =
+    trade?.payment === true;
+
+  if (!isPaid) {
+    return {
+      defaultRisk: 0,
+      regulatoryRisk: 0
+    };
+  }
+
+  return {
+    defaultRisk:
+      uncreditedVolume * price,
+
+    regulatoryRisk:
+      creditedVolume * price
+  };
+}
+
+function splitTradeByCreditingStatus(trade) {
+  const CREDIT_EPSILON = 0.01;
+
+  const {
+    totalVolume,
+    creditedVolume,
+    uncreditedVolume
+  } = getCreditingVolumes(trade);
+
+  const riskPerformance =
+    Number(trade?.riskPerformanceMt || 0);
+
+  const defaultRisk =
+    Number(trade?.defaultRisk || 0);
+
+  const regulatoryRisk =
+    Number(trade?.regulatoryRisk || 0);
+
+  const baseTrade = {
+    sourceTradeId: trade.id,
+
+    vendor:
+      trade.vendor || "Unknown",
+
+    rating:
+      trade.cpRanking || "N/A",
+
+    month:
+      trade.month,
+
+    price:
+      Number(trade.price || 0),
+
+    priced:
+      trade.priced === true,
+
+    validated:
+      trade.validated === true,
+
+    paid:
+      trade.payment === true,
+
+    totalContractVolume:
+      totalVolume
+  };
+
+  // Cas exceptionnel : contrat de volume nul.
+  // On conserve une ligne afin de ne pas faire disparaître
+  // artificiellement le contrat du reporting.
+  if (totalVolume <= CREDIT_EPSILON) {
+    const credited =
+      uncreditedVolume <= CREDIT_EPSILON;
+
+    return [
+      {
+        ...baseTrade,
+
+        id:
+          `${trade.id}::${
+            credited
+              ? "credited"
+              : "uncredited"
+          }`,
+
+        credited,
+
+        volume: 0,
+
+        riskPerformance,
+
+        defaultRisk:
+          credited ? 0 : defaultRisk,
+
+        regulatoryRisk:
+          credited ? regulatoryRisk : 0,
+
+        totalRisk:
+          riskPerformance +
+          defaultRisk +
+          regulatoryRisk
+      }
+    ];
+  }
+
+  const slices = [];
+
+  // Fraction déjà créditée
+  if (creditedVolume > CREDIT_EPSILON) {
+    const creditedShare =
+      creditedVolume / totalVolume;
+
+    const creditedRiskPerformance =
+      riskPerformance * creditedShare;
+
+    slices.push({
+      ...baseTrade,
+
+      id:
+        `${trade.id}::credited`,
+
+      credited: true,
+
+      volume:
+        creditedVolume,
+
+      riskPerformance:
+        creditedRiskPerformance,
+
+      defaultRisk: 0,
+
+      regulatoryRisk,
+
+      totalRisk:
+        creditedRiskPerformance +
+        regulatoryRisk
+    });
+  }
+
+  // Fraction restant à créditer
+  if (uncreditedVolume > CREDIT_EPSILON) {
+    const uncreditedShare =
+      uncreditedVolume / totalVolume;
+
+    const uncreditedRiskPerformance =
+      riskPerformance * uncreditedShare;
+
+    slices.push({
+      ...baseTrade,
+
+      id:
+        `${trade.id}::uncredited`,
+
+      credited: false,
+
+      volume:
+        uncreditedVolume,
+
+      riskPerformance:
+        uncreditedRiskPerformance,
+
+      defaultRisk,
+
+      regulatoryRisk: 0,
+
+      totalRisk:
+        uncreditedRiskPerformance +
+        defaultRisk
+    });
+  }
+
+  return slices;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ATOMS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1767,140 +2005,42 @@ function Reporting({
   ];
 
   const buildRiskMatrix = ceeType => {
-    const CREDIT_EPSILON = 0.01;
-
     const rows = trades2026.filter(
       trade => trade.ceeType === ceeType
     );
 
-    // Same credited-status logic as the Supabase control query:
-    // Credited = Yes only when the remaining volume is effectively zero.
-    const remainingToCreditOf = trade => {
-      const explicitRemaining =
-        trade.volumeRemainingToBeCredited ??
-        trade.volumeRemainingToBeDeposited;
+    // Un contrat entièrement crédité ou non crédité produit une ligne.
+    // Un contrat partiellement crédité produit deux fractions :
+    // - une fraction Credited ;
+    // - une fraction Not credited.
+    const contracts = rows.flatMap(trade =>
+      splitTradeByCreditingStatus(trade)
+    );
 
-      if (
-        explicitRemaining !== null &&
-        explicitRemaining !== undefined &&
-        explicitRemaining !== ""
-      ) {
-        const numericRemaining =
-          Number(explicitRemaining);
-
-        if (Number.isFinite(numericRemaining)) {
-          return numericRemaining;
-        }
-      }
-
-      const volume =
-        Number(trade.volume || 0);
-
-      const creditedVolume =
-        Number(
-          trade.volumeCredited ??
-          trade.volumeDeposited ??
-          0
-        );
-
-      return volume - creditedVolume;
-    };
-
-    const isCredited = trade =>
-      Math.abs(
-        remainingToCreditOf(trade)
-      ) <= CREDIT_EPSILON;
-
-    const contracts = rows.map(trade => {
-      const volume =
-        Number(trade.volume || 0);
-
-      const riskPerformance =
-        Number(trade.riskPerformanceMt || 0);
-
-      const defaultRisk =
-        Number(trade.defaultRisk || 0);
-
-      const regulatoryRisk =
-        Number(trade.regulatoryRisk || 0);
-
-      return {
-        id: trade.id,
-
-        vendor:
-          trade.vendor || "Unknown",
-
-        rating:
-          trade.cpRanking || "N/A",
-
-        month:
-          trade.month,
-
-        volume,
-
-        price:
-          Number(trade.price || 0),
-
-        priced:
-          trade.priced === true,
-
-        credited:
-          isCredited(trade),
-
-        validated:
-          trade.validated === true,
-
-        paid:
-          trade.payment === true,
-
-        remainingToCredit:
-          remainingToCreditOf(trade),
-
-        riskPerformance,
-        defaultRisk,
-        regulatoryRisk,
-
-        totalRisk:
-          riskPerformance +
-          defaultRisk +
-          regulatoryRisk
-      };
-    });
-
-    const aggregateContracts = contractRows =>
-      contractRows.reduce(
+    const aggregateContracts = contractRows => {
+      const totals = contractRows.reduce(
         (result, contract) => ({
-          tradeCount:
-            result.tradeCount + 1,
-
           volume:
             result.volume +
             Number(contract.volume || 0),
 
           riskPerformance:
             result.riskPerformance +
-            Number(
-              contract.riskPerformance || 0
-            ),
+            Number(contract.riskPerformance || 0),
 
           defaultRisk:
             result.defaultRisk +
-            Number(
-              contract.defaultRisk || 0
-            ),
+            Number(contract.defaultRisk || 0),
 
           regulatoryRisk:
             result.regulatoryRisk +
-            Number(
-              contract.regulatoryRisk || 0
-            ),
+            Number(contract.regulatoryRisk || 0),
 
           totalRisk:
             result.totalRisk +
             Number(contract.totalRisk || 0)
         }),
         {
-          tradeCount: 0,
           volume: 0,
           riskPerformance: 0,
           defaultRisk: 0,
@@ -1909,151 +2049,192 @@ function Reporting({
         }
       );
 
+      // Un contrat partiellement crédité génère deux fractions,
+      // mais doit rester compté comme un seul contrat.
+      const uniqueTradeIds = new Set(
+        contractRows.map(contract =>
+          contract.sourceTradeId || contract.id
+        )
+      );
+
+      return {
+        tradeCount: uniqueTradeIds.size,
+        ...totals
+      };
+    };
+
     const portfolioTotals =
       aggregateContracts(contracts);
 
     const buckets =
-      RISK_STATUS_COMBINATIONS.map(
-        status => {
-          const bucketContracts =
-            contracts
-              .filter(
-                contract =>
-                  contract.credited ===
-                    status.credited &&
-                  contract.validated ===
-                    status.validated &&
-                  contract.paid ===
-                    status.paid
-              )
-              .sort(
-                (a, b) =>
-                  Math.abs(b.totalRisk) -
-                  Math.abs(a.totalRisk)
-              );
-
-          const bucketTotals =
-            aggregateContracts(
-              bucketContracts
-            );
-
-          const counterpartyMap =
-            bucketContracts.reduce(
-              (map, contract) => {
-                const vendor =
-                  contract.vendor ||
-                  "Unknown";
-
-                if (!map[vendor]) {
-                  map[vendor] = {
-                    vendor,
-                    rating:
-                      contract.rating ||
-                      "N/A",
-
-                    tradeCount: 0,
-                    volume: 0,
-
-                    riskPerformance: 0,
-                    defaultRisk: 0,
-                    regulatoryRisk: 0,
-                    totalRisk: 0
-                  };
-                }
-
-                const counterparty =
-                  map[vendor];
-
-                counterparty.tradeCount += 1;
-
-                counterparty.volume +=
-                  contract.volume;
-
-                counterparty.riskPerformance +=
-                  contract.riskPerformance;
-
-                counterparty.defaultRisk +=
-                  contract.defaultRisk;
-
-                counterparty.regulatoryRisk +=
-                  contract.regulatoryRisk;
-
-                counterparty.totalRisk +=
-                  contract.totalRisk;
-
-                return map;
-              },
-              {}
-            );
-
-          const counterparties =
-            Object.values(
-              counterpartyMap
-            ).sort(
+      RISK_STATUS_COMBINATIONS.map(status => {
+        const bucketContracts =
+          contracts
+            .filter(
+              contract =>
+                contract.credited ===
+                  status.credited &&
+                contract.validated ===
+                  status.validated &&
+                contract.paid ===
+                  status.paid
+            )
+            .sort(
               (a, b) =>
                 Math.abs(b.totalRisk) -
                 Math.abs(a.totalRisk)
             );
 
-          return {
-            key: [
-              status.credited
-                ? "credited"
-                : "not-credited",
+        const bucketTotals =
+          aggregateContracts(bucketContracts);
 
-              status.validated
-                ? "validated"
-                : "not-validated",
+        const counterpartyMap =
+          bucketContracts.reduce(
+            (map, contract) => {
+              const vendor =
+                contract.vendor || "Unknown";
 
-              status.paid
-                ? "paid"
-                : "unpaid"
-            ].join("-"),
+              if (!map[vendor]) {
+                map[vendor] = {
+                  vendor,
 
-            label:
-              status.label,
+                  rating:
+                    contract.rating || "N/A",
 
-            credited:
-              status.credited,
+                  tradeIds: new Set(),
 
-            validated:
-              status.validated,
+                  volume: 0,
+                  riskPerformance: 0,
+                  defaultRisk: 0,
+                  regulatoryRisk: 0,
+                  totalRisk: 0
+                };
+              }
 
-            paid:
-              status.paid,
+              const counterparty =
+                map[vendor];
 
-            tradeCount:
-              bucketTotals.tradeCount,
+              counterparty.tradeIds.add(
+                contract.sourceTradeId ||
+                contract.id
+              );
 
-            volume:
-              bucketTotals.volume,
+              counterparty.volume +=
+                Number(contract.volume || 0);
 
-            portfolioPct:
-              portfolioTotals.volume > 0
-                ? bucketTotals.volume /
-                  portfolioTotals.volume *
-                  100
-                : 0,
+              counterparty.riskPerformance +=
+                Number(
+                  contract.riskPerformance || 0
+                );
 
-            riskPerformance:
-              bucketTotals.riskPerformance,
+              counterparty.defaultRisk +=
+                Number(contract.defaultRisk || 0);
 
-            defaultRisk:
-              bucketTotals.defaultRisk,
+              counterparty.regulatoryRisk +=
+                Number(
+                  contract.regulatoryRisk || 0
+                );
 
-            regulatoryRisk:
-              bucketTotals.regulatoryRisk,
+              counterparty.totalRisk +=
+                Number(contract.totalRisk || 0);
 
-            totalRisk:
-              bucketTotals.totalRisk,
+              return map;
+            },
+            {}
+          );
 
-            contracts:
-              bucketContracts,
+        const counterparties =
+          Object.values(counterpartyMap)
+            .map(counterparty => ({
+              vendor:
+                counterparty.vendor,
 
-            counterparties
-          };
-        }
-      );
+              rating:
+                counterparty.rating,
+
+              tradeCount:
+                counterparty.tradeIds.size,
+
+              volume:
+                counterparty.volume,
+
+              riskPerformance:
+                counterparty.riskPerformance,
+
+              defaultRisk:
+                counterparty.defaultRisk,
+
+              regulatoryRisk:
+                counterparty.regulatoryRisk,
+
+              totalRisk:
+                counterparty.totalRisk
+            }))
+            .sort(
+              (a, b) =>
+                Math.abs(b.totalRisk) -
+                Math.abs(a.totalRisk)
+            );
+
+        return {
+          key: [
+            status.credited
+              ? "credited"
+              : "not-credited",
+
+            status.validated
+              ? "validated"
+              : "not-validated",
+
+            status.paid
+              ? "paid"
+              : "unpaid"
+          ].join("-"),
+
+          label:
+            status.label,
+
+          credited:
+            status.credited,
+
+          validated:
+            status.validated,
+
+          paid:
+            status.paid,
+
+          tradeCount:
+            bucketTotals.tradeCount,
+
+          volume:
+            bucketTotals.volume,
+
+          portfolioPct:
+            portfolioTotals.volume > 0
+              ? (
+                  bucketTotals.volume /
+                  portfolioTotals.volume
+                ) * 100
+              : 0,
+
+          riskPerformance:
+            bucketTotals.riskPerformance,
+
+          defaultRisk:
+            bucketTotals.defaultRisk,
+
+          regulatoryRisk:
+            bucketTotals.regulatoryRisk,
+
+          totalRisk:
+            bucketTotals.totalRisk,
+
+          contracts:
+            bucketContracts,
+
+          counterparties
+        };
+      });
 
     return {
       ceeType,
@@ -2082,18 +2263,12 @@ function Reporting({
   };
 
   const riskMatrixClassique = useMemo(
-    () =>
-      buildRiskMatrix(
-        "CLASSIQUE"
-      ),
+    () => buildRiskMatrix("CLASSIQUE"),
     [trades2026]
   );
 
   const riskMatrixPrecarite = useMemo(
-    () =>
-      buildRiskMatrix(
-        "PRECARITE"
-      ),
+    () => buildRiskMatrix("PRECARITE"),
     [trades2026]
   );
 
@@ -3180,7 +3355,7 @@ function Reporting({
                 <table
                   style={{
                     width: "100%",
-                    minWidth: "1120px",
+                    minWidth: "1260px",
                     borderCollapse: "collapse"
                   }}
                 >
@@ -3191,6 +3366,7 @@ function Reporting({
                         "Rating",
                         "Month",
                         "Volume",
+                        "Credit allocation",
                         "Price",
                         "Risk performance",
                         "Default risk",
@@ -3271,6 +3447,51 @@ function Reporting({
                               contract.volume,
                               2
                             )} GWhc
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "flex-start",
+                                gap: "4px"
+                              }}
+                            >
+                              <Badge
+                                color={
+                                  contract.credited
+                                    ? "green"
+                                    : "amber"
+                                }
+                              >
+                                {contract.credited
+                                  ? "Credited portion"
+                                  : "Uncredited portion"}
+                              </Badge>
+
+                              <span
+                                style={{
+                                  fontSize: "9px",
+                                  color: THEME.textMuted
+                                }}
+                              >
+                                {contract.totalContractVolume > 0
+                                  ? `${N(
+                                      contract.volume /
+                                        contract.totalContractVolume *
+                                        100,
+                                      1
+                                    )}% of contract`
+                                  : "Zero-volume contract"}
+                              </span>
+                            </div>
                           </td>
 
                           <td
@@ -9396,48 +9617,205 @@ export default function App() {
     await persist("audit_log", row);
   }, [currentUser, persist]);
 
-  const handleAddTrade=useCallback(async(t)=>{
-    setTrades(ts=>[...ts,t]);
-    await persist("trades", {
-      id: t.id,
-      cee_type: t.ceeType,
-      vendor: t.vendor,
-      deal_type: t.dealType,
-      period: t.period,
-      volume: t.volume,
-      price: t.price,
-      month: t.month,
-      status: t.status,
-      priced: t.priced,
-      statut: t.statut,
-      ranking: t.ranking,
-      emmy_validated: t.emmyValidated,
-      created_by: t.createdBy,
-      approved_by: t.approvedBy,
-      created_at: t.createdAt,
+  const handleAddTrade = useCallback(
+    async trade => {
+      const {
+        creditedVolume,
+        uncreditedVolume
+      } = getCreditingVolumes(trade);
 
-      year: t.year ?? (Number(String(t.month || "").slice(0, 4)) || null),
-      operation_type: t.operationType || "Achat",
-      pricing_month: t.pricingMonth || null,
-      comments: t.comments || null,
-      sourcing: t.sourcing || null,
-      tolerance_pct: t.tolerancePct ?? null,
-      volume_m3_equivalent: t.volumeM3Equivalent ?? null,
-      approval: t.approval || null,
-      contract_yes_no: t.contractYesNo,
-      contract_signed: t.contractSigned,
-      contract_date: t.contractDate || null,
-      payment_terms: t.paymentTerms || null,
-      volume_deposited: t.volumeDeposited ?? 0,
-      volume_remaining_to_be_deposited: t.volumeRemainingToBeDeposited ?? Number(t.volume || 0),
-      validated: t.validated,
-      validation_date: t.validationDate || null,
-      payment: t.payment,
-      payment_date: t.paymentDate || null,
-      cp_ranking: t.cpRanking || null
-    });
-    await addAudit({action:"TRADE_CREATED",entity:t.id,detail:`BUY ${N(t.volume,3)} GWhc ${t.ceeType} @ ${N(t.price,0)} — ${t.vendor}`});
-  },[persist,addAudit]);
+      const {
+        defaultRisk,
+        regulatoryRisk
+      } = calcPaidRiskSplit(trade);
+
+      const tradeToSave = {
+        ...trade,
+
+        // Normalisation des alias utilisés dans le front
+        volumeCredited:
+          creditedVolume,
+
+        volumeDeposited:
+          creditedVolume,
+
+        volumeRemainingToBeCredited:
+          uncreditedVolume,
+
+        volumeRemainingToBeDeposited:
+          uncreditedVolume,
+
+        riskPerformanceMt:
+          Number(
+            trade.riskPerformanceMt ?? 0
+          ),
+
+        defaultRisk,
+
+        regulatoryRisk
+      };
+
+      // Ajout immédiat dans l'interface
+      setTrades(currentTrades => [
+        ...currentTrades,
+        tradeToSave
+      ]);
+
+      await persist("trades", {
+        id:
+          tradeToSave.id,
+
+        cee_type:
+          tradeToSave.ceeType,
+
+        vendor:
+          tradeToSave.vendor,
+
+        deal_type:
+          tradeToSave.dealType,
+
+        period:
+          tradeToSave.period,
+
+        volume:
+          tradeToSave.volume,
+
+        price:
+          tradeToSave.price,
+
+        month:
+          tradeToSave.month,
+
+        status:
+          tradeToSave.status,
+
+        priced:
+          tradeToSave.priced,
+
+        statut:
+          tradeToSave.statut,
+
+        ranking:
+          tradeToSave.ranking,
+
+        emmy_validated:
+          tradeToSave.emmyValidated,
+
+        created_by:
+          tradeToSave.createdBy,
+
+        approved_by:
+          tradeToSave.approvedBy,
+
+        created_at:
+          tradeToSave.createdAt,
+
+        year:
+          tradeToSave.year ??
+          (
+            Number(
+              String(
+                tradeToSave.month || ""
+              ).slice(0, 4)
+            ) || null
+          ),
+
+        operation_type:
+          tradeToSave.operationType ||
+          "Achat",
+
+        pricing_month:
+          tradeToSave.pricingMonth ||
+          null,
+
+        comments:
+          tradeToSave.comments ||
+          null,
+
+        sourcing:
+          tradeToSave.sourcing ||
+          null,
+
+        tolerance_pct:
+          tradeToSave.tolerancePct ??
+          null,
+
+        volume_m3_equivalent:
+          tradeToSave.volumeM3Equivalent ??
+          null,
+
+        approval:
+          tradeToSave.approval ||
+          null,
+
+        contract_yes_no:
+          tradeToSave.contractYesNo,
+
+        contract_signed:
+          tradeToSave.contractSigned,
+
+        contract_date:
+          tradeToSave.contractDate ||
+          null,
+
+        payment_terms:
+          tradeToSave.paymentTerms ||
+          null,
+
+        volume_deposited:
+          tradeToSave.volumeCredited,
+
+        volume_remaining_to_be_deposited:
+          tradeToSave.volumeRemainingToBeCredited,
+
+        validated:
+          tradeToSave.validated,
+
+        validation_date:
+          tradeToSave.validationDate ||
+          null,
+
+        payment:
+          tradeToSave.payment,
+
+        payment_date:
+          tradeToSave.paymentDate ||
+          null,
+
+        cp_ranking:
+          tradeToSave.cpRanking ||
+          null,
+
+        risk_performance_mt:
+          tradeToSave.riskPerformanceMt,
+
+        default_risk:
+          tradeToSave.defaultRisk,
+
+        regulatory_risk:
+          tradeToSave.regulatoryRisk
+      });
+
+      await addAudit({
+        action: "TRADE_CREATED",
+        entity: tradeToSave.id,
+        detail:
+          `BUY ${N(
+            tradeToSave.volume,
+            3
+          )} GWhc ` +
+          `${tradeToSave.ceeType} @ ` +
+          `${N(
+            tradeToSave.price,
+            0
+          )} — ${tradeToSave.vendor}`
+      });
+    },
+    [
+      persist,
+      addAudit
+    ]
+  );
 
   const handleApproveTrade = useCallback(async (id, aid) => {
     setTrades(ts => ts.map(t =>
@@ -9512,133 +9890,300 @@ export default function App() {
     });
   }, [trades, addAudit]);
 
-  const handleUpdateTrade = useCallback(async (id, patch) => {
-    const tradeBefore = trades.find(t => t.id === id);
-    const updatedAt = new Date().toISOString();
+  const handleUpdateTrade = useCallback(
+    async (id, patch) => {
+      const tradeBefore = trades.find(
+        trade => trade.id === id
+      );
 
-    // Optimistic update immédiat pour recalcul dashboard/reporting sans attendre Supabase
-    setTrades(ts => ts.map(t => {
-      if (t.id !== id) return t;
+      if (!tradeBefore) {
+        console.error(`Trade not found: ${id}`);
+        return;
+      }
 
-      const next = {
-        ...t,
+      const updatedAt = new Date().toISOString();
+
+      const tradeAfter = {
+        ...tradeBefore,
         ...patch,
         updatedAt
       };
 
-      // Synchronisation des alias métier / technique
+      // Synchronisation des alias métier / techniques
       if ("volumeCredited" in patch) {
-        next.volumeDeposited = patch.volumeCredited;
+        tradeAfter.volumeDeposited =
+          patch.volumeCredited;
       }
 
       if ("volumeDeposited" in patch) {
-        next.volumeCredited = patch.volumeDeposited;
+        tradeAfter.volumeCredited =
+          patch.volumeDeposited;
       }
 
       if ("volumeRemainingToBeCredited" in patch) {
-        next.volumeRemainingToBeDeposited = patch.volumeRemainingToBeCredited;
+        tradeAfter.volumeRemainingToBeDeposited =
+          patch.volumeRemainingToBeCredited;
       }
 
       if ("volumeRemainingToBeDeposited" in patch) {
-        next.volumeRemainingToBeCredited = patch.volumeRemainingToBeDeposited;
+        tradeAfter.volumeRemainingToBeCredited =
+          patch.volumeRemainingToBeDeposited;
       }
 
-      return next;
-    }));
+      // Recalcul de la répartition du risque payé
+      const {
+        defaultRisk,
+        regulatoryRisk
+      } = calcPaidRiskSplit(tradeAfter);
 
-    const dbPatch = {};
+      tradeAfter.defaultRisk =
+        defaultRisk;
 
-    // Core trade fields
-    if ("ceeType" in patch) dbPatch.cee_type = patch.ceeType;
-    if ("vendor" in patch) dbPatch.vendor = patch.vendor;
-    if ("dealType" in patch) dbPatch.deal_type = patch.dealType;
-    if ("period" in patch) dbPatch.period = patch.period;
-    if ("volume" in patch) dbPatch.volume = patch.volume;
-    if ("price" in patch) dbPatch.price = patch.price;
-    if ("month" in patch) dbPatch.month = patch.month;
-    if ("status" in patch) dbPatch.status = patch.status;
-    if ("priced" in patch) dbPatch.priced = patch.priced;
-    if ("statut" in patch) dbPatch.statut = patch.statut;
-    if ("ranking" in patch) dbPatch.ranking = patch.ranking;
-    if ("emmyValidated" in patch) dbPatch.emmy_validated = patch.emmyValidated;
+      tradeAfter.regulatoryRisk =
+        regulatoryRisk;
 
-    // Extended Excel fields
-    if ("year" in patch) dbPatch.year = patch.year;
-    if ("operationType" in patch) dbPatch.operation_type = patch.operationType;
-    if ("pricingMonth" in patch) dbPatch.pricing_month = patch.pricingMonth;
-    if ("comments" in patch) dbPatch.comments = patch.comments;
-    if ("sourcing" in patch) dbPatch.sourcing = patch.sourcing;
-    if ("tolerancePct" in patch) dbPatch.tolerance_pct = patch.tolerancePct;
-    if ("volumeM3Equivalent" in patch) dbPatch.volume_m3_equivalent = patch.volumeM3Equivalent;
-    if ("approval" in patch) dbPatch.approval = patch.approval;
-    if ("contractYesNo" in patch) dbPatch.contract_yes_no = patch.contractYesNo;
-    if ("contractSigned" in patch) dbPatch.contract_signed = patch.contractSigned;
-    if ("contractDate" in patch) dbPatch.contract_date = patch.contractDate;
-    if ("paymentTerms" in patch) dbPatch.payment_terms = patch.paymentTerms;
-
-    // Business wording = credited on EMMY
-    // Technical DB column kept = volume_deposited
-    if ("volumeDeposited" in patch) {
-      dbPatch.volume_deposited = patch.volumeDeposited;
-    }
-
-    if ("volumeCredited" in patch) {
-      dbPatch.volume_deposited = patch.volumeCredited;
-    }
-
-    if ("volumeRemainingToBeDeposited" in patch) {
-      dbPatch.volume_remaining_to_be_deposited = patch.volumeRemainingToBeDeposited;
-    }
-
-    if ("volumeRemainingToBeCredited" in patch) {
-      dbPatch.volume_remaining_to_be_deposited = patch.volumeRemainingToBeCredited;
-    }
-
-    if ("validated" in patch) dbPatch.validated = patch.validated;
-    if ("validationDate" in patch) dbPatch.validation_date = patch.validationDate;
-    if ("payment" in patch) dbPatch.payment = patch.payment;
-    if ("paymentDate" in patch) dbPatch.payment_date = patch.paymentDate;
-    if ("cpRanking" in patch) dbPatch.cp_ranking = patch.cpRanking;
-    if ("riskPerformanceMt" in patch) dbPatch.risk_performance_mt = patch.riskPerformanceMt;
-
-    if ("createdBy" in patch) dbPatch.created_by = patch.createdBy;
-    if ("approvedBy" in patch) dbPatch.approved_by = patch.approvedBy;
-
-    dbPatch.updated_at = updatedAt;
-
-    const { data, error } = await supabase
-      .from("trades")
-      .update(dbPatch)
-      .eq("id", id)
-      .select("id, priced, updated_at")
-      .maybeSingle();
-
-
-    if (error || !data) {
-      console.error("Trade update error:", error);
-      alert(
-        "You do not have permission to edit the blotter"
+      // Optimistic update immédiat pour recalculer
+      // le dashboard et le reporting sans attendre Supabase
+      setTrades(currentTrades =>
+        currentTrades.map(trade =>
+          trade.id === id
+            ? tradeAfter
+            : trade
+        )
       );
-      await loadAll({ silent: true });
-      return;
-    }
 
-    await addAudit({
-      action: "TRADE_UPDATED",
-      entity: id,
-      detail: tradeBefore
-        ? `Trade updated — ${tradeBefore.vendor} · ${tradeBefore.ceeType} · ${N(tradeBefore.volume, 3)} GWhc`
-        : `Trade updated — id: ${id}`
-    });
-  }, [trades, addAudit, loadAll]);
+      const dbPatch = {};
 
-  const handleAddObligation=useCallback(async(o)=>{
-    setObligations(os=>[...os,o]);
-    await persist("obligations",{id:o.id,month:o.month,product:o.product,volume_m3:o.volume_m3,
-      price_cl:o.priceCl,price_pr:o.pricePr,priced:o.priced,client:o.client,
-      cl_gwhc:o.clGwhc,pr_gwhc:o.prGwhc});
-    await addAudit({action:"OBLIG_ADDED",entity:o.id,detail:`${o.month} ${o.product} ${o.volume_m3}m³`});
-  },[persist,addAudit]);
+      // Core trade fields
+      if ("ceeType" in patch) {
+        dbPatch.cee_type = patch.ceeType;
+      }
+
+      if ("vendor" in patch) {
+        dbPatch.vendor = patch.vendor;
+      }
+
+      if ("dealType" in patch) {
+        dbPatch.deal_type = patch.dealType;
+      }
+
+      if ("period" in patch) {
+        dbPatch.period = patch.period;
+      }
+
+      if ("volume" in patch) {
+        dbPatch.volume = patch.volume;
+      }
+
+      if ("price" in patch) {
+        dbPatch.price = patch.price;
+      }
+
+      if ("month" in patch) {
+        dbPatch.month = patch.month;
+      }
+
+      if ("status" in patch) {
+        dbPatch.status = patch.status;
+      }
+
+      if ("priced" in patch) {
+        dbPatch.priced = patch.priced;
+      }
+
+      if ("statut" in patch) {
+        dbPatch.statut = patch.statut;
+      }
+
+      if ("ranking" in patch) {
+        dbPatch.ranking = patch.ranking;
+      }
+
+      if ("emmyValidated" in patch) {
+        dbPatch.emmy_validated =
+          patch.emmyValidated;
+      }
+
+      // Extended Excel fields
+      if ("year" in patch) {
+        dbPatch.year = patch.year;
+      }
+
+      if ("operationType" in patch) {
+        dbPatch.operation_type =
+          patch.operationType;
+      }
+
+      if ("pricingMonth" in patch) {
+        dbPatch.pricing_month =
+          patch.pricingMonth;
+      }
+
+      if ("comments" in patch) {
+        dbPatch.comments = patch.comments;
+      }
+
+      if ("sourcing" in patch) {
+        dbPatch.sourcing = patch.sourcing;
+      }
+
+      if ("tolerancePct" in patch) {
+        dbPatch.tolerance_pct =
+          patch.tolerancePct;
+      }
+
+      if ("volumeM3Equivalent" in patch) {
+        dbPatch.volume_m3_equivalent =
+          patch.volumeM3Equivalent;
+      }
+
+      if ("approval" in patch) {
+        dbPatch.approval = patch.approval;
+      }
+
+      if ("contractYesNo" in patch) {
+        dbPatch.contract_yes_no =
+          patch.contractYesNo;
+      }
+
+      if ("contractSigned" in patch) {
+        dbPatch.contract_signed =
+          patch.contractSigned;
+      }
+
+      if ("contractDate" in patch) {
+        dbPatch.contract_date =
+          patch.contractDate;
+      }
+
+      if ("paymentTerms" in patch) {
+        dbPatch.payment_terms =
+          patch.paymentTerms;
+      }
+
+      // Business wording = credited on EMMY
+      // Technical DB column = volume_deposited
+      if ("volumeDeposited" in patch) {
+        dbPatch.volume_deposited =
+          patch.volumeDeposited;
+      }
+
+      if ("volumeCredited" in patch) {
+        dbPatch.volume_deposited =
+          patch.volumeCredited;
+      }
+
+      if ("volumeRemainingToBeDeposited" in patch) {
+        dbPatch.volume_remaining_to_be_deposited =
+          patch.volumeRemainingToBeDeposited;
+      }
+
+      if ("volumeRemainingToBeCredited" in patch) {
+        dbPatch.volume_remaining_to_be_deposited =
+          patch.volumeRemainingToBeCredited;
+      }
+
+      if ("validated" in patch) {
+        dbPatch.validated = patch.validated;
+      }
+
+      if ("validationDate" in patch) {
+        dbPatch.validation_date =
+          patch.validationDate;
+      }
+
+      if ("payment" in patch) {
+        dbPatch.payment = patch.payment;
+      }
+
+      if ("paymentDate" in patch) {
+        dbPatch.payment_date =
+          patch.paymentDate;
+      }
+
+      if ("cpRanking" in patch) {
+        dbPatch.cp_ranking =
+          patch.cpRanking;
+      }
+
+      if ("riskPerformanceMt" in patch) {
+        dbPatch.risk_performance_mt =
+          patch.riskPerformanceMt;
+      }
+
+      if ("createdBy" in patch) {
+        dbPatch.created_by =
+          patch.createdBy;
+      }
+
+      if ("approvedBy" in patch) {
+        dbPatch.approved_by =
+          patch.approvedBy;
+      }
+
+      // Ces deux valeurs sont toujours recalculées,
+      // même lorsque le patch porte uniquement sur le paiement,
+      // le crédit EMMY, le volume ou le prix.
+      dbPatch.default_risk =
+        tradeAfter.defaultRisk;
+
+      dbPatch.regulatory_risk =
+        tradeAfter.regulatoryRisk;
+
+      dbPatch.updated_at =
+        updatedAt;
+
+      const { data, error } =
+        await supabase
+          .from("trades")
+          .update(dbPatch)
+          .eq("id", id)
+          .select(
+            [
+              "id",
+              "priced",
+              "default_risk",
+              "regulatory_risk",
+              "updated_at"
+            ].join(", ")
+          )
+          .maybeSingle();
+
+      if (error || !data) {
+        console.error(
+          "Trade update error:",
+          error
+        );
+
+        alert(
+          "You do not have permission to edit the blotter"
+        );
+
+        // Annule visuellement l'optimistic update
+        // en rechargeant les données réelles de Supabase
+        await loadAll({
+          silent: true
+        });
+
+        return;
+      }
+
+      await addAudit({
+        action: "TRADE_UPDATED",
+        entity: id,
+        detail:
+          `Trade updated — ` +
+          `${tradeBefore.vendor} · ` +
+          `${tradeBefore.ceeType} · ` +
+          `${N(tradeBefore.volume, 3)} GWhc`
+      });
+    },
+    [
+      trades,
+      addAudit,
+      loadAll
+    ]
+  );
 
   const handleUpdateObligation = useCallback(
     async (id, rawVolumeM3) => {
