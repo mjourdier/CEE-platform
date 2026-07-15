@@ -418,28 +418,89 @@ function splitTradeByCreditingStatus(trade) {
 // ─────────────────────────────────────────────────────────────────────────────
 // ATOMS
 // ─────────────────────────────────────────────────────────────────────────────
+const THEME_PRESETS = {
+  dark: {
+    page: "#070b16",
+    panel: "#111827",
+    panelAlt: "#0d1526",
+    tableHeader: "#0f1724",
+
+    textPrimary: "#e8edf7",
+    textSecondary: "#9aabc2",
+    textMuted: "#7187a6",
+    textLabel: "#8297b7",
+
+    sectionTitle: "#8da3c3",
+    controlText: "#8195b4",
+
+    border: "#2a3950",
+    borderSoft: "#1e2d45",
+    hover: "#162033",
+
+    gridLine: "#ffffff06",
+
+    blue: "#2563eb",
+    sky: "#38bdf8",
+    green: "#34d399",
+    red: "#f87171",
+    amber: "#d4a843"
+  },
+
+  light: {
+    page: "#f4f7fb",
+    panel: "#ffffff",
+    panelAlt: "#f8fafc",
+    tableHeader: "#eef3f8",
+
+    textPrimary: "#172033",
+    textSecondary: "#46566f",
+    textMuted: "#718096",
+    textLabel: "#5e718d",
+
+    sectionTitle: "#526985",
+    controlText: "#566b86",
+
+    border: "#cbd5e1",
+    borderSoft: "#dde5ee",
+    hover: "#edf3f9",
+
+    gridLine: "#1720330a",
+
+    blue: "#2563eb",
+    sky: "#0284c7",
+    green: "#059669",
+    red: "#dc2626",
+    amber: "#b7791f"
+  }
+};
+
+// Ces variables CSS permettent à tous les composants
+// utilisant THEME de changer sans recevoir de nouvelle prop.
 const THEME = {
-  page: "#070b16",
-  panel: "#111827",
-  panelAlt: "#0d1526",
-  tableHeader: "#0f1724",
+  page: "var(--theme-page)",
+  panel: "var(--theme-panel)",
+  panelAlt: "var(--theme-panel-alt)",
+  tableHeader: "var(--theme-table-header)",
 
-  textPrimary: "#e8edf7",
-  textSecondary: "#9aabc2",
-  textMuted: "#7187a6",
-  textLabel: "#8297b7",
+  textPrimary: "var(--theme-text-primary)",
+  textSecondary: "var(--theme-text-secondary)",
+  textMuted: "var(--theme-text-muted)",
+  textLabel: "var(--theme-text-label)",
 
-  sectionTitle: "#8da3c3",
-  controlText: "#8195b4",
+  sectionTitle: "var(--theme-section-title)",
+  controlText: "var(--theme-control-text)",
 
-  border: "#2a3950",
-  borderSoft: "#1e2d45",
+  border: "var(--theme-border)",
+  borderSoft: "var(--theme-border-soft)",
+  hover: "var(--theme-hover)",
 
-  blue: "#2563eb",
-  sky: "#38bdf8",
-  green: "#34d399",
-  red: "#f87171",
-  amber: "#d4a843"
+  gridLine: "var(--theme-grid-line)",
+
+  blue: "var(--theme-blue)",
+  sky: "var(--theme-sky)",
+  green: "var(--theme-green)",
+  red: "var(--theme-red)",
+  amber: "var(--theme-amber)"
 };
 
 const S = {
@@ -9707,6 +9768,16 @@ function Tools({ curve }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
   const [currentUser,setCurrentUser]=useState(null);
+  const [appearance, setAppearance] = useState(() => {
+    const savedAppearance =
+      window.localStorage.getItem(
+        "cee-dashboard-appearance"
+      );
+
+    return savedAppearance === "light"
+      ? "light"
+      : "dark";
+  });
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
@@ -9721,6 +9792,78 @@ export default function App() {
   const [loading,setLoading]        =useState(true);
   const [error,setError]            =useState(null);
   const [lastModifiedAt, setLastModifiedAt] = useState(null);
+
+  const activeTheme =
+  THEME_PRESETS[appearance];
+
+  const themeVariables = {
+    "--theme-page":
+      activeTheme.page,
+
+    "--theme-panel":
+      activeTheme.panel,
+
+    "--theme-panel-alt":
+      activeTheme.panelAlt,
+
+    "--theme-table-header":
+      activeTheme.tableHeader,
+
+    "--theme-text-primary":
+      activeTheme.textPrimary,
+
+    "--theme-text-secondary":
+      activeTheme.textSecondary,
+
+    "--theme-text-muted":
+      activeTheme.textMuted,
+
+    "--theme-text-label":
+      activeTheme.textLabel,
+
+    "--theme-section-title":
+      activeTheme.sectionTitle,
+
+    "--theme-control-text":
+      activeTheme.controlText,
+
+    "--theme-border":
+      activeTheme.border,
+
+    "--theme-border-soft":
+      activeTheme.borderSoft,
+
+    "--theme-hover":
+      activeTheme.hover,
+
+    "--theme-grid-line":
+      activeTheme.gridLine,
+
+    "--theme-blue":
+      activeTheme.blue,
+
+    "--theme-sky":
+      activeTheme.sky,
+
+    "--theme-green":
+      activeTheme.green,
+
+    "--theme-red":
+      activeTheme.red,
+
+    "--theme-amber":
+      activeTheme.amber
+  };
+
+  useEffect(() => {
+    window.localStorage.setItem(
+      "cee-dashboard-appearance",
+      appearance
+    );
+
+    document.documentElement.style.colorScheme =
+      appearance;
+  }, [appearance]);
 
   const isViewer = currentUser?.role === "viewer";
   const canEdit = currentUser?.role === "trader" || currentUser?.role === "approver";
@@ -10567,6 +10710,62 @@ export default function App() {
       loadAll
     ]
   );
+  
+  const handleAddObligation = useCallback(
+    async obligation => {
+      // Mise à jour immédiate de l'interface
+      setObligations(currentObligations => [
+        ...currentObligations,
+        obligation
+      ]);
+
+      const { error } = await supabase
+        .from("obligations")
+        .insert({
+          id: obligation.id,
+          month: obligation.month,
+          product: obligation.product,
+          volume_m3: obligation.volume_m3,
+          price_cl: obligation.priceCl,
+          price_pr: obligation.pricePr,
+          priced: obligation.priced,
+          client: obligation.client,
+          cl_gwhc: obligation.clGwhc,
+          pr_gwhc: obligation.prGwhc
+        });
+
+      if (error) {
+        console.error(
+          "Obligation creation error:",
+          error
+        );
+
+        alert(
+          "The obligation could not be created."
+        );
+
+        // Annule l'ajout optimiste si Supabase refuse l'insertion
+        await loadAll({
+          silent: true
+        });
+
+        return;
+      }
+
+      await addAudit({
+        action: "OBLIG_ADDED",
+        entity: obligation.id,
+        detail:
+          `${obligation.month} · ` +
+          `${obligation.product} · ` +
+          `${N(obligation.volume_m3, 0)} m³`
+      });
+    },
+    [
+      addAudit,
+      loadAll
+    ]
+  );
 
   const handleUpdateObligation = useCallback(
     async (id, rawVolumeM3) => {
@@ -10775,8 +10974,28 @@ export default function App() {
   })();
 
   return(
-    <div style={{ minHeight:"100vh",background:"#0a0e1a",color:"#e2e8f0" }}>
-      <div style={{ position:"fixed",inset:0,backgroundImage:"linear-gradient(#ffffff06 1px,transparent 1px),linear-gradient(90deg,#ffffff06 1px,transparent 1px)",backgroundSize:"40px 40px",pointerEvents:"none",zIndex:0 }}/>
+    <div
+      style={{
+        ...themeVariables,
+        minHeight: "100vh",
+        background: THEME.page,
+        color: THEME.textPrimary,
+        transition:
+          "background 0.2s ease, color 0.2s ease"
+      }}
+    >
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          backgroundImage:
+            `linear-gradient(${THEME.gridLine} 1px, transparent 1px), ` +
+            `linear-gradient(90deg, ${THEME.gridLine} 1px, transparent 1px)`,
+          backgroundSize: "40px 40px",
+          pointerEvents: "none",
+          zIndex: 0
+        }}
+      />
       <div style={{ position:"relative",zIndex:1,maxWidth:"1400px",margin:"0 auto",padding:"0 28px 80px" }}>
         <header style={{ padding:"28px 0 16px",borderBottom:"1px solid #e2e4e8",display:"flex",justifyContent:"space-between",alignItems:"flex-end" }}>
           <div>
@@ -10794,6 +11013,78 @@ export default function App() {
           </div>
 
           <div style={{ display:"flex",alignItems:"center",gap:"10px" }}>
+            <button
+              onClick={() =>
+                setAppearance(current =>
+                  current === "dark"
+                    ? "light"
+                    : "dark"
+                )
+              }
+              title={
+                appearance === "dark"
+                  ? "Switch to light theme"
+                  : "Switch to dark theme"
+              }
+              aria-label={
+                appearance === "dark"
+                  ? "Switch to light theme"
+                  : "Switch to dark theme"
+              }
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "32px",
+                height: "32px",
+                padding: 0,
+                background: THEME.panel,
+                color: THEME.textSecondary,
+                border: `1px solid ${THEME.border}`,
+                borderRadius: "3px",
+                cursor: "pointer",
+                transition:
+                  "background 0.2s ease, color 0.2s ease, border-color 0.2s ease"
+              }}
+            >
+              {appearance === "dark" ? (
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2" />
+                  <path d="M12 20v2" />
+                  <path d="m4.93 4.93 1.42 1.42" />
+                  <path d="m17.66 17.66 1.41 1.41" />
+                  <path d="M2 12h2" />
+                  <path d="M20 12h2" />
+                  <path d="m6.34 17.66-1.41 1.41" />
+                  <path d="m19.07 4.93-1.41 1.42" />
+                </svg>
+              ) : (
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
+                </svg>
+              )}
+            </button>
             <div>
               <p style={{ ...S,fontSize:"11px",color:"#e2e8f0" }}>
                 {currentUser.name}
