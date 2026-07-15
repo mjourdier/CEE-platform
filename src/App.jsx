@@ -424,11 +424,13 @@ const THEME_PRESETS = {
     panel: "#111827",
     panelAlt: "#0d1526",
     tableHeader: "#0f1724",
+    rowAlt: "#0f1624",
 
     textPrimary: "#e8edf7",
     textSecondary: "#9aabc2",
     textMuted: "#7187a6",
     textLabel: "#8297b7",
+    textDisabled: "#526176",
 
     sectionTitle: "#8da3c3",
     controlText: "#8195b4",
@@ -438,54 +440,143 @@ const THEME_PRESETS = {
     hover: "#162033",
 
     gridLine: "#ffffff06",
+    chartGrid: "#22314d",
+    chartAxis: "#7187a6",
 
     blue: "#2563eb",
     sky: "#38bdf8",
     green: "#34d399",
     red: "#f87171",
-    amber: "#d4a843"
+    amber: "#d4a843",
+    orange: "#f59e0b",
+    purple: "#c296ed",
+    gold: "#facc15",
+    teal: "#75dbc0",
+
+    selectedText: "#07101d",
+
+    successBg: "#0f2e1a",
+    successBorder: "#245b34",
+    successText: "#85d291",
+
+    warningBg: "#2e2410",
+    warningBorder: "#5c4820",
+    warningText: "#e2bd5b",
+
+    dangerBg: "#2e1010",
+    dangerBorder: "#642929",
+    dangerText: "#e48787",
+
+    infoBg: "#0e2030",
+    infoBorder: "#21536b",
+    infoText: "#72cceb",
+
+    neutralBg: "#1b2433",
+    neutralBorder: "#34445d",
+    neutralText: "#9aabc2",
+
+    purpleBg: "#1e1028",
+    purpleBorder: "#51306b",
+    purpleText: "#c296ed",
+
+    goldBg: "#2a2010",
+    goldBorder: "#594a25",
+    goldText: "#d0ad50",
+
+    tealBg: "#0e2820",
+    tealBorder: "#245d4a",
+    tealText: "#75dbc0",
+
+    overlay: "rgba(4, 7, 14, 0.88)",
+    shadow: "0 20px 60px rgba(0, 0, 0, 0.45)"
   },
 
   light: {
-    page: "#f4f7fb",
+    page: "#eef3f8",
     panel: "#ffffff",
-    panelAlt: "#f8fafc",
-    tableHeader: "#eef3f8",
+    panelAlt: "#f6f8fb",
+    tableHeader: "#e9eff6",
+    rowAlt: "#fbfcfe",
 
     textPrimary: "#172033",
-    textSecondary: "#46566f",
-    textMuted: "#718096",
-    textLabel: "#5e718d",
+    textSecondary: "#40516a",
+    textMuted: "#6f8097",
+    textLabel: "#53677f",
+    textDisabled: "#9aa8b9",
 
-    sectionTitle: "#526985",
-    controlText: "#566b86",
+    sectionTitle: "#435d7d",
+    controlText: "#506781",
 
-    border: "#cbd5e1",
-    borderSoft: "#dde5ee",
-    hover: "#edf3f9",
+    border: "#b7c5d5",
+    borderSoft: "#d6e0ea",
+    hover: "#eaf1f7",
 
-    gridLine: "#1720330a",
+    gridLine: "rgba(31, 48, 69, 0.035)",
+    chartGrid: "#d7e1eb",
+    chartAxis: "#697b92",
 
-    blue: "#2563eb",
-    sky: "#0284c7",
-    green: "#059669",
-    red: "#dc2626",
-    amber: "#b7791f"
+    blue: "#2457c5",
+    sky: "#087fae",
+    green: "#087a58",
+    red: "#c93649",
+    amber: "#a66800",
+    orange: "#c56b00",
+    purple: "#7745a5",
+    gold: "#9b7200",
+    teal: "#087763",
+
+    selectedText: "#ffffff",
+
+    successBg: "#e9f8f0",
+    successBorder: "#8ac8a7",
+    successText: "#087a58",
+
+    warningBg: "#fff6df",
+    warningBorder: "#e2bd62",
+    warningText: "#835800",
+
+    dangerBg: "#fff0f2",
+    dangerBorder: "#e4a0a9",
+    dangerText: "#a82436",
+
+    infoBg: "#e9f5fb",
+    infoBorder: "#91cae4",
+    infoText: "#086f99",
+
+    neutralBg: "#eef2f6",
+    neutralBorder: "#c4d0dc",
+    neutralText: "#53677f",
+
+    purpleBg: "#f4edfb",
+    purpleBorder: "#cdb8e3",
+    purpleText: "#6d3f97",
+
+    goldBg: "#fff6df",
+    goldBorder: "#e4c46f",
+    goldText: "#845c00",
+
+    tealBg: "#e8f7f3",
+    tealBorder: "#91cebf",
+    tealText: "#087763",
+
+    overlay: "rgba(15, 23, 42, 0.46)",
+    shadow: "0 20px 60px rgba(15, 23, 42, 0.18)"
   }
 };
 
-// Ces variables CSS permettent à tous les composants
-// utilisant THEME de changer sans recevoir de nouvelle prop.
+// CSS variables let every component switch appearance without receiving a theme prop.
 const THEME = {
   page: "var(--theme-page)",
   panel: "var(--theme-panel)",
   panelAlt: "var(--theme-panel-alt)",
   tableHeader: "var(--theme-table-header)",
+  rowAlt: "var(--theme-row-alt)",
 
   textPrimary: "var(--theme-text-primary)",
   textSecondary: "var(--theme-text-secondary)",
   textMuted: "var(--theme-text-muted)",
   textLabel: "var(--theme-text-label)",
+  textDisabled: "var(--theme-text-disabled)",
 
   sectionTitle: "var(--theme-section-title)",
   controlText: "var(--theme-control-text)",
@@ -495,12 +586,55 @@ const THEME = {
   hover: "var(--theme-hover)",
 
   gridLine: "var(--theme-grid-line)",
+  chartGrid: "var(--theme-chart-grid)",
+  chartAxis: "var(--theme-chart-axis)",
 
   blue: "var(--theme-blue)",
   sky: "var(--theme-sky)",
   green: "var(--theme-green)",
   red: "var(--theme-red)",
-  amber: "var(--theme-amber)"
+  amber: "var(--theme-amber)",
+  orange: "var(--theme-orange)",
+  purple: "var(--theme-purple)",
+  gold: "var(--theme-gold)",
+  teal: "var(--theme-teal)",
+
+  selectedText: "var(--theme-selected-text)",
+
+  successBg: "var(--theme-success-bg)",
+  successBorder: "var(--theme-success-border)",
+  successText: "var(--theme-success-text)",
+
+  warningBg: "var(--theme-warning-bg)",
+  warningBorder: "var(--theme-warning-border)",
+  warningText: "var(--theme-warning-text)",
+
+  dangerBg: "var(--theme-danger-bg)",
+  dangerBorder: "var(--theme-danger-border)",
+  dangerText: "var(--theme-danger-text)",
+
+  infoBg: "var(--theme-info-bg)",
+  infoBorder: "var(--theme-info-border)",
+  infoText: "var(--theme-info-text)",
+
+  neutralBg: "var(--theme-neutral-bg)",
+  neutralBorder: "var(--theme-neutral-border)",
+  neutralText: "var(--theme-neutral-text)",
+
+  purpleBg: "var(--theme-purple-bg)",
+  purpleBorder: "var(--theme-purple-border)",
+  purpleText: "var(--theme-purple-text)",
+
+  goldBg: "var(--theme-gold-bg)",
+  goldBorder: "var(--theme-gold-border)",
+  goldText: "var(--theme-gold-text)",
+
+  tealBg: "var(--theme-teal-bg)",
+  tealBorder: "var(--theme-teal-border)",
+  tealText: "var(--theme-teal-text)",
+
+  overlay: "var(--theme-overlay)",
+  shadow: "var(--theme-shadow)"
 };
 
 const S = {
@@ -514,34 +648,35 @@ const CG = {
 };
 
 const CHART_COLORS = {
-  classique:"#4f7cff",
-  precarite:"#e0b84f",
-  green:"#34d399",
-  red:"#f87171",
-  gold:"#38bdf8",
-  bg:"#111827",
-  grid:"#22314d",
+  classique: THEME.blue,
+  precarite: THEME.amber,
+  green: THEME.green,
+  red: THEME.red,
+  gold: THEME.sky,
+  bg: THEME.panel,
+  grid: THEME.chartGrid,
 
-  oblCl:"#5b7c99",
-  oblPr:"#8a6a1f",
-  achCl:"#4f7cff",
-  achPr:"#e0b84f",
+  oblCl: "#5b7c99",
+  oblPr: "#8a6a1f",
+  achCl: "#4f7cff",
+  achPr: "#e0b84f"
 };
 
 function Badge({ children, color }) {
-  const m = {
-    green: "#0f2e1a;#85d291;#245b34",
-    red: "#2e1010;#e48787;#642929",
-    amber: "#2e2410;#e2bd5b;#5c4820",
-    blue: "#101e2e;#82bced;#25446d",
-    sky: "#0e2030;#72cceb;#21536b",
-    gray: "#1b2433;#9aabc2;#34445d",
-    purple: "#1e1028;#c296ed;#51306b",
-    gold: "#2a2010;#d0ad50;#594a25",
-    teal: "#0e2820;#75dbc0;#245d4a"
-  }[color] || "#1b2433;#9aabc2;#34445d";
+  const palette = {
+    green: [THEME.successBg, THEME.successText, THEME.successBorder],
+    red: [THEME.dangerBg, THEME.dangerText, THEME.dangerBorder],
+    amber: [THEME.warningBg, THEME.warningText, THEME.warningBorder],
+    blue: [THEME.infoBg, THEME.infoText, THEME.infoBorder],
+    sky: [THEME.infoBg, THEME.infoText, THEME.infoBorder],
+    gray: [THEME.neutralBg, THEME.neutralText, THEME.neutralBorder],
+    purple: [THEME.purpleBg, THEME.purpleText, THEME.purpleBorder],
+    gold: [THEME.goldBg, THEME.goldText, THEME.goldBorder],
+    teal: [THEME.tealBg, THEME.tealText, THEME.tealBorder]
+  };
 
-  const [bg, fg, bc] = m.split(";");
+  const [bg, fg, bc] =
+    palette[color] || palette.gray;
 
   return (
     <span
@@ -570,7 +705,7 @@ function KPI({ label, value, sub, color }) {
     rose: THEME.red,
     sky: THEME.sky,
     amber: THEME.amber,
-    gold: "#facc15",
+    gold: "var(--theme-gold)",
     neutral: THEME.textMuted,
     gray: THEME.textMuted
   };
@@ -649,7 +784,7 @@ function Modal({ title, onClose, children, wide }) {
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(4, 7, 14, 0.88)",
+        background: THEME.overlay,
         backdropFilter: "blur(6px)",
         zIndex: 100,
         display: "flex",
@@ -669,7 +804,7 @@ function Modal({ title, onClose, children, wide }) {
           maxHeight: "92vh",
           overflowY: "auto",
           position: "relative",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.45)"
+          boxShadow: THEME.shadow
         }}
       >
         <div
@@ -2363,7 +2498,7 @@ function Reporting({
     <p style={{
       ...S,
       fontSize: "9px",
-      color: "#38bdf8",
+      color: "var(--theme-sky)",
       textTransform: "uppercase",
       letterSpacing: "0.18em",
       marginBottom: "14px",
@@ -3685,7 +3820,7 @@ validation and payment status.
                   >
                     <CartesianGrid
                       strokeDasharray="3 6"
-                      stroke={THEME.border}
+                      stroke={THEME.chartGrid}
                       horizontal={false}
                     />
 
@@ -3694,7 +3829,7 @@ validation and payment status.
                       tick={{
                         ...S,
                         fontSize: 9,
-                        fill: THEME.textMuted
+                        fill: THEME.chartAxis
                       }}
                       axisLine={false}
                       tickLine={false}
@@ -3753,7 +3888,7 @@ validation and payment status.
 
                     <ReferenceLine
                       x={0}
-                      stroke={THEME.border}
+                      stroke={THEME.chartGrid}
                     />
 
                     <Bar
@@ -3767,7 +3902,7 @@ validation and payment status.
                       dataKey="defaultRisk"
                       name="Default Risk"
                       stackId="risk"
-                      fill="#f59e0b"
+                      fill="var(--theme-orange)"
                     />
 
                     <Bar
@@ -4057,7 +4192,7 @@ validation and payment status.
 
               color:
                 report === r.id
-                  ? "#07101d"
+                  ? "var(--theme-selected-text)"
                   : THEME.controlText,
 
               borderColor:
@@ -4077,7 +4212,7 @@ validation and payment status.
       {/* ── EXECUTIVE SUMMARY ── */}
       {report === "executive" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "22px 26px" }}>
+          <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "22px 26px" }}>
             <p
               style={{
                 ...S,
@@ -4152,7 +4287,7 @@ validation and payment status.
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "16px" }}>
-            <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
+            <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "18px" }}>
               <SectionTitle>2026 Global Coverage</SectionTitle>
 
               <ResponsiveContainer width="100%" height={200}>
@@ -4170,59 +4305,59 @@ validation and payment status.
                     paddingAngle={3}
                     dataKey="value"
                   >
-                    <Cell fill="#34d399" />
-                    <Cell fill="#f87171" />
-                    <Cell fill="#d4a843" />
+                    <Cell fill="var(--theme-green)" />
+                    <Cell fill="var(--theme-red)" />
+                    <Cell fill="var(--theme-amber)" />
                   </Pie>
                   <Tooltip content={<ChartTip />} />
-                  <Legend iconSize={8} iconType="circle" wrapperStyle={{ ...S, fontSize: "10px", color: "#4a6080" }} />
+                  <Legend iconSize={8} iconType="circle" wrapperStyle={{ ...S, fontSize: "10px", color: "var(--theme-text-secondary)" }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
 
-            <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
+            <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "18px" }}>
               <SectionTitle>Monthly Net Position (GWhc) — Priced</SectionTitle>
 
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={monthlyData} barSize={18}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                  <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={40} />
+                  <CartesianGrid strokeDasharray="2 4" stroke="var(--theme-border-soft)" vertical={false} />
+                  <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} width={40} />
                   <Tooltip content={<ChartTip />} />
-                  <ReferenceLine y={0} stroke="#1e2d45" />
-                  <Bar dataKey="netPos" name="Net position" fill="#2563eb" radius={[1, 1, 0, 0]} />
+                  <ReferenceLine y={0} stroke="var(--theme-border-soft)" />
+                  <Bar dataKey="netPos" name="Net position" fill="var(--theme-blue)" radius={[1, 1, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
+          <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "18px" }}>
             <SectionTitle>Monthly Realized PnL (k€) + Cumulative</SectionTitle>
 
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={cumPnlData} barSize={20}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="left" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={44} />
-                <YAxis yAxisId="right" orientation="right" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={44} />
+                <CartesianGrid strokeDasharray="2 4" stroke="var(--theme-border-soft)" vertical={false} />
+                <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="left" tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} width={44} />
+                <YAxis yAxisId="right" orientation="right" tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} width={44} />
                 <Tooltip content={<ChartTip />} />
-                <ReferenceLine yAxisId="left" y={0} stroke="#1e2d45" />
-                <Bar yAxisId="left" dataKey="pnl" name="Monthly PnL (k€)" fill="#34d399" radius={[1, 1, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="cumPnl" name="Cumulative PnL (k€)" stroke="#38bdf8" strokeWidth={2} dot={false} />
+                <ReferenceLine yAxisId="left" y={0} stroke="var(--theme-border-soft)" />
+                <Bar yAxisId="left" dataKey="pnl" name="Monthly PnL (k€)" fill="var(--theme-green)" radius={[1, 1, 0, 0]} />
+                <Line yAxisId="right" type="monotone" dataKey="cumPnl" name="Cumulative PnL (k€)" stroke="var(--theme-sky)" strokeWidth={2} dot={false} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
+          <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "18px" }}>
             <SectionTitle>Purchases by Seller (GWhc)</SectionTitle>
 
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={vendorData} layout="vertical" barSize={14}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" horizontal={false} />
-                <XAxis type="number" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ ...S, fontSize: 9, fill: "#4a6080" }} axisLine={false} tickLine={false} width={170} />
+                <CartesianGrid strokeDasharray="2 4" stroke="var(--theme-border-soft)" horizontal={false} />
+                <XAxis type="number" tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} />
+                <YAxis type="category" dataKey="name" tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} width={170} />
                 <Tooltip content={<ChartTip />} />
-                <Bar dataKey="vol" name="Volume (GWhc)" fill="#38bdf8" radius={[0, 1, 1, 0]} />
+                <Bar dataKey="vol" name="Volume (GWhc)" fill="var(--theme-sky)" radius={[0, 1, 1, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -4267,7 +4402,7 @@ validation and payment status.
         >
           <CartesianGrid
             strokeDasharray="3 6"
-            stroke={THEME.border}
+            stroke={THEME.chartGrid}
             vertical={false}
             opacity={0.8}
           />
@@ -4278,7 +4413,7 @@ validation and payment status.
               ...S,
               fontSize: 11,
               fontWeight: 500,
-              fill: THEME.textMuted
+              fill: THEME.chartAxis
             }}
             axisLine={false}
             tickLine={false}
@@ -4289,7 +4424,7 @@ validation and payment status.
             tick={{
               ...S,
               fontSize: 11,
-              fill: THEME.textMuted
+              fill: THEME.chartAxis
             }}
             axisLine={false}
             tickLine={false}
@@ -4491,7 +4626,7 @@ validation and payment status.
                     }}
                     onMouseEnter={event => {
                       event.currentTarget.style.background =
-                        "#162033";
+                        "var(--theme-hover)";
                     }}
                     onMouseLeave={event => {
                       event.currentTarget.style.background =
@@ -4617,7 +4752,7 @@ validation and payment status.
         >
           <CartesianGrid
             strokeDasharray="3 6"
-            stroke={THEME.border}
+            stroke={THEME.chartGrid}
             vertical={false}
             opacity={0.8}
           />
@@ -4628,7 +4763,7 @@ validation and payment status.
               ...S,
               fontSize: 11,
               fontWeight: 500,
-              fill: THEME.textMuted
+              fill: THEME.chartAxis
             }}
             axisLine={false}
             tickLine={false}
@@ -4639,7 +4774,7 @@ validation and payment status.
             tick={{
               ...S,
               fontSize: 11,
-              fill: THEME.textMuted
+              fill: THEME.chartAxis
             }}
             axisLine={false}
             tickLine={false}
@@ -4651,7 +4786,7 @@ validation and payment status.
 
           <ReferenceLine
             y={0}
-            stroke={THEME.border}
+            stroke={THEME.chartGrid}
           />
 
           <Bar
@@ -4672,61 +4807,61 @@ validation and payment status.
       {report === "pnl" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
-            <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
+            <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "18px" }}>
               <SectionTitle>Monthly Realized PnL by Type (k€)</SectionTitle>
 
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={monthlyData} barGap={3}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                  <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={44} />
+                  <CartesianGrid strokeDasharray="2 4" stroke="var(--theme-border-soft)" vertical={false} />
+                  <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} width={44} />
                   <Tooltip content={<ChartTip />} />
-                  <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
-                  <ReferenceLine y={0} stroke="#1e2d45" />
-                  <Bar dataKey="pnlCl" name="Realized PnL Classique (k€)" fill="#2563eb" radius={[1, 1, 0, 0]} />
-                  <Bar dataKey="pnlPr" name="Realized PnL Précarité (k€)" fill="#d4a843" radius={[1, 1, 0, 0]} />
+                  <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "var(--theme-text-secondary)" }} />
+                  <ReferenceLine y={0} stroke="var(--theme-border-soft)" />
+                  <Bar dataKey="pnlCl" name="Realized PnL Classique (k€)" fill="var(--theme-blue)" radius={[1, 1, 0, 0]} />
+                  <Bar dataKey="pnlPr" name="Realized PnL Précarité (k€)" fill="var(--theme-amber)" radius={[1, 1, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
-            <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
+            <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "18px" }}>
               <SectionTitle>Open Position MtM by Month (k€)</SectionTitle>
 
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={monthlyData} barGap={3}>
-                  <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                  <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={44} />
+                  <CartesianGrid strokeDasharray="2 4" stroke="var(--theme-border-soft)" vertical={false} />
+                  <XAxis dataKey="month" tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} width={44} />
                   <Tooltip content={<ChartTip />} />
-                  <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
-                  <ReferenceLine y={0} stroke="#1e2d45" />
-                  <Bar dataKey="mtmCl" name="MtM Classique (k€)" fill="#38bdf8" radius={[1, 1, 0, 0]} />
-                  <Bar dataKey="mtmPr" name="MtM Précarité (k€)" fill="#f59e0b" radius={[1, 1, 0, 0]} />
+                  <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "var(--theme-text-secondary)" }} />
+                  <ReferenceLine y={0} stroke="var(--theme-border-soft)" />
+                  <Bar dataKey="mtmCl" name="MtM Classique (k€)" fill="var(--theme-sky)" radius={[1, 1, 0, 0]} />
+                  <Bar dataKey="mtmPr" name="MtM Précarité (k€)" fill="var(--theme-orange)" radius={[1, 1, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
 
-          <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
+          <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "18px" }}>
             <SectionTitle>YTD PnL Bridge — Realized to Net PnL + MtM (k€)</SectionTitle>
 
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={pnlBridgeData} barSize={46}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
-                <XAxis dataKey="name" tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ ...S, fontSize: 9, fill: "#3a5070" }} axisLine={false} tickLine={false} width={54} />
+                <CartesianGrid strokeDasharray="2 4" stroke="var(--theme-border-soft)" vertical={false} />
+                <XAxis dataKey="name" tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }} axisLine={false} tickLine={false} width={54} />
                 <Tooltip content={<ChartTip />} />
-                <ReferenceLine y={0} stroke="#1e2d45" />
+                <ReferenceLine y={0} stroke="var(--theme-border-soft)" />
                 <Bar dataKey="value" name="Contribution (k€)" radius={[1, 1, 0, 0]}>
                   {pnlBridgeData.map((entry) => (
                     <Cell
                       key={`bridge-cell-${entry.name}`}
                       fill={
                         entry.name === "Net Total"
-                          ? "#34d399"
+                          ? "var(--theme-green)"
                           : entry.value >= 0
-                            ? "#38bdf8"
-                            : "#f87171"
+                            ? "var(--theme-sky)"
+                            : "var(--theme-red)"
                       }
                     />
                   ))}
@@ -4742,15 +4877,15 @@ validation and payment status.
             }}>
               {pnlBridgeData.map(d => (
                 <div key={d.name} style={{
-                  background: "#0d1526",
-                  border: "1px solid #1e2d45",
+                  background: "var(--theme-panel-alt)",
+                  border: "1px solid var(--theme-border-soft)",
                   borderRadius: "2px",
                   padding: "10px 12px"
                 }}>
                   <p style={{
                     ...S,
                     fontSize: "8px",
-                    color: "#3a5070",
+                    color: "var(--theme-text-muted)",
                     textTransform: "uppercase",
                     letterSpacing: "0.12em",
                     marginBottom: "4px"
@@ -4761,7 +4896,7 @@ validation and payment status.
                   <p style={{
                     ...CG,
                     fontSize: "17px",
-                    color: d.value >= 0 ? "#34d399" : "#f87171",
+                    color: d.value >= 0 ? "var(--theme-green)" : "var(--theme-red)",
                     fontWeight: 700
                   }}>
                     {d.value >= 0 ? "+" : ""}
@@ -4778,8 +4913,8 @@ validation and payment status.
       {report === "regulatory" && (
         <div style={{ display:"flex", flexDirection:"column", gap:"18px" }}>
           <div style={{
-            background:"#111827",
-            border:"1px solid #1e2d45",
+            background:"var(--theme-panel)",
+            border:"1px solid var(--theme-border-soft)",
             borderRadius:"2px",
             padding:"14px 16px",
             display:"flex",
@@ -4792,7 +4927,7 @@ validation and payment status.
               <p style={{
                 ...S,
                 fontSize:"9px",
-                color:"#38bdf8",
+                color:"var(--theme-sky)",
                 textTransform:"uppercase",
                 letterSpacing:"0.18em",
                 marginBottom:"6px"
@@ -4800,7 +4935,7 @@ validation and payment status.
                 Regulatory & Performance Risk
               </p>
 
-              <p style={{ ...S, fontSize:"11px", color:"#4a6080", lineHeight:1.5 }}>
+              <p style={{ ...S, fontSize:"11px", color:"var(--theme-text-secondary)", lineHeight:1.5 }}>
                 Follow-up of internal approval, contracts, EMMY crediting, EMMY validation, payment and counterparty performance risk.
               </p>
             </div>
@@ -4817,9 +4952,9 @@ validation and payment status.
                   cursor:"pointer",
                   letterSpacing:"0.08em",
                   textTransform:"uppercase",
-                  background: regulatoryType === "CLASSIQUE" ? "#38bdf8" : "transparent",
-                  color: regulatoryType === "CLASSIQUE" ? "#0a0e1a" : "#3a5070",
-                  borderColor: regulatoryType === "CLASSIQUE" ? "#38bdf8" : "#1e2d45"
+                  background: regulatoryType === "CLASSIQUE" ? "var(--theme-sky)" : "transparent",
+                  color: regulatoryType === "CLASSIQUE" ? THEME.selectedText : "var(--theme-text-muted)",
+                  borderColor: regulatoryType === "CLASSIQUE" ? "var(--theme-sky)" : "var(--theme-border-soft)"
                 }}
               >
                 Classique
@@ -4836,9 +4971,9 @@ validation and payment status.
                   cursor:"pointer",
                   letterSpacing:"0.08em",
                   textTransform:"uppercase",
-                  background: regulatoryType === "PRECARITE" ? "#d4a843" : "transparent",
-                  color: regulatoryType === "PRECARITE" ? "#0a0e1a" : "#3a5070",
-                  borderColor: regulatoryType === "PRECARITE" ? "#d4a843" : "#1e2d45"
+                  background: regulatoryType === "PRECARITE" ? "var(--theme-amber)" : "transparent",
+                  color: regulatoryType === "PRECARITE" ? THEME.selectedText : "var(--theme-text-muted)",
+                  borderColor: regulatoryType === "PRECARITE" ? "var(--theme-amber)" : "var(--theme-border-soft)"
                 }}
               >
                 Précarité
@@ -5090,7 +5225,7 @@ function PositionView({ trades, obligations, curve, prices }) {
     <span style={{
       ...S,
       fontSize: "12px",
-      color: v > 0 ? CHART_COLORS.green : v < 0 ? CHART_COLORS.red : "#3a5070",
+      color: v > 0 ? CHART_COLORS.green : v < 0 ? CHART_COLORS.red : "var(--theme-text-muted)",
       fontWeight: v !== 0 ? 600 : 400
     }}>
       {v > 0 ? "+" : ""}{N(v, 2)}
@@ -5101,7 +5236,7 @@ function PositionView({ trades, obligations, curve, prices }) {
     <span style={{
       ...S,
       fontSize: "12px",
-      color: v > 0 ? CHART_COLORS.green : v < 0 ? CHART_COLORS.red : "#3a5070",
+      color: v > 0 ? CHART_COLORS.green : v < 0 ? CHART_COLORS.red : "var(--theme-text-muted)",
       fontWeight: v !== 0 ? 600 : 400
     }}>
       {fK(v)}
@@ -5109,12 +5244,12 @@ function PositionView({ trades, obligations, curve, prices }) {
   ) : "—";
 
   const zeroDash = (
-    <span style={{ ...S, fontSize: "10px", color: "#1e2d45" }}>—</span>
+    <span style={{ ...S, fontSize: "10px", color: "var(--theme-border-soft)" }}>—</span>
   );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-      <div style={{ display: "flex", gap: "14px", borderBottom: "1px solid #e2e4e8" }}>
+      <div style={{ display: "flex", gap: "14px", borderBottom: "1px solid var(--theme-border)" }}>
         {VIEWS.map(v => (
           <button
             key={v.id}
@@ -5129,7 +5264,7 @@ function PositionView({ trades, obligations, curve, prices }) {
               padding: "10px 0",
               cursor: "pointer",
               whiteSpace: "nowrap",
-              color: view === v.id ? "#38bdf8" : "#3a5070",
+              color: view === v.id ? "var(--theme-sky)" : "var(--theme-text-muted)",
               borderBottom: view === v.id ? "1px solid #b8973a" : "1px solid transparent"
             }}
           >
@@ -5226,7 +5361,7 @@ function PositionView({ trades, obligations, curve, prices }) {
         />
       )}
 
-      <div style={{ overflowX: "auto", border: "1px solid #1e1c18", borderRadius: "2px" }}>
+      <div style={{ overflowX: "auto", border: "1px solid var(--theme-border-soft)", borderRadius: "2px" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: view === "pnl" ? "1150px" : "1000px" }}>
           <thead>
             <tr>
@@ -5284,56 +5419,56 @@ function PositionView({ trades, obligations, curve, prices }) {
 
           <tbody>
             {rows.map((r, i) => {
-              const bg = i % 2 === 0 ? "#111827" : "#141210";
+              const bg = i % 2 === 0 ? "var(--theme-panel)" : "var(--theme-row-alt)";
               const isForecast = r.month > "2026-05";
 
               return (
                 <tr
                   key={r.month}
-                  style={{ borderBottom: "1px solid #1a1815", background: bg }}
-                  onMouseEnter={e => e.currentTarget.style.background = "#0d1526"}
+                  style={{ borderBottom: "1px solid var(--theme-border-soft)", background: bg }}
+                  onMouseEnter={e => e.currentTarget.style.background = "var(--theme-panel-alt)"}
                   onMouseLeave={e => e.currentTarget.style.background = bg}
                 >
-                  <td style={{ ...CG, fontSize: "15px", color: "#e2e8f0", padding: "9px 14px", fontWeight: 600, whiteSpace: "nowrap" }}>
+                  <td style={{ ...CG, fontSize: "15px", color: "var(--theme-text-primary)", padding: "9px 14px", fontWeight: 600, whiteSpace: "nowrap" }}>
                     {ML(r.month)}
-                    {isForecast && <span style={{ ...S, fontSize: "8px", color: "#1e2d45", marginLeft: "6px" }}>FCST</span>}
+                    {isForecast && <span style={{ ...S, fontSize: "8px", color: "var(--theme-border-soft)", marginLeft: "6px" }}>FCST</span>}
                   </td>
 
                   {view === "position" && (
                     <>
-                      <td style={{ ...S, fontSize: "12px", color: "#2563eb", padding: "9px 14px" }}>{N(r.oblClT, 2)}</td>
-                      <td style={{ ...S, fontSize: "12px", color: "#d4a843", padding: "9px 14px" }}>{N(r.oblPrT, 2)}</td>
-                      <td style={{ ...S, fontSize: "12px", color: r.bCl > 0 ? "#e2e8f0" : "#3d3830", padding: "9px 14px" }}>{N(r.bCl, 2)}</td>
-                      <td style={{ ...S, fontSize: "12px", color: r.bPr > 0 ? "#e2e8f0" : "#3d3830", padding: "9px 14px" }}>{N(r.bPr, 2)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-blue)", padding: "9px 14px" }}>{N(r.oblClT, 2)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-amber)", padding: "9px 14px" }}>{N(r.oblPrT, 2)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: r.bCl > 0 ? "var(--theme-text-primary)" : "var(--theme-text-disabled)", padding: "9px 14px" }}>{N(r.bCl, 2)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: r.bPr > 0 ? "var(--theme-text-primary)" : "var(--theme-text-disabled)", padding: "9px 14px" }}>{N(r.bPr, 2)}</td>
                       <td style={{ padding: "9px 14px" }}>{pc(r.netCl)}</td>
                       <td style={{ padding: "9px 14px" }}>{pc(r.netPr)}</td>
                       <td style={{ padding: "9px 14px", minWidth: "120px" }}>
                         {r.covPct == null ? zeroDash : <CovBar pct={r.covPct} />}
                       </td>
-                      <td style={{ ...S, fontSize: "12px", color: "#38bdf8", padding: "9px 14px" }}>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-sky)", padding: "9px 14px" }}>
                         {r.pricedCovPct == null ? "—" : `${N(r.pricedCovPct, 1)}%`}
                       </td>
-                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{fmtMWhc(r.aCl)}</td>
-                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{fmtMWhc(r.aPr)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{fmtMWhc(r.aCl)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{fmtMWhc(r.aPr)}</td>
                     </>
                   )}
 
                   {view === "pnl" && (
                     <>
-                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{fmtMWhc(r.aClP)}</td>
-                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{fmtMWhc(r.sClP)}</td>
-                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{r.matchCl > 0 ? N(r.matchCl, 2) : "—"}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{fmtMWhc(r.aClP)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{fmtMWhc(r.sClP)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{r.matchCl > 0 ? N(r.matchCl, 2) : "—"}</td>
                       <td style={{ padding: "9px 14px" }}>{Math.abs(r.pnlCl) > 0.01 ? pk(r.pnlCl) : zeroDash}</td>
 
-                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{fmtMWhc(r.aPrP)}</td>
-                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{fmtMWhc(r.sPrP)}</td>
-                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{r.matchPr > 0 ? N(r.matchPr, 2) : "—"}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{fmtMWhc(r.aPrP)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{fmtMWhc(r.sPrP)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{r.matchPr > 0 ? N(r.matchPr, 2) : "—"}</td>
                       <td style={{ padding: "9px 14px" }}>{Math.abs(r.pnlPr) > 0.01 ? pk(r.pnlPr) : zeroDash}</td>
 
-                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{r.openCl > 0 ? N(r.openCl, 2) : "—"}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{r.openCl > 0 ? N(r.openCl, 2) : "—"}</td>
                       <td style={{ padding: "9px 14px" }}>{Math.abs(r.mtmCl) > 0.01 ? pk(r.mtmCl) : zeroDash}</td>
 
-                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>{r.openPr > 0 ? N(r.openPr, 2) : "—"}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{r.openPr > 0 ? N(r.openPr, 2) : "—"}</td>
                       <td style={{ padding: "9px 14px" }}>{Math.abs(r.mtmPr) > 0.01 ? pk(r.mtmPr) : zeroDash}</td>
 
                       <td style={{ padding: "9px 14px" }}>{pk(r.pnlCl + r.pnlPr + r.mtmCl + r.mtmPr)}</td>
@@ -5342,26 +5477,26 @@ function PositionView({ trades, obligations, curve, prices }) {
 
                   {view === "unpriced" && (
                     <>
-                      <td style={{ ...S, fontSize: "12px", color: "#2563eb", padding: "9px 14px" }}>{N(r.oblClT, 2)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-blue)", padding: "9px 14px" }}>{N(r.oblClT, 2)}</td>
                       <td style={{ padding: "9px 14px" }}>
                         {r.oblClU > 0.01
-                          ? <span style={{ ...S, fontSize: "12px", color: "#f87171", fontWeight: 600 }}>{N(r.oblClU, 2)}</span>
+                          ? <span style={{ ...S, fontSize: "12px", color: "var(--theme-red)", fontWeight: 600 }}>{N(r.oblClU, 2)}</span>
                           : zeroDash}
                       </td>
-                      <td style={{ ...S, fontSize: "12px", color: r.bClU > 0 ? "#e2e8f0" : "#3d3830", padding: "9px 14px" }}>
+                      <td style={{ ...S, fontSize: "12px", color: r.bClU > 0 ? "var(--theme-text-primary)" : "var(--theme-text-disabled)", padding: "9px 14px" }}>
                         {r.bClU > 0.01 ? N(r.bClU, 2) : "—"}
                       </td>
                       <td style={{ padding: "9px 14px" }}>
                         {(r.oblClU + r.bClU) > 0.01 ? pc(r.forwardCl) : zeroDash}
                       </td>
 
-                      <td style={{ ...S, fontSize: "12px", color: "#d4a843", padding: "9px 14px" }}>{N(r.oblPrT, 2)}</td>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-amber)", padding: "9px 14px" }}>{N(r.oblPrT, 2)}</td>
                       <td style={{ padding: "9px 14px" }}>
                         {r.oblPrU > 0.01
-                          ? <span style={{ ...S, fontSize: "12px", color: "#f87171", fontWeight: 600 }}>{N(r.oblPrU, 2)}</span>
+                          ? <span style={{ ...S, fontSize: "12px", color: "var(--theme-red)", fontWeight: 600 }}>{N(r.oblPrU, 2)}</span>
                           : zeroDash}
                       </td>
-                      <td style={{ ...S, fontSize: "12px", color: r.bPrU > 0 ? "#e2e8f0" : "#3d3830", padding: "9px 14px" }}>
+                      <td style={{ ...S, fontSize: "12px", color: r.bPrU > 0 ? "var(--theme-text-primary)" : "var(--theme-text-disabled)", padding: "9px 14px" }}>
                         {r.bPrU > 0.01 ? N(r.bPrU, 2) : "—"}
                       </td>
                       <td style={{ padding: "9px 14px" }}>
@@ -5370,10 +5505,10 @@ function PositionView({ trades, obligations, curve, prices }) {
 
                       <td style={{ padding: "9px 14px" }}>
                         {(r.oblClU + r.oblPrU) > 0.01
-                          ? <span style={{ ...S, fontSize: "12px", color: "#f87171", fontWeight: 600 }}>{N(r.oblClU + r.oblPrU, 2)}</span>
+                          ? <span style={{ ...S, fontSize: "12px", color: "var(--theme-red)", fontWeight: 600 }}>{N(r.oblClU + r.oblPrU, 2)}</span>
                           : zeroDash}
                       </td>
-                      <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "9px 14px" }}>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>
                         {(r.oblClU + r.oblPrU) > 0.01 ? fK(r.unpricedSpotValue) : "—"}
                       </td>
                     </>
@@ -5382,23 +5517,23 @@ function PositionView({ trades, obligations, curve, prices }) {
               );
             })}
 
-            <tr style={{ background: "#1e2d45", borderTop: "1px solid #2e2b24" }}>
-              <td style={{ ...S, fontSize: "10px", color: "#38bdf8", padding: "10px 14px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            <tr style={{ background: "var(--theme-border-soft)", borderTop: "1px solid var(--theme-border)" }}>
+              <td style={{ ...S, fontSize: "10px", color: "var(--theme-sky)", padding: "10px 14px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
                 Total 2026
               </td>
 
               {view === "position" && (
                 <>
-                  <td style={{ ...S, fontSize: "12px", color: "#2563eb", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblCl, 0)}</td>
-                  <td style={{ ...S, fontSize: "12px", color: "#d4a843", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblPr, 0)}</td>
-                  <td style={{ ...S, fontSize: "12px", color: "#e2e8f0", padding: "10px 14px", fontWeight: 700 }}>{N(tot.bCl, 0)}</td>
-                  <td style={{ ...S, fontSize: "12px", color: "#e2e8f0", padding: "10px 14px", fontWeight: 700 }}>{N(tot.bPr, 0)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-blue)", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblCl, 0)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-amber)", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblPr, 0)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-primary)", padding: "10px 14px", fontWeight: 700 }}>{N(tot.bCl, 0)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-primary)", padding: "10px 14px", fontWeight: 700 }}>{N(tot.bPr, 0)}</td>
                   <td style={{ padding: "10px 14px" }}>{pc(tot.bCl - tot.oblCl)}</td>
                   <td style={{ padding: "10px 14px" }}>{pc(tot.bPr - tot.oblPr)}</td>
-                  <td style={{ ...S, fontSize: "12px", color: "#38bdf8", padding: "10px 14px", fontWeight: 700 }}>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-sky)", padding: "10px 14px", fontWeight: 700 }}>
                     {totalCoverage == null ? "—" : `${N(totalCoverage, 1)}%`}
                   </td>
-                  <td style={{ ...S, fontSize: "12px", color: "#38bdf8", padding: "10px 14px", fontWeight: 700 }}>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-sky)", padding: "10px 14px", fontWeight: 700 }}>
                     {pricedCoverage == null ? "—" : `${N(pricedCoverage, 1)}%`}
                   </td>
                   <td colSpan={2} />
@@ -5422,15 +5557,15 @@ function PositionView({ trades, obligations, curve, prices }) {
               {view === "unpriced" && (
                 <>
                   <td />
-                  <td style={{ ...S, fontSize: "12px", color: "#f87171", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblClU, 0)}</td>
-                  <td style={{ ...S, fontSize: "12px", color: "#e2e8f0", padding: "10px 14px", fontWeight: 700 }}>{N(tot.bClU, 0)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-red)", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblClU, 0)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-primary)", padding: "10px 14px", fontWeight: 700 }}>{N(tot.bClU, 0)}</td>
                   <td style={{ padding: "10px 14px" }}>{pc(tot.forwardCl)}</td>
                   <td />
-                  <td style={{ ...S, fontSize: "12px", color: "#f87171", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblPrU, 0)}</td>
-                  <td style={{ ...S, fontSize: "12px", color: "#e2e8f0", padding: "10px 14px", fontWeight: 700 }}>{N(tot.bPrU, 0)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-red)", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblPrU, 0)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-primary)", padding: "10px 14px", fontWeight: 700 }}>{N(tot.bPrU, 0)}</td>
                   <td style={{ padding: "10px 14px" }}>{pc(tot.forwardPr)}</td>
-                  <td style={{ ...S, fontSize: "13px", color: "#f87171", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblClU + tot.oblPrU, 0)}</td>
-                  <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "10px 14px", fontWeight: 700 }}>{fK(tot.unpricedSpotValue)}</td>
+                  <td style={{ ...S, fontSize: "13px", color: "var(--theme-red)", padding: "10px 14px", fontWeight: 700 }}>{N(tot.oblClU + tot.oblPrU, 0)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "10px 14px", fontWeight: 700 }}>{fK(tot.unpricedSpotValue)}</td>
                 </>
               )}
             </tr>
@@ -5881,7 +6016,7 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete, on
 
                 color:
                   filter === f
-                    ? "#07101d"
+                    ? "var(--theme-selected-text)"
                     : THEME.controlText,
 
                 borderColor:
@@ -5914,8 +6049,8 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete, on
               alignItems: "center",
               gap: "8px",
               background:
-                "linear-gradient(135deg, #0f2e1a, #123d24)",
-              color: "#34d399",
+                "linear-gradient(135deg, var(--theme-success-bg), #123d24)",
+              color: "var(--theme-green)",
               border: "1px solid #1d6b3a",
               borderRadius: "2px",
               fontSize: "10px",
@@ -6640,7 +6775,7 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete, on
                               fontSize: "10px",
                               color:
                                 remaining < -EPS
-                                  ? "#c296ed"
+                                  ? "var(--theme-purple)"
                                   : remaining > EPS
                                     ? THEME.red
                                     : THEME.textSecondary
@@ -6729,10 +6864,10 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete, on
                             ...S,
                             fontSize: "10px",
                             padding: "4px 8px",
-                            background: "#0a2a1a",
+                            background: "var(--theme-success-bg)",
                             color: THEME.green,
                             border:
-                              "1px solid #1d4a2a",
+                              "1px solid var(--theme-success-border)",
                             borderRadius: "2px",
                             cursor: "pointer"
                           }}
@@ -6748,10 +6883,10 @@ function Blotter({ trades, currentUser, onAdd, onApprove, onReject, onDelete, on
                             ...S,
                             fontSize: "10px",
                             padding: "4px 8px",
-                            background: "#2a0a0a",
+                            background: "var(--theme-danger-bg)",
                             color: THEME.red,
                             border:
-                              "1px solid #4a1c1c",
+                              "1px solid var(--theme-danger-border)",
                             borderRadius: "2px",
                             cursor: "pointer"
                           }}
@@ -7313,7 +7448,7 @@ function ObligationTab({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-      <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "12px 18px", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "14px" }}>
+      <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "12px 18px", display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "14px" }}>
         {[
           ["Road Fuel kWhc/m³", "8 718"],
           ["FOD kWhc/m³", "11 078"],
@@ -7375,7 +7510,7 @@ function ObligationTab({
 
                 color:
                   filterClient === c
-                    ? "#07101d"
+                    ? "var(--theme-selected-text)"
                     : THEME.controlText,
 
                 borderColor:
@@ -7416,7 +7551,7 @@ function ObligationTab({
         )}
       </div>
 
-      <div style={{ overflowX: "auto", border: "1px solid #1e1c18", borderRadius: "2px" }}>
+      <div style={{ overflowX: "auto", border: "1px solid var(--theme-border-soft)", borderRadius: "2px" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -7436,10 +7571,10 @@ function ObligationTab({
           </thead>
           <tbody>
             {filtered.map((o, i) => {
-              const bg = i % 2 === 0 ? "#111827" : "#141210";
+              const bg = i % 2 === 0 ? "var(--theme-panel)" : "var(--theme-row-alt)";
               return (
-                <tr key={o.id} style={{ borderBottom: "1px solid #1a1815", background: bg }} onMouseEnter={e => e.currentTarget.style.background = "#0d1526"} onMouseLeave={e => e.currentTarget.style.background = bg}>
-                  <td style={{ ...CG, fontSize: "14px", color: "#e2e8f0", padding: "9px 14px" }}>{ML(o.month)}</td>
+                <tr key={o.id} style={{ borderBottom: "1px solid var(--theme-border-soft)", background: bg }} onMouseEnter={e => e.currentTarget.style.background = "var(--theme-panel-alt)"} onMouseLeave={e => e.currentTarget.style.background = bg}>
+                  <td style={{ ...CG, fontSize: "14px", color: "var(--theme-text-primary)", padding: "9px 14px" }}>{ML(o.month)}</td>
                   <td style={{ padding: "9px 14px" }}><Badge color={cc(o.client)}>{clientLabel(o.client)}</Badge></td>
                   <td style={{ padding: "9px 14px" }}><Badge color={o.product === "CARBURANT" ? "sky" : "purple"}>{PARAMS[o.product].label}</Badge></td>
                   <td
@@ -7512,10 +7647,10 @@ function ObligationTab({
                       </span>
                     )}
                   </td>
-                  <td style={{ ...S, fontSize: "12px", color: "#2563eb", padding: "9px 14px" }}>{N(o.clGwhc, 3)}</td>
-                  <td style={{ ...S, fontSize: "12px", color: "#d4a843", padding: "9px 14px" }}>{N(o.prGwhc, 3)}</td>
-                  <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "9px 14px" }}>{N(o.priceCl / 1000, 2)}</td>
-                  <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "9px 14px" }}>{N(o.pricePr / 1000, 2)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-blue)", padding: "9px 14px" }}>{N(o.clGwhc, 3)}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-amber)", padding: "9px 14px" }}>{N(o.prGwhc, 3)}</td>
+                  <td style={{ ...S, fontSize: "11px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{N(o.priceCl / 1000, 2)}</td>
+                  <td style={{ ...S, fontSize: "11px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{N(o.pricePr / 1000, 2)}</td>
                   <td style={{ padding: "9px 14px" }}><Badge color={o.priced ? "green" : "red"}>{o.priced ? "Priced" : "Unpriced"}</Badge></td>
                   {canEdit && (
                     <td style={{ padding: "9px 14px" }}>
@@ -7524,7 +7659,7 @@ function ObligationTab({
                         style={{
                           ...S,
                           fontSize: "9px",
-                          color: "#3d3830",
+                          color: "var(--theme-text-disabled)",
                           background: "none",
                           border: "none",
                           cursor: "pointer"
@@ -7560,8 +7695,8 @@ function ObligationTab({
             <FI label="CEE Précarité Price (€/MWhc)" type="number" placeholder="15.00" value={form.pricePr} onChange={e => setForm(f => ({ ...f, pricePr: e.target.value }))} />
 
             <div style={{ display: "flex", alignItems: "center", gap: "10px", paddingTop: "18px" }}>
-              <input type="checkbox" id="pr" checked={form.priced} onChange={e => setForm(f => ({ ...f, priced: e.target.checked }))} style={{ accentColor: "#38bdf8" }} />
-              <label htmlFor="pr" style={{ ...S, fontSize: "11px", color: "#4a6080", cursor: "pointer" }}>Priced</label>
+              <input type="checkbox" id="pr" checked={form.priced} onChange={e => setForm(f => ({ ...f, priced: e.target.checked }))} style={{ accentColor: "var(--theme-sky)" }} />
+              <label htmlFor="pr" style={{ ...S, fontSize: "11px", color: "var(--theme-text-secondary)", cursor: "pointer" }}>Priced</label>
             </div>
           </div>
 
@@ -7881,44 +8016,44 @@ function Dashboard({
     if (pct == null) {
       return {
         label: "No obligation",
-        bg: "#111827",
-        color: "#64748b",
-        border: "#334155"
+        bg: THEME.panel,
+        color: THEME.textMuted,
+        border: THEME.border
       };
     }
 
     if (pct >= 120) {
       return {
         label: "Overcovered",
-        bg: "#0e2030",
-        color: "#38bdf8",
-        border: "#1a3848"
+        bg: THEME.infoBg,
+        color: THEME.infoText,
+        border: THEME.infoBorder
       };
     }
 
     if (pct >= 100 - EPS) {
       return {
         label: "OK",
-        bg: "#0f2e1a",
-        color: "#34d399",
-        border: "#1d4a2a"
+        bg: THEME.successBg,
+        color: THEME.successText,
+        border: THEME.successBorder
       };
     }
 
     if (pct >= COVERAGE_ALERT_THRESHOLD) {
       return {
         label: "Watchlist",
-        bg: "#2e2410",
-        color: "#d4a843",
-        border: "#4a3a18"
+        bg: THEME.warningBg,
+        color: THEME.warningText,
+        border: THEME.warningBorder
       };
     }
 
     return {
       label: "Undercovered",
-      bg: "#2e1010",
-      color: "#f87171",
-      border: "#4a1c1c"
+      bg: THEME.dangerBg,
+      color: THEME.dangerText,
+      border: THEME.dangerBorder
     };
   };
 
@@ -8030,9 +8165,9 @@ function Dashboard({
       }}
     >
       {pending > 0 && (
-        <div style={{ background: "#2a1f0a", border: "1px solid #5a4000", borderRadius: "2px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ color: "#fbbf24", fontSize: "12px" }}>⚠</span>
-          <span style={{ ...S, fontSize: "11px", color: "#fbbf24" }}>
+        <div style={{ background: "var(--theme-warning-bg)", border: "1px solid var(--theme-warning-border)", borderRadius: "2px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ color: "var(--theme-warning-text)", fontSize: "12px" }}>⚠</span>
+          <span style={{ ...S, fontSize: "11px", color: "var(--theme-warning-text)" }}>
             {pending} trade{pending > 1 ? "s" : ""} awaiting four-eyes approval
           </span>
         </div>
@@ -8040,16 +8175,16 @@ function Dashboard({
 
       {operationalMetrics.unsignedContractsCount > 0 && (
         <div style={{
-          background:"#2a1f0a",
-          border:"1px solid #5a4000",
+          background:"var(--theme-warning-bg)",
+          border:"1px solid var(--theme-warning-border)",
           borderRadius:"2px",
           padding:"10px 16px",
           display:"flex",
           alignItems:"center",
           gap:"8px"
         }}>
-          <span style={{ color:"#fbbf24",fontSize:"12px" }}>⚠</span>
-          <span style={{ ...S,fontSize:"11px",color:"#fbbf24" }}>
+          <span style={{ color:"var(--theme-warning-text)",fontSize:"12px" }}>⚠</span>
+          <span style={{ ...S,fontSize:"11px",color:"var(--theme-warning-text)" }}>
             {operationalMetrics.unsignedContractsCount} material trade{operationalMetrics.unsignedContractsCount > 1 ? "s" : ""} without signed contract
             {" "}({N(operationalMetrics.unsignedContractsVolume,0)} GWhc)
           </span>
@@ -8058,25 +8193,25 @@ function Dashboard({
 
       {operationalMetrics.remainingDepositVolume > 0 && (
         <div style={{
-          background:"#2a0a0a",
-          border:"1px solid #7f1d1d",
+          background:"var(--theme-danger-bg)",
+          border:"1px solid var(--theme-danger-border)",
           borderRadius:"2px",
           padding:"10px 16px",
           display:"flex",
           alignItems:"center",
           gap:"8px"
         }}>
-          <span style={{ color:"#f87171",fontSize:"12px" }}>⚠</span>
-          <span style={{ ...S,fontSize:"11px",color:"#fca5a5" }}>
+          <span style={{ color:"var(--theme-red)",fontSize:"12px" }}>⚠</span>
+          <span style={{ ...S,fontSize:"11px",color:"var(--theme-danger-text)" }}>
             {N(operationalMetrics.remainingDepositVolume,0)} GWhc still to be deposited across priced trades
           </span>
         </div>
       )}
 
       {coverageAlerts.length > 0 && (
-        <div style={{ background: "#2a0a0a", border: "1px solid #7f1d1d", borderRadius: "2px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
-          <span style={{ color: "#f87171", fontSize: "12px" }}>⚠</span>
-          <span style={{ ...S, fontSize: "11px", color: "#fca5a5" }}>
+        <div style={{ background: "var(--theme-danger-bg)", border: "1px solid var(--theme-danger-border)", borderRadius: "2px", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ color: "var(--theme-red)", fontSize: "12px" }}>⚠</span>
+          <span style={{ ...S, fontSize: "11px", color: "var(--theme-danger-text)" }}>
             {coverageAlerts.length} month{coverageAlerts.length > 1 ? "s" : ""} below the {COVERAGE_ALERT_THRESHOLD}% coverage threshold:{" "}
             {coverageAlerts.map(r => `${ML(r.month)} (${N(r.covPct, 1)}%)`).join(", ")}
           </span>
@@ -8085,8 +8220,8 @@ function Dashboard({
 
       {dataQualityChecks.length > 0 && (
         <div style={{
-          background: "#2a0a0a",
-          border: "1px solid #7f1d1d",
+          background: "var(--theme-danger-bg)",
+          border: "1px solid var(--theme-danger-border)",
           borderRadius: "2px",
           padding: "10px 16px",
           display: "flex",
@@ -8094,20 +8229,20 @@ function Dashboard({
           gap: "6px"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ color: "#f87171", fontSize: "12px" }}>⚠</span>
-            <span style={{ ...S, fontSize: "11px", color: "#fca5a5" }}>
+            <span style={{ color: "var(--theme-red)", fontSize: "12px" }}>⚠</span>
+            <span style={{ ...S, fontSize: "11px", color: "var(--theme-danger-text)" }}>
               {dataQualityChecks.length} data issue{dataQualityChecks.length > 1 ? "s" : ""} detected
             </span>
           </div>
 
-          <div style={{ ...S, fontSize: "10px", color: "#fca5a5" }}>
+          <div style={{ ...S, fontSize: "10px", color: "var(--theme-danger-text)" }}>
             {dataQualityChecks.slice(0, 3).map((e, i) => (
               <div key={i}>
                 • {e.type} — {e.detail}
               </div>
             ))}
             {dataQualityChecks.length > 3 && (
-              <div style={{ color: "#64748b" }}>
+              <div style={{ color: "var(--theme-text-muted)" }}>
                 … +{dataQualityChecks.length - 3} more
               </div>
             )}
@@ -8250,14 +8385,14 @@ function Dashboard({
                   background: status.bg,
                   border: `1px solid ${status.border}`,
                   boxShadow: (!isEmpty && r.covPct < 80)
-                    ? "0 0 0 1px #f87171 inset"
+                    ? "0 0 0 1px var(--theme-red) inset"
                     : "none",
                   borderRadius: "2px",
                   padding: "10px 8px",
                   minHeight: "88px"
                 }}
               >
-                <p style={{ ...S, fontSize: "9px", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "6px" }}>
+                <p style={{ ...S, fontSize: "9px", color: "var(--theme-text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "6px" }}>
                   {MLS(r.month)}
                 </p>
 
@@ -8282,18 +8417,18 @@ function Dashboard({
                   </>
                 )}
 
-                <p style={{ ...S, fontSize: "8px", color: "#64748b", marginBottom: "3px" }}>
+                <p style={{ ...S, fontSize: "8px", color: "var(--theme-text-muted)", marginBottom: "3px" }}>
                   {isEmpty ? "—" : `${N(r.bought, 0)} / ${N(r.obligation, 0)} GWhc`}
                 </p>
 
                 {!isEmpty && (
-                  <p style={{ ...S, fontSize: "8px", color: net >= 0 ? "#34d399" : "#f87171" }}>
+                  <p style={{ ...S, fontSize: "8px", color: net >= 0 ? "var(--theme-green)" : "var(--theme-red)" }}>
                     {net === 0 ? "0 GWhc" : `${net > 0 ? "+" : ""}${N(net, 0)} GWhc`}
                   </p>
                 )}
 
                 {!isEmpty && net !== 0 && (
-                  <p style={{ ...S, fontSize: "8px", color: "#64748b", marginTop: "3px" }}>
+                  <p style={{ ...S, fontSize: "8px", color: "var(--theme-text-muted)", marginTop: "3px" }}>
                     Exposure: {Math.abs(netValue) > 1_000_000 ? fM(netValue) : fK(netValue)}
                   </p>
                 )}
@@ -8309,7 +8444,7 @@ function Dashboard({
           Priced Position — Confirmed Purchases vs Fixed-Price Obligations
         </DashboardSectionTitle>
 
-        <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", overflow: "hidden", marginBottom: "16px" }}>
+        <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", overflow: "hidden", marginBottom: "16px" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
@@ -8322,12 +8457,12 @@ function Dashboard({
                 ["CEE Précarité", totalOblPrP, bPrP, netPrP, aPrP, "amber"],
                 ["TOTAL", totalOblP, bClP + bPrP, netClP + netPrP, (bClP * aClP + bPrP * aPrP) / ((bClP + bPrP) || 1), "neutral"]
               ].map(([label, obl, bought, net, avg]) => (
-                <tr key={label} style={{ borderBottom: "1px solid #1a1815" }}>
-                  <td style={{ ...CG, fontSize: "14px", color: "#e2e8f0", padding: "10px 16px" }}>{label}</td>
-                  <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "10px 16px" }}>{N(obl, 1)} GWh</td>
-                  <td style={{ ...S, fontSize: "12px", color: "#e2e8f0", padding: "10px 16px" }}>{N(bought, 1)} GWh</td>
-                  <td style={{ ...S, fontSize: "12px", padding: "10px 16px", color: net >= 0 ? "#34d399" : "#f87171", fontWeight: 600 }}>{net >= 0 ? "+" : ""}{N(net, 1)} GWh</td>
-                  <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "10px 16px" }}>{fmtMWhc(avg)}</td>
+                <tr key={label} style={{ borderBottom: "1px solid var(--theme-border-soft)" }}>
+                  <td style={{ ...CG, fontSize: "14px", color: "var(--theme-text-primary)", padding: "10px 16px" }}>{label}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "10px 16px" }}>{N(obl, 1)} GWh</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-primary)", padding: "10px 16px" }}>{N(bought, 1)} GWh</td>
+                  <td style={{ ...S, fontSize: "12px", padding: "10px 16px", color: net >= 0 ? "var(--theme-green)" : "var(--theme-red)", fontWeight: 600 }}>{net >= 0 ? "+" : ""}{N(net, 1)} GWh</td>
+                  <td style={{ ...S, fontSize: "11px", color: "var(--theme-text-secondary)", padding: "10px 16px" }}>{fmtMWhc(avg)}</td>
                   <td style={{ padding: "10px 16px", minWidth: "140px" }}><CovBar pct={obl > 0 ? bought / obl * 100 : 0} /></td>
                 </tr>
               ))}
@@ -8340,7 +8475,7 @@ function Dashboard({
           Unpriced Position — Forward Exposure (Partial Mar + Apr–Dec, obligations without fixed price)
         </DashboardSectionTitle>
 
-        <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", overflow: "hidden" }}>
+        <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
@@ -8353,12 +8488,12 @@ function Dashboard({
                 ["CEE Précarité", totalOblPrU, bPrU, netPrU],
                 ["TOTAL", totalOblClU + totalOblPrU, bClU + bPrU, netClU + netPrU]
               ].map(([label, obl, bought, net]) => (
-                <tr key={label} style={{ borderBottom: "1px solid #1a1815" }}>
-                  <td style={{ ...CG, fontSize: "14px", color: "#e2e8f0", padding: "10px 16px" }}>{label}</td>
-                  <td style={{ ...S, fontSize: "12px", color: "#4a6080", padding: "10px 16px" }}>{N(obl, 1)} GWh</td>
-                  <td style={{ ...S, fontSize: "12px", color: "#e2e8f0", padding: "10px 16px" }}>{N(bought, 1)} GWh</td>
-                  <td style={{ ...S, fontSize: "12px", padding: "10px 16px", color: net >= 0 ? "#34d399" : "#f87171", fontWeight: 600 }}>{net >= 0 ? "+" : ""}{N(net, 1)} GWh</td>
-                  <td style={{ ...S, fontSize: "11px", padding: "10px 16px", color: net < 0 ? "#f87171" : "#34d399" }}>{net < 0 ? "⚠ SHORT — uncovered obligations" : "✓ Long / balanced"}</td>
+                <tr key={label} style={{ borderBottom: "1px solid var(--theme-border-soft)" }}>
+                  <td style={{ ...CG, fontSize: "14px", color: "var(--theme-text-primary)", padding: "10px 16px" }}>{label}</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "10px 16px" }}>{N(obl, 1)} GWh</td>
+                  <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-primary)", padding: "10px 16px" }}>{N(bought, 1)} GWh</td>
+                  <td style={{ ...S, fontSize: "12px", padding: "10px 16px", color: net >= 0 ? "var(--theme-green)" : "var(--theme-red)", fontWeight: 600 }}>{net >= 0 ? "+" : ""}{N(net, 1)} GWh</td>
+                  <td style={{ ...S, fontSize: "11px", padding: "10px 16px", color: net < 0 ? "var(--theme-red)" : "var(--theme-green)" }}>{net < 0 ? "⚠ SHORT — uncovered obligations" : "✓ Long / balanced"}</td>
                 </tr>
               ))}
             </tbody>
@@ -8560,9 +8695,9 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
         cursor: "pointer",
         letterSpacing: "0.08em",
         textTransform: "uppercase",
-        background: view === id ? "#38bdf8" : "transparent",
-        color: view === id ? "#0a0e1a" : "#3a5070",
-        borderColor: view === id ? "#38bdf8" : "#1e2d45"
+        background: view === id ? "var(--theme-sky)" : "transparent",
+        color: view === id ? THEME.selectedText : "var(--theme-text-muted)",
+        borderColor: view === id ? "var(--theme-sky)" : "var(--theme-border-soft)"
       }}
     >
       {children}
@@ -8573,7 +8708,7 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
     <p style={{
       ...S,
       fontSize: "9px",
-      color: "#38bdf8",
+      color: "var(--theme-sky)",
       textTransform: "uppercase",
       letterSpacing: "0.18em",
       marginBottom: "14px",
@@ -8586,8 +8721,8 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
       <div style={{
-        background: "#111827",
-        border: "1px solid #1e2d45",
+        background: "var(--theme-panel)",
+        border: "1px solid var(--theme-border-soft)",
         borderRadius: "2px",
         padding: "16px 18px",
         display: "flex",
@@ -8600,7 +8735,7 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
           <p style={{
             ...S,
             fontSize: "9px",
-            color: "#38bdf8",
+            color: "var(--theme-sky)",
             textTransform: "uppercase",
             letterSpacing: "0.16em",
             marginBottom: "6px"
@@ -8657,8 +8792,8 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
           </div>
 
           <div style={{
-            background: "#111827",
-            border: "1px solid #252219",
+            background: "var(--theme-panel)",
+            border: "1px solid var(--theme-border-soft)",
             borderRadius: "2px",
             padding: "18px"
           }}>
@@ -8666,38 +8801,38 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
 
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={priceHistory}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
+                <CartesianGrid strokeDasharray="2 4" stroke="var(--theme-border-soft)" vertical={false} />
                 <XAxis
                   dataKey="date"
-                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }}
                   axisLine={false}
                   tickLine={false}
                   width={44}
                   domain={["auto", "auto"]}
                 />
                 <Tooltip content={<ChartTip />} />
-                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
+                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "var(--theme-text-secondary)" }} />
                 <Line
                   type="monotone"
                   dataKey="classique"
                   name="Classique (€/MWhc)"
-                  stroke="#2563eb"
+                  stroke="var(--theme-blue)"
                   strokeWidth={2}
-                  dot={{ fill: "#2563eb", r: 3 }}
+                  dot={{ fill: "var(--theme-blue)", r: 3 }}
                   activeDot={{ r: 5 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="precarite"
                   name="Précarité (€/MWhc)"
-                  stroke="#d4a843"
+                  stroke="var(--theme-amber)"
                   strokeWidth={2}
-                  dot={{ fill: "#d4a843", r: 3 }}
+                  dot={{ fill: "var(--theme-amber)", r: 3 }}
                   activeDot={{ r: 5 }}
                 />
               </LineChart>
@@ -8710,7 +8845,7 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
             </div>
           )}
 
-          <div style={{ border: "1px solid #1e1c18", borderRadius: "2px", overflow: "hidden" }}>
+          <div style={{ border: "1px solid var(--theme-border-soft)", borderRadius: "2px", overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
@@ -8723,32 +8858,32 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
               <tbody>
                 {sortedPrices.map((p, i) => {
                   const user = USERS.find(u => u.id === p.enteredBy);
-                  const bg = i === 0 ? "#0d1526" : "#111827";
+                  const bg = i === 0 ? "var(--theme-panel-alt)" : "var(--theme-panel)";
 
                   return (
-                    <tr key={p.id} style={{ borderBottom: "1px solid #1a1815", background: bg }}>
-                      <td style={{ ...S, fontSize: "12px", color: "#e2e8f0", padding: "10px 14px", fontWeight: 500 }}>
+                    <tr key={p.id} style={{ borderBottom: "1px solid var(--theme-border-soft)", background: bg }}>
+                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-primary)", padding: "10px 14px", fontWeight: 500 }}>
                         {p.date}
                         {i === 0 && (
-                          <span style={{ marginLeft: "8px", fontSize: "9px", color: "#38bdf8" }}>
+                          <span style={{ marginLeft: "8px", fontSize: "9px", color: "var(--theme-sky)" }}>
                             LATEST
                           </span>
                         )}
                       </td>
 
-                      <td style={{ ...S, fontSize: "13px", color: "#2563eb", padding: "10px 14px" }}>
+                      <td style={{ ...S, fontSize: "13px", color: "var(--theme-blue)", padding: "10px 14px" }}>
                         {N(p.classique, 2)}
                       </td>
 
-                      <td style={{ ...S, fontSize: "13px", color: "#d4a843", padding: "10px 14px" }}>
+                      <td style={{ ...S, fontSize: "13px", color: "var(--theme-amber)", padding: "10px 14px" }}>
                         {N(p.precarite, 2)}
                       </td>
 
-                      <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "10px 14px" }}>
+                      <td style={{ ...S, fontSize: "11px", color: "var(--theme-text-secondary)", padding: "10px 14px" }}>
                         {user?.name ?? p.enteredBy}
                       </td>
 
-                      <td style={{ ...S, fontSize: "10px", color: "#3d3830", padding: "10px 14px" }}>
+                      <td style={{ ...S, fontSize: "10px", color: "var(--theme-text-disabled)", padding: "10px 14px" }}>
                         {p.enteredAt ? new Date(p.enteredAt).toLocaleString("fr-FR") : "—"}
                       </td>
                     </tr>
@@ -8799,20 +8934,20 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
       {view === "curve" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{
-            background: "#111827",
-            border: "1px solid #1e2d45",
+            background: "var(--theme-panel)",
+            border: "1px solid var(--theme-border-soft)",
             borderRadius: "2px",
             padding: "14px 16px"
           }}>
-            <p style={{ ...S, fontSize: "11px", color: "#4a6080", lineHeight: 1.6 }}>
+            <p style={{ ...S, fontSize: "11px", color: "var(--theme-text-secondary)", lineHeight: 1.6 }}>
               The CEE forward curve shows Classique and Précarité prices by maturity.
               It is used as a market reference for forward pricing, spot/term comparison and valuation analysis.
             </p>
           </div>
 
           <div style={{
-            background: "#111827",
-            border: "1px solid #252219",
+            background: "var(--theme-panel)",
+            border: "1px solid var(--theme-border-soft)",
             borderRadius: "2px",
             padding: "18px"
           }}>
@@ -8820,45 +8955,45 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
 
             <ResponsiveContainer width="100%" height={320}>
               <LineChart data={curveData}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
+                <CartesianGrid strokeDasharray="2 4" stroke="var(--theme-border-soft)" vertical={false} />
                 <XAxis
                   dataKey="tenor"
-                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }}
                   axisLine={false}
                   tickLine={false}
                   width={44}
                   domain={["auto", "auto"]}
                 />
                 <Tooltip content={<ChartTip />} />
-                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
+                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "var(--theme-text-secondary)" }} />
                 <Line
                   type="monotone"
                   dataKey="classique"
                   name="Classique Forward (€/MWhc)"
-                  stroke="#2563eb"
+                  stroke="var(--theme-blue)"
                   strokeWidth={2}
-                  dot={{ fill: "#2563eb", r: 4 }}
+                  dot={{ fill: "var(--theme-blue)", r: 4 }}
                   activeDot={{ r: 6 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="precarite"
                   name="Précarité Forward (€/MWhc)"
-                  stroke="#d4a843"
+                  stroke="var(--theme-amber)"
                   strokeWidth={2}
-                  dot={{ fill: "#d4a843", r: 4 }}
+                  dot={{ fill: "var(--theme-amber)", r: 4 }}
                   activeDot={{ r: 6 }}
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
 
-          <div style={{ overflowX: "auto", border: "1px solid #1e1c18", borderRadius: "2px" }}>
+          <div style={{ overflowX: "auto", border: "1px solid var(--theme-border-soft)", borderRadius: "2px" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
@@ -8877,13 +9012,13 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                 {TENORS.map(t => {
                   const fp = curve[t];
                   const isEditing = editingTenor === t;
-                  const bg = "#111827";
+                  const bg = "var(--theme-panel)";
 
                   return (
                     <tr
                       key={t}
-                      style={{ borderBottom: "1px solid #1a1815", background: bg }}
-                      onMouseEnter={e => e.currentTarget.style.background = "#0d1526"}
+                      style={{ borderBottom: "1px solid var(--theme-border-soft)", background: bg }}
+                      onMouseEnter={e => e.currentTarget.style.background = "var(--theme-panel-alt)"}
                       onMouseLeave={e => e.currentTarget.style.background = bg}
                     >
                       <td style={{ padding: "9px 14px" }}>
@@ -8898,9 +9033,9 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                               onChange={e => setDraftCurve(d => ({ ...d, classique: e.target.value }))}
                               style={{
                                 ...S,
-                                background: "#0d1526",
+                                background: "var(--theme-panel-alt)",
                                 border: "1px solid #b8973a",
-                                color: "#e2e8f0",
+                                color: "var(--theme-text-primary)",
                                 borderRadius: "2px",
                                 padding: "5px 8px",
                                 fontSize: "12px",
@@ -8916,9 +9051,9 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                               onChange={e => setDraftCurve(d => ({ ...d, precarite: e.target.value }))}
                               style={{
                                 ...S,
-                                background: "#0d1526",
+                                background: "var(--theme-panel-alt)",
                                 border: "1px solid #b8973a",
-                                color: "#e2e8f0",
+                                color: "var(--theme-text-primary)",
                                 borderRadius: "2px",
                                 padding: "5px 8px",
                                 fontSize: "12px",
@@ -8930,11 +9065,11 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                         </>
                       ) : (
                         <>
-                          <td style={{ ...S, fontSize: "13px", color: "#2563eb", padding: "9px 14px", fontWeight: 500 }}>
+                          <td style={{ ...S, fontSize: "13px", color: "var(--theme-blue)", padding: "9px 14px", fontWeight: 500 }}>
                             {fp ? N(fp.classique, 2) : "—"}
                           </td>
 
-                          <td style={{ ...S, fontSize: "13px", color: "#d4a843", padding: "9px 14px", fontWeight: 500 }}>
+                          <td style={{ ...S, fontSize: "13px", color: "var(--theme-amber)", padding: "9px 14px", fontWeight: 500 }}>
                             {fp ? N(fp.precarite, 2) : "—"}
                           </td>
                         </>
@@ -8950,8 +9085,8 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                                   ...S,
                                   fontSize: "10px",
                                   padding: "4px 10px",
-                                  background: "#38bdf8",
-                                  color: "#0a0e1a",
+                                  background: "var(--theme-sky)",
+                                  color: THEME.selectedText,
                                   border: "none",
                                   borderRadius: "2px",
                                   cursor: "pointer"
@@ -8967,8 +9102,8 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                                   fontSize: "10px",
                                   padding: "4px 10px",
                                   background: "transparent",
-                                  color: "#3a5070",
-                                  border: "1px solid #2e2b24",
+                                  color: "var(--theme-text-muted)",
+                                  border: "1px solid var(--theme-border)",
                                   borderRadius: "2px",
                                   cursor: "pointer"
                                 }}
@@ -8990,8 +9125,8 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
                                 fontSize: "10px",
                                 padding: "4px 10px",
                                 background: "transparent",
-                                color: "#3a5070",
-                                border: "1px solid #2e2b24",
+                                color: "var(--theme-text-muted)",
+                                border: "1px solid var(--theme-border)",
                                 borderRadius: "2px",
                                 cursor: "pointer"
                               }}
@@ -9013,12 +9148,12 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
       {view === "npv" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{
-            background: "#111827",
-            border: "1px solid #1e2d45",
+            background: "var(--theme-panel)",
+            border: "1px solid var(--theme-border-soft)",
             borderRadius: "2px",
             padding: "14px 16px"
           }}>
-            <p style={{ ...S, fontSize: "11px", color: "#4a6080", lineHeight: 1.6 }}>
+            <p style={{ ...S, fontSize: "11px", color: "var(--theme-text-secondary)", lineHeight: 1.6 }}>
               This section compares spot prices with forward prices by maturity, applies a simple discounting logic,
               and translates forward-vs-spot spreads into €/m³ impact using product parameters.
             </p>
@@ -9048,8 +9183,8 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
           </div>
 
           <div style={{
-            background: "#111827",
-            border: "1px solid #252219",
+            background: "var(--theme-panel)",
+            border: "1px solid var(--theme-border-soft)",
             borderRadius: "2px",
             padding: "18px"
           }}>
@@ -9076,8 +9211,8 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
           </div>
 
           <div style={{
-            background: "#111827",
-            border: "1px solid #252219",
+            background: "var(--theme-panel)",
+            border: "1px solid var(--theme-border-soft)",
             borderRadius: "2px",
             padding: "18px"
           }}>
@@ -9085,32 +9220,32 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
 
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={npvData} barGap={3}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
+                <CartesianGrid strokeDasharray="2 4" stroke="var(--theme-border-soft)" vertical={false} />
                 <XAxis
                   dataKey="tenor"
-                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }}
                   axisLine={false}
                   tickLine={false}
                   width={44}
                 />
                 <Tooltip content={<ChartTip />} />
-                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
-                <ReferenceLine y={0} stroke="#1e2d45" />
+                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "var(--theme-text-secondary)" }} />
+                <ReferenceLine y={0} stroke="var(--theme-border-soft)" />
                 <Bar
                   dataKey="clNpvVsSpotMWhc"
                   name="Classique NPV - Spot"
-                  fill="#2563eb"
+                  fill="var(--theme-blue)"
                   radius={[1, 1, 0, 0]}
                 />
                 <Bar
                   dataKey="prNpvVsSpotMWhc"
                   name="Précarité NPV - Spot"
-                  fill="#d4a843"
+                  fill="var(--theme-amber)"
                   radius={[1, 1, 0, 0]}
                 />
               </BarChart>
@@ -9118,8 +9253,8 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
           </div>
 
           <div style={{
-            background: "#111827",
-            border: "1px solid #252219",
+            background: "var(--theme-panel)",
+            border: "1px solid var(--theme-border-soft)",
             borderRadius: "2px",
             padding: "18px"
           }}>
@@ -9127,39 +9262,39 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
 
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={npvData} barGap={3}>
-                <CartesianGrid strokeDasharray="2 4" stroke="#1e2d45" vertical={false} />
+                <CartesianGrid strokeDasharray="2 4" stroke="var(--theme-border-soft)" vertical={false} />
                 <XAxis
                   dataKey="tenor"
-                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ ...S, fontSize: 9, fill: "#3a5070" }}
+                  tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }}
                   axisLine={false}
                   tickLine={false}
                   width={44}
                 />
                 <Tooltip content={<ChartTip />} />
-                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "#4a6080" }} />
-                <ReferenceLine y={0} stroke="#1e2d45" />
+                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "var(--theme-text-secondary)" }} />
+                <ReferenceLine y={0} stroke="var(--theme-border-soft)" />
                 <Bar
                   dataKey="clFinancingM3"
                   name="Classique financing €/m³"
-                  fill="#2563eb"
+                  fill="var(--theme-blue)"
                   radius={[1, 1, 0, 0]}
                 />
                 <Bar
                   dataKey="prFinancingM3"
                   name="Précarité financing €/m³"
-                  fill="#d4a843"
+                  fill="var(--theme-amber)"
                   radius={[1, 1, 0, 0]}
                 />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div style={{ overflowX: "auto", border: "1px solid #1e1c18", borderRadius: "2px" }}>
+          <div style={{ overflowX: "auto", border: "1px solid var(--theme-border-soft)", borderRadius: "2px" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "1100px" }}>
               <thead>
                 <tr>
@@ -9184,54 +9319,54 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
 
               <tbody>
                 {npvData.map(d => (
-                  <tr key={d.tenor} style={{ borderBottom: "1px solid #1a1815", background: "#111827" }}>
+                  <tr key={d.tenor} style={{ borderBottom: "1px solid var(--theme-border-soft)", background: "var(--theme-panel)" }}>
                     <td style={{ padding: "9px 14px" }}>
                       <Badge color={d.tenor === "SPOT" ? "gold" : "gray"}>{d.tenor}</Badge>
                     </td>
 
-                    <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "9px 14px" }}>
+                    <td style={{ ...S, fontSize: "11px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>
                       {d.maturityDate}
                     </td>
 
-                    <td style={{ ...S, fontSize: "11px", color: "#4a6080", padding: "9px 14px" }}>
+                    <td style={{ ...S, fontSize: "11px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>
                       {N(d.numberOfDays, 0)}
                     </td>
 
-                    <td style={{ ...S, fontSize: "11px", color: "#2563eb", padding: "9px 14px" }}>
+                    <td style={{ ...S, fontSize: "11px", color: "var(--theme-blue)", padding: "9px 14px" }}>
                       {N(d.clMWhc, 2)}
                     </td>
 
-                    <td style={{ ...S, fontSize: "11px", color: "#d4a843", padding: "9px 14px" }}>
+                    <td style={{ ...S, fontSize: "11px", color: "var(--theme-amber)", padding: "9px 14px" }}>
                       {N(d.prMWhc, 2)}
                     </td>
 
-                    <td style={{ ...S, fontSize: "11px", color: "#2563eb", padding: "9px 14px" }}>
+                    <td style={{ ...S, fontSize: "11px", color: "var(--theme-blue)", padding: "9px 14px" }}>
                       {N(d.clM3, 2)}
                     </td>
 
-                    <td style={{ ...S, fontSize: "11px", color: "#d4a843", padding: "9px 14px" }}>
+                    <td style={{ ...S, fontSize: "11px", color: "var(--theme-amber)", padding: "9px 14px" }}>
                       {N(d.prM3, 2)}
                     </td>
 
-                    <td style={{ ...S, fontSize: "11px", color: "#2563eb", padding: "9px 14px" }}>
+                    <td style={{ ...S, fontSize: "11px", color: "var(--theme-blue)", padding: "9px 14px" }}>
                       {N(d.clNpvMWhc, 2)}
                     </td>
 
-                    <td style={{ ...S, fontSize: "11px", color: "#d4a843", padding: "9px 14px" }}>
+                    <td style={{ ...S, fontSize: "11px", color: "var(--theme-amber)", padding: "9px 14px" }}>
                       {N(d.prNpvMWhc, 2)}
                     </td>
 
-                    <td style={{ ...S, fontSize: "11px", color: d.clNpvVsSpotMWhc >= 0 ? "#34d399" : "#f87171", padding: "9px 14px" }}>
+                    <td style={{ ...S, fontSize: "11px", color: d.clNpvVsSpotMWhc >= 0 ? "var(--theme-green)" : "var(--theme-red)", padding: "9px 14px" }}>
                       {d.clNpvVsSpotMWhc >= 0 ? "+" : ""}
                       {N(d.clNpvVsSpotMWhc, 2)}
                     </td>
 
-                    <td style={{ ...S, fontSize: "11px", color: d.prNpvVsSpotMWhc >= 0 ? "#34d399" : "#f87171", padding: "9px 14px" }}>
+                    <td style={{ ...S, fontSize: "11px", color: d.prNpvVsSpotMWhc >= 0 ? "var(--theme-green)" : "var(--theme-red)", padding: "9px 14px" }}>
                       {d.prNpvVsSpotMWhc >= 0 ? "+" : ""}
                       {N(d.prNpvVsSpotMWhc, 2)}
                     </td>
 
-                    <td style={{ ...S, fontSize: "11px", color: d.totalNpvVsSpotM3 >= 0 ? "#34d399" : "#f87171", padding: "9px 14px", fontWeight: 700 }}>
+                    <td style={{ ...S, fontSize: "11px", color: d.totalNpvVsSpotM3 >= 0 ? "var(--theme-green)" : "var(--theme-red)", padding: "9px 14px", fontWeight: 700 }}>
                       {d.totalNpvVsSpotM3 >= 0 ? "+" : ""}
                       {N(d.totalNpvVsSpotM3, 2)} €/m³
                     </td>
@@ -9346,13 +9481,13 @@ function AuditLog({ audit, users = USERS }) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search..."
-            style={{ ...S, background: "#0d1526", border: "1px solid #2e2b24", color: "#e2e8f0", borderRadius: "2px", padding: "7px 10px", fontSize: "10px", outline: "none", width: "220px" }}
+            style={{ ...S, background: "var(--theme-panel-alt)", border: "1px solid var(--theme-border)", color: "var(--theme-text-primary)", borderRadius: "2px", padding: "7px 10px", fontSize: "10px", outline: "none", width: "220px" }}
           />
 
           <select
             value={filterUser}
             onChange={e => setFilterUser(e.target.value)}
-            style={{ ...S, background: "#0d1526", border: "1px solid #2e2b24", color: "#4a6080", borderRadius: "2px", padding: "7px 10px", fontSize: "10px", outline: "none" }}
+            style={{ ...S, background: "var(--theme-panel-alt)", border: "1px solid var(--theme-border)", color: "var(--theme-text-secondary)", borderRadius: "2px", padding: "7px 10px", fontSize: "10px", outline: "none" }}
           >
             {auditUsers.map(u => {
               const user = u === "ALL" ? null : getUser(u);
@@ -9363,14 +9498,14 @@ function AuditLog({ audit, users = USERS }) {
           <select
             value={filterAction}
             onChange={e => setFilterAction(e.target.value)}
-            style={{ ...S, background: "#0d1526", border: "1px solid #2e2b24", color: "#4a6080", borderRadius: "2px", padding: "7px 10px", fontSize: "10px", outline: "none" }}
+            style={{ ...S, background: "var(--theme-panel-alt)", border: "1px solid var(--theme-border)", color: "var(--theme-text-secondary)", borderRadius: "2px", padding: "7px 10px", fontSize: "10px", outline: "none" }}
           >
             {actions.map(a => (
               <option key={a} value={a}>{a === "ALL" ? "All actions" : a.replace(/_/g, " ")}</option>
             ))}
           </select>
 
-          <span style={{ ...S, fontSize: "10px", color: "#3a5070", alignSelf: "center" }}>
+          <span style={{ ...S, fontSize: "10px", color: "var(--theme-text-muted)", alignSelf: "center" }}>
             {filteredAudit.length} / {audit.length} rows
           </span>
         </div>
@@ -9378,7 +9513,7 @@ function AuditLog({ audit, users = USERS }) {
         <GhostBtn onClick={handleExport}>↓ Export CSV</GhostBtn>
       </div>
 
-      <div style={{ border: "1px solid #1e1c18", borderRadius: "2px", overflow: "hidden" }}>
+      <div style={{ border: "1px solid var(--theme-border-soft)", borderRadius: "2px", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
@@ -9391,20 +9526,20 @@ function AuditLog({ audit, users = USERS }) {
           <tbody>
             {filteredAudit.map(a => {
               const user = getUser(a.user);
-              const bg = "#111827";
+              const bg = "var(--theme-panel)";
 
               return (
-                <tr key={a.id} style={{ borderBottom: "1px solid #1a1815", background: bg }}>
-                  <td style={{ ...S, fontSize: "10px", color: "#3a5070", padding: "9px 14px", whiteSpace: "nowrap" }}>
+                <tr key={a.id} style={{ borderBottom: "1px solid var(--theme-border-soft)", background: bg }}>
+                  <td style={{ ...S, fontSize: "10px", color: "var(--theme-text-muted)", padding: "9px 14px", whiteSpace: "nowrap" }}>
                     {new Date(a.ts).toLocaleString("fr-FR")}
                   </td>
 
                   <td style={{ padding: "9px 14px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <span style={{ ...S, width: "22px", height: "22px", borderRadius: "50%", background: "#1e2d45", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", color: "#38bdf8", fontWeight: 600 }}>
+                      <span style={{ ...S, width: "22px", height: "22px", borderRadius: "50%", background: "var(--theme-border-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", color: "var(--theme-sky)", fontWeight: 600 }}>
                         {user.initials}
                       </span>
-                      <span style={{ ...S, fontSize: "10px", color: "#4a6080" }}>
+                      <span style={{ ...S, fontSize: "10px", color: "var(--theme-text-secondary)" }}>
                         {user.name}
                       </span>
                     </div>
@@ -9416,11 +9551,11 @@ function AuditLog({ audit, users = USERS }) {
                     </Badge>
                   </td>
 
-                  <td style={{ ...S, fontSize: "10px", color: "#3d3830", padding: "9px 14px" }}>
+                  <td style={{ ...S, fontSize: "10px", color: "var(--theme-text-disabled)", padding: "9px 14px" }}>
                     {a.entity || "—"}
                   </td>
 
-                  <td style={{ ...S, fontSize: "10px", color: "#4a6080", padding: "9px 14px" }}>
+                  <td style={{ ...S, fontSize: "10px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>
                     {a.detail || "—"}
                   </td>
                 </tr>
@@ -9570,16 +9705,16 @@ function Tools({ curve }) {
 
   const row = (label, value, highlight = false) => (
     <tr>
-      <td style={{ ...S, padding: "9px 12px", color: "#8aa0c0", borderBottom: "1px solid #1e2d45" }}>
+      <td style={{ ...S, padding: "9px 12px", color: "var(--theme-text-secondary)", borderBottom: "1px solid var(--theme-border-soft)" }}>
         {label}
       </td>
       <td style={{
         ...S,
         padding: "9px 12px",
-        color: highlight ? "#34d399" : "#e2e8f0",
+        color: highlight ? "var(--theme-green)" : "var(--theme-text-primary)",
         fontWeight: highlight ? 700 : 500,
         textAlign: "right",
-        borderBottom: "1px solid #1e2d45"
+        borderBottom: "1px solid var(--theme-border-soft)"
       }}>
         {value}
       </td>
@@ -9588,11 +9723,11 @@ function Tools({ curve }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-      <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "22px" }}>
-        <p style={{ ...S, fontSize: "9px", color: "#38bdf8", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: "8px" }}>
+      <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "22px" }}>
+        <p style={{ ...S, fontSize: "9px", color: "var(--theme-sky)", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: "8px" }}>
           CEE Tools
         </p>
-        <h2 style={{ ...CG, fontSize: "24px", color: "#e2e8f0", marginBottom: "4px" }}>
+        <h2 style={{ ...CG, fontSize: "24px", color: "var(--theme-text-primary)", marginBottom: "4px" }}>
           CEE PnL Calculator
         </h2>
         <p
@@ -9617,8 +9752,8 @@ function Tools({ curve }) {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: "16px" }}>
-        <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
-          <p style={{ ...S, fontSize: "9px", color: "#38bdf8", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: "14px" }}>
+        <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "18px" }}>
+          <p style={{ ...S, fontSize: "9px", color: "var(--theme-sky)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: "14px" }}>
             Inputs
           </p>
 
@@ -9667,8 +9802,8 @@ function Tools({ curve }) {
           </div>
         </div>
 
-        <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "18px" }}>
-          <p style={{ ...S, fontSize: "9px", color: "#38bdf8", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: "14px" }}>
+        <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "18px" }}>
+          <p style={{ ...S, fontSize: "9px", color: "var(--theme-sky)", textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: "14px" }}>
             Results
           </p>
 
@@ -9695,12 +9830,12 @@ function Tools({ curve }) {
         </div>
       </div>
 
-      <div style={{ background: "#111827", border: "1px solid #252219", borderRadius: "2px", padding: "22px" }}>
-        <p style={{ ...S, fontSize: "9px", color: "#38bdf8", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: "8px" }}>
+      <div style={{ background: "var(--theme-panel)", border: "1px solid var(--theme-border-soft)", borderRadius: "2px", padding: "22px" }}>
+        <p style={{ ...S, fontSize: "9px", color: "var(--theme-sky)", textTransform: "uppercase", letterSpacing: "0.18em", marginBottom: "8px" }}>
           CEE Conversion
         </p>
 
-        <h2 style={{ ...CG, fontSize: "22px", color: "#e2e8f0", marginBottom: "4px" }}>
+        <h2 style={{ ...CG, fontSize: "22px", color: "var(--theme-text-primary)", marginBottom: "4px" }}>
           €/MWhc → €/m³ Converter
         </h2>
 
@@ -9797,62 +9932,75 @@ export default function App() {
   THEME_PRESETS[appearance];
 
   const themeVariables = {
-    "--theme-page":
-      activeTheme.page,
+    "--theme-page": activeTheme.page,
+    "--theme-panel": activeTheme.panel,
+    "--theme-panel-alt": activeTheme.panelAlt,
+    "--theme-table-header": activeTheme.tableHeader,
+    "--theme-row-alt": activeTheme.rowAlt,
 
-    "--theme-panel":
-      activeTheme.panel,
+    "--theme-text-primary": activeTheme.textPrimary,
+    "--theme-text-secondary": activeTheme.textSecondary,
+    "--theme-text-muted": activeTheme.textMuted,
+    "--theme-text-label": activeTheme.textLabel,
+    "--theme-text-disabled": activeTheme.textDisabled,
 
-    "--theme-panel-alt":
-      activeTheme.panelAlt,
+    "--theme-section-title": activeTheme.sectionTitle,
+    "--theme-control-text": activeTheme.controlText,
 
-    "--theme-table-header":
-      activeTheme.tableHeader,
+    "--theme-border": activeTheme.border,
+    "--theme-border-soft": activeTheme.borderSoft,
+    "--theme-hover": activeTheme.hover,
 
-    "--theme-text-primary":
-      activeTheme.textPrimary,
+    "--theme-grid-line": activeTheme.gridLine,
+    "--theme-chart-grid": activeTheme.chartGrid,
+    "--theme-chart-axis": activeTheme.chartAxis,
 
-    "--theme-text-secondary":
-      activeTheme.textSecondary,
+    "--theme-blue": activeTheme.blue,
+    "--theme-sky": activeTheme.sky,
+    "--theme-green": activeTheme.green,
+    "--theme-red": activeTheme.red,
+    "--theme-amber": activeTheme.amber,
+    "--theme-orange": activeTheme.orange,
+    "--theme-purple": activeTheme.purple,
+    "--theme-gold": activeTheme.gold,
+    "--theme-teal": activeTheme.teal,
 
-    "--theme-text-muted":
-      activeTheme.textMuted,
+    "--theme-selected-text": activeTheme.selectedText,
 
-    "--theme-text-label":
-      activeTheme.textLabel,
+    "--theme-success-bg": activeTheme.successBg,
+    "--theme-success-border": activeTheme.successBorder,
+    "--theme-success-text": activeTheme.successText,
 
-    "--theme-section-title":
-      activeTheme.sectionTitle,
+    "--theme-warning-bg": activeTheme.warningBg,
+    "--theme-warning-border": activeTheme.warningBorder,
+    "--theme-warning-text": activeTheme.warningText,
 
-    "--theme-control-text":
-      activeTheme.controlText,
+    "--theme-danger-bg": activeTheme.dangerBg,
+    "--theme-danger-border": activeTheme.dangerBorder,
+    "--theme-danger-text": activeTheme.dangerText,
 
-    "--theme-border":
-      activeTheme.border,
+    "--theme-info-bg": activeTheme.infoBg,
+    "--theme-info-border": activeTheme.infoBorder,
+    "--theme-info-text": activeTheme.infoText,
 
-    "--theme-border-soft":
-      activeTheme.borderSoft,
+    "--theme-neutral-bg": activeTheme.neutralBg,
+    "--theme-neutral-border": activeTheme.neutralBorder,
+    "--theme-neutral-text": activeTheme.neutralText,
 
-    "--theme-hover":
-      activeTheme.hover,
+    "--theme-purple-bg": activeTheme.purpleBg,
+    "--theme-purple-border": activeTheme.purpleBorder,
+    "--theme-purple-text": activeTheme.purpleText,
 
-    "--theme-grid-line":
-      activeTheme.gridLine,
+    "--theme-gold-bg": activeTheme.goldBg,
+    "--theme-gold-border": activeTheme.goldBorder,
+    "--theme-gold-text": activeTheme.goldText,
 
-    "--theme-blue":
-      activeTheme.blue,
+    "--theme-teal-bg": activeTheme.tealBg,
+    "--theme-teal-border": activeTheme.tealBorder,
+    "--theme-teal-text": activeTheme.tealText,
 
-    "--theme-sky":
-      activeTheme.sky,
-
-    "--theme-green":
-      activeTheme.green,
-
-    "--theme-red":
-      activeTheme.red,
-
-    "--theme-amber":
-      activeTheme.amber
+    "--theme-overlay": activeTheme.overlay,
+    "--theme-shadow": activeTheme.shadow
   };
 
   useEffect(() => {
@@ -10710,7 +10858,7 @@ export default function App() {
       loadAll
     ]
   );
-  
+
   const handleAddObligation = useCallback(
     async obligation => {
       // Mise à jour immédiate de l'interface
@@ -10880,27 +11028,27 @@ export default function App() {
   };
 
   if(loading) return(
-    <div style={{background:"#0a0e1a",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{...themeVariables,background:THEME.page,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:THEME.textPrimary}}>
       <div style={{textAlign:"center"}}>
-        <div style={{fontFamily:"Inter, sans-serif",fontSize:"32px",color:"#38bdf8",marginBottom:"16px"}}>CEE Platform</div>
-        <div style={{fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#3a5070"}}>Connecting to database…</div>
+        <div style={{fontFamily:"Inter, sans-serif",fontSize:"32px",color:"var(--theme-sky)",marginBottom:"16px"}}>CEE Platform</div>
+        <div style={{fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"var(--theme-text-muted)"}}>Connecting to database…</div>
       </div>
     </div>
   );
 
   if(error) return(
-    <div style={{background:"#0a0e1a",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{...themeVariables,background:THEME.page,minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",color:THEME.textPrimary}}>
       <div style={{textAlign:"center"}}>
-        <div style={{fontFamily:"Inter, sans-serif",fontSize:"28px",color:"#f87171",marginBottom:"12px"}}>Connection Error</div>
-        <div style={{fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"#4a6080"}}>{error}</div>
+        <div style={{fontFamily:"Inter, sans-serif",fontSize:"28px",color:"var(--theme-red)",marginBottom:"12px"}}>Connection Error</div>
+        <div style={{fontFamily:"IBM Plex Mono, monospace",fontSize:"11px",color:"var(--theme-text-secondary)"}}>{error}</div>
       </div>
     </div>
   );
 
   if (!currentUser) return (
-    <div style={{ minHeight:"100vh",background:"#0a0e1a",display:"flex",alignItems:"center",justifyContent:"center",color:"#e2e8f0" }}>
-      <div style={{ width:"360px",background:"#111827",border:"1px solid #252219",borderRadius:"2px",padding:"26px" }}>
-        <p style={{ ...S,fontSize:"9px",color:"#38bdf8",letterSpacing:"0.18em",textTransform:"uppercase",marginBottom:"8px" }}>
+    <div style={{ ...themeVariables,minHeight:"100vh",background:THEME.page,display:"flex",alignItems:"center",justifyContent:"center",color:THEME.textPrimary }}>
+      <div style={{ width:"360px",background:"var(--theme-panel)",border:"1px solid var(--theme-border-soft)",borderRadius:"2px",padding:"26px" }}>
+        <p style={{ ...S,fontSize:"9px",color:"var(--theme-sky)",letterSpacing:"0.18em",textTransform:"uppercase",marginBottom:"8px" }}>
           CEE Platform
         </p>
 
@@ -10914,7 +11062,7 @@ export default function App() {
             placeholder="Email"
             value={loginForm.email}
             onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))}
-            style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#e2e8f0",padding:"10px",borderRadius:"2px",outline:"none" }}
+            style={{ ...S,background:"var(--theme-panel-alt)",border:"1px solid var(--theme-border)",color:"var(--theme-text-primary)",padding:"10px",borderRadius:"2px",outline:"none" }}
           />
 
           <input
@@ -10923,11 +11071,11 @@ export default function App() {
             value={loginForm.password}
             onChange={e => setLoginForm(f => ({ ...f, password: e.target.value }))}
             onKeyDown={e => { if (e.key === "Enter") handleLogin(); }}
-            style={{ ...S,background:"#0d1526",border:"1px solid #2e2b24",color:"#e2e8f0",padding:"10px",borderRadius:"2px",outline:"none" }}
+            style={{ ...S,background:"var(--theme-panel-alt)",border:"1px solid var(--theme-border)",color:"var(--theme-text-primary)",padding:"10px",borderRadius:"2px",outline:"none" }}
           />
 
           {loginError && (
-            <p style={{ ...S,fontSize:"11px",color:"#f87171" }}>
+            <p style={{ ...S,fontSize:"11px",color:"var(--theme-red)" }}>
               {loginError}
             </p>
           )}
@@ -10997,23 +11145,76 @@ export default function App() {
         }}
       />
       <div style={{ position:"relative",zIndex:1,maxWidth:"1400px",margin:"0 auto",padding:"0 28px 80px" }}>
-        <header style={{ padding:"28px 0 16px",borderBottom:"1px solid #e2e4e8",display:"flex",justifyContent:"space-between",alignItems:"flex-end" }}>
+        <header
+          style={{
+            padding: "28px 0 16px",
+            borderBottom: `1px solid ${THEME.border}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-end",
+            gap: "20px"
+          }}
+        >
           <div>
-            <p style={{ ...S,fontSize:"9px",color:"#38bdf8",letterSpacing:"0.22em",textTransform:"uppercase",marginBottom:"4px" }}>
+            <p
+              style={{
+                ...S,
+                fontSize: "9px",
+                color: THEME.sky,
+                letterSpacing: "0.22em",
+                textTransform: "uppercase",
+                margin: 0,
+                marginBottom: "5px"
+              }}
+            >
               CEE Inventory Management · Position · PnL · P6 Obligation
             </p>
-            <h1 style={{ ...CG,fontSize:"32px",fontWeight:700,color:"#e2e8f0",lineHeight:1 }}>
-              CEE Dashboard
-              <span style={{ ...S,fontSize:"11px",color:"#3a5070",fontWeight:400,marginLeft:"12px" }}>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                gap: "12px",
+                flexWrap: "wrap"
+              }}
+            >
+              <h1
+                style={{
+                  ...CG,
+                  fontSize: "32px",
+                  fontWeight: 700,
+                  color: THEME.textPrimary,
+                  lineHeight: 1,
+                  margin: 0
+                }}
+              >
+                CEE Dashboard
+              </h1>
+
+              <span
+                style={{
+                  ...S,
+                  fontSize: "11px",
+                  color: THEME.textMuted,
+                  fontWeight: 500
+                }}
+              >
                 {appDisplayDate
                   ? `Data as of ${appDisplayDate}`
                   : "Loading…"}
               </span>
-            </h1>
+            </div>
           </div>
 
-          <div style={{ display:"flex",alignItems:"center",gap:"10px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px"
+            }}
+          >
             <button
+              type="button"
               onClick={() =>
                 setAppearance(current =>
                   current === "dark"
@@ -11035,14 +11236,18 @@ export default function App() {
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: "32px",
-                height: "32px",
+                width: "34px",
+                height: "34px",
                 padding: 0,
                 background: THEME.panel,
-                color: THEME.textSecondary,
+                color: THEME.textPrimary,
                 border: `1px solid ${THEME.border}`,
                 borderRadius: "3px",
                 cursor: "pointer",
+                boxShadow:
+                  appearance === "light"
+                    ? "0 1px 4px rgba(15, 23, 42, 0.10)"
+                    : "none",
                 transition:
                   "background 0.2s ease, color 0.2s ease, border-color 0.2s ease"
               }}
@@ -11085,16 +11290,43 @@ export default function App() {
                 </svg>
               )}
             </button>
-            <div>
-              <p style={{ ...S,fontSize:"11px",color:"#e2e8f0" }}>
+
+            <div
+              style={{
+                minWidth: "60px"
+              }}
+            >
+              <p
+                style={{
+                  ...S,
+                  fontSize: "11px",
+                  color: THEME.textPrimary,
+                  fontWeight: 600,
+                  lineHeight: 1.25,
+                  margin: 0
+                }}
+              >
                 {currentUser.name}
               </p>
-              <p style={{ ...S,fontSize:"9px",color:"#3a5070",textTransform:"uppercase",letterSpacing:"0.08em" }}>
+
+              <p
+                style={{
+                  ...S,
+                  fontSize: "9px",
+                  color: THEME.textMuted,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  lineHeight: 1.25,
+                  margin: 0,
+                  marginTop: "2px"
+                }}
+              >
                 {currentUser.role}
               </p>
             </div>
 
             <button
+              type="button"
               onClick={async () => {
                 await supabase.auth.signOut();
                 setCurrentUser(null);
@@ -11102,15 +11334,17 @@ export default function App() {
               }}
               style={{
                 ...S,
-                fontSize:"9px",
-                padding:"6px 10px",
-                background:"transparent",
-                color:"#3a5070",
-                border:"1px solid #2e2b24",
-                borderRadius:"2px",
-                cursor:"pointer",
-                textTransform:"uppercase",
-                letterSpacing:"0.08em"
+                fontSize: "9px",
+                padding: "7px 10px",
+                background: THEME.panel,
+                color: THEME.textSecondary,
+                border: `1px solid ${THEME.border}`,
+                borderRadius: "2px",
+                cursor: "pointer",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                transition:
+                  "background 0.2s ease, color 0.2s ease, border-color 0.2s ease"
               }}
             >
               Logout
@@ -11118,7 +11352,7 @@ export default function App() {
           </div>
         </header>
 
-        <div style={{ display:"flex",gap:"16px",borderBottom:"1px solid #e2e4e8",marginBottom:"22px",overflowX:"auto" }}>
+        <div style={{ display:"flex",gap:"16px",borderBottom:"1px solid var(--theme-border)",marginBottom:"22px",overflowX:"auto" }}>
           {TABS.map(t=>(
             <button
               key={t.id}
@@ -11142,7 +11376,7 @@ export default function App() {
 
                 borderBottom:
                   tab === t.id
-                    ? "1px solid #d4a843"
+                    ? "1px solid var(--theme-amber)"
                     : "1px solid transparent",
 
                 transition: "color 0.2s ease"
