@@ -919,10 +919,24 @@ function Reporting({
   const [selectedRiskBucket, setSelectedRiskBucket] =
     useState(null);
 
+  const [riskFilters, setRiskFilters] = useState({
+    status: "ALL",
+    credited: "ALL",
+    validated: "ALL",
+    paid: "ALL",
+    dominantRisk: "ALL"
+  });
+
   useEffect(() => {
-    // Ferme automatiquement le détail lorsqu'on passe
-    // de Classique à Précarité, ou inversement.
     setSelectedRiskBucket(null);
+
+    setRiskFilters({
+      status: "ALL",
+      credited: "ALL",
+      validated: "ALL",
+      paid: "ALL",
+      dominantRisk: "ALL"
+    });
   }, [regulatoryType]);
 
   const latestSpot = useMemo(() => {
@@ -2393,6 +2407,183 @@ function Reporting({
         })
       ) || [];
 
+    const visibleBuckets = data.buckets.filter(
+      bucket => bucket.tradeCount > 0
+    );  
+
+    const dominantRiskKey = bucket => {
+      const risks = [
+        {
+          key: "PERFORMANCE",
+          value: Math.abs(
+            Number(bucket.riskPerformance || 0)
+          )
+        },
+        {
+          key: "DEFAULT",
+          value: Math.abs(
+            Number(bucket.defaultRisk || 0)
+          )
+        },
+        {
+          key: "REGULATORY",
+          value: Math.abs(
+            Number(bucket.regulatoryRisk || 0)
+          )
+        }
+      ].sort(
+        (a, b) => b.value - a.value
+      );
+
+      return risks[0].value > 0.01
+        ? risks[0].key
+        : "NONE";
+    };
+
+    const filteredBuckets =
+      visibleBuckets.filter(bucket => {
+        if (
+          riskFilters.status !== "ALL" &&
+          bucket.key !== riskFilters.status
+        ) {
+          return false;
+        }
+
+        if (
+          riskFilters.credited !== "ALL" &&
+          String(bucket.credited) !==
+            riskFilters.credited
+        ) {
+          return false;
+        }
+
+        if (
+          riskFilters.validated !== "ALL" &&
+          String(bucket.validated) !==
+            riskFilters.validated
+        ) {
+          return false;
+        }
+
+        if (
+          riskFilters.paid !== "ALL" &&
+          String(bucket.paid) !==
+            riskFilters.paid
+        ) {
+          return false;
+        }
+
+        if (
+          riskFilters.dominantRisk !== "ALL" &&
+          dominantRiskKey(bucket) !==
+            riskFilters.dominantRisk
+        ) {
+          return false;
+        }
+
+        return true;
+      });
+
+    const filteredContracts =
+      filteredBuckets.flatMap(
+        bucket => bucket.contracts || []
+      );
+
+    const filteredTradeIds =
+      new Set(
+        filteredContracts.map(
+          contract =>
+            contract.sourceTradeId ||
+            contract.id
+        )
+      );
+
+    const filteredTotals =
+      filteredBuckets.reduce(
+        (totals, bucket) => ({
+          tradeCount:
+            filteredTradeIds.size,
+
+          volume:
+            totals.volume +
+            Number(bucket.volume || 0),
+
+          riskPerformance:
+            totals.riskPerformance +
+            Number(
+              bucket.riskPerformance || 0
+            ),
+
+          defaultRisk:
+            totals.defaultRisk +
+            Number(bucket.defaultRisk || 0),
+
+          regulatoryRisk:
+            totals.regulatoryRisk +
+            Number(
+              bucket.regulatoryRisk || 0
+            ),
+
+          totalRisk:
+            totals.totalRisk +
+            Number(bucket.totalRisk || 0)
+        }),
+        {
+          tradeCount: filteredTradeIds.size,
+          volume: 0,
+          riskPerformance: 0,
+          defaultRisk: 0,
+          regulatoryRisk: 0,
+          totalRisk: 0
+        }
+      );
+
+    const filteredPortfolioPct =
+      data.totalVolume > 0
+        ? (
+            filteredTotals.volume /
+            data.totalVolume
+          ) * 100
+        : 0;
+
+    const hasRiskFilters =
+      Object.values(riskFilters).some(
+        value => value !== "ALL"
+      );
+
+    const updateRiskFilter = (
+      filterName,
+      value
+    ) => {
+      setRiskFilters(current => ({
+        ...current,
+        [filterName]: value
+      }));
+    };
+
+    const resetRiskFilters = () => {
+      setRiskFilters({
+        status: "ALL",
+        credited: "ALL",
+        validated: "ALL",
+        paid: "ALL",
+        dominantRisk: "ALL"
+      });
+    };
+
+    const riskFilterStyle = {
+      ...S,
+      background: THEME.panelAlt,
+      border: `1px solid ${THEME.border}`,
+      color: THEME.textSecondary,
+      borderRadius: "2px",
+      padding: "8px 10px",
+      fontSize: "10px",
+      fontWeight: 500,
+      outline: "none",
+      minHeight: "34px"
+    };
+
     return (
       <>
         <div
@@ -2545,14 +2736,189 @@ function Reporting({
                     marginBottom: 0
                   }}
                 >
-                  The eight possible combinations of EMMY crediting,
-                  validation and payment status.
+                  Active contract status combinations based on EMMY crediting,
+validation and payment status.
                 </p>
               </div>
 
               <Badge color="gray">
-                8 status combinations
+                {visibleBuckets.length} active status
+                {visibleBuckets.length > 1 ? "es" : ""}
               </Badge>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flexWrap: "wrap",
+                background: THEME.panelAlt,
+                border: `1px solid ${THEME.borderSoft}`,
+                borderRadius: "3px",
+                padding: "10px",
+                marginBottom: "12px"
+              }}
+            >
+              <select
+                value={riskFilters.status}
+                onChange={event =>
+                  updateRiskFilter(
+                    "status",
+                    event.target.value
+                  )
+                }
+                style={{
+                  ...riskFilterStyle,
+                  flex: "2 1 280px",
+                  minWidth: "250px"
+                }}
+              >
+                <option value="ALL">
+                  All contract statuses
+                </option>
+
+                {visibleBuckets.map(bucket => (
+                  <option
+                    key={bucket.key}
+                    value={bucket.key}
+                  >
+                    {bucket.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={riskFilters.credited}
+                onChange={event =>
+                  updateRiskFilter(
+                    "credited",
+                    event.target.value
+                  )
+                }
+                style={{
+                  ...riskFilterStyle,
+                  flex: "1 1 135px"
+                }}
+              >
+                <option value="ALL">
+                  Credited: All
+                </option>
+                <option value="true">
+                  Credited: Yes
+                </option>
+                <option value="false">
+                  Credited: No
+                </option>
+              </select>
+
+              <select
+                value={riskFilters.validated}
+                onChange={event =>
+                  updateRiskFilter(
+                    "validated",
+                    event.target.value
+                  )
+                }
+                style={{
+                  ...riskFilterStyle,
+                  flex: "1 1 135px"
+                }}
+              >
+                <option value="ALL">
+                  Validated: All
+                </option>
+                <option value="true">
+                  Validated: Yes
+                </option>
+                <option value="false">
+                  Validated: No
+                </option>
+              </select>
+
+              <select
+                value={riskFilters.paid}
+                onChange={event =>
+                  updateRiskFilter(
+                    "paid",
+                    event.target.value
+                  )
+                }
+                style={{
+                  ...riskFilterStyle,
+                  flex: "1 1 125px"
+                }}
+              >
+                <option value="ALL">
+                  Paid: All
+                </option>
+                <option value="true">
+                  Paid: Yes
+                </option>
+                <option value="false">
+                  Paid: No
+                </option>
+              </select>
+
+              <select
+                value={riskFilters.dominantRisk}
+                onChange={event =>
+                  updateRiskFilter(
+                    "dominantRisk",
+                    event.target.value
+                  )
+                }
+                style={{
+                  ...riskFilterStyle,
+                  flex: "1 1 175px"
+                }}
+              >
+                <option value="ALL">
+                  Dominant risk: All
+                </option>
+                <option value="PERFORMANCE">
+                  Performance risk
+                </option>
+                <option value="DEFAULT">
+                  Default risk
+                </option>
+                <option value="REGULATORY">
+                  Regulatory risk
+                </option>
+                <option value="NONE">
+                  No material risk
+                </option>
+              </select>
+
+              <button
+                onClick={resetRiskFilters}
+                disabled={!hasRiskFilters}
+                style={{
+                  ...S,
+                  minHeight: "34px",
+                  padding: "8px 12px",
+                  background: "transparent",
+                  color: hasRiskFilters
+                    ? THEME.sky
+                    : THEME.textMuted,
+                  border: `1px solid ${
+                    hasRiskFilters
+                      ? "rgba(56, 189, 248, 0.35)"
+                      : THEME.border
+                  }`,
+                  borderRadius: "2px",
+                  fontSize: "9px",
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  cursor: hasRiskFilters
+                    ? "pointer"
+                    : "default",
+                  opacity: hasRiskFilters ? 1 : 0.5
+                }}
+              >
+                Reset filters
+              </button>
             </div>
 
             <div
@@ -2624,8 +2990,24 @@ function Reporting({
                 </thead>
 
                 <tbody>
-                  {data.buckets.map(
-                    (bucket, index) => {
+                  {filteredBuckets.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={9}
+                        style={{
+                          ...S,
+                          padding: "30px 16px",
+                          textAlign: "center",
+                          color: THEME.textMuted,
+                          background: THEME.panelAlt
+                        }}
+                      >
+                        No active contract status matches the selected filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredBuckets.map(
+                      (bucket, index) => {
                       const hasContracts =
                         bucket.tradeCount > 0;
 
@@ -2921,15 +3303,15 @@ function Reporting({
                         </tr>
                       );
                     }
-                  )}
+                  )
+                )}
                 </tbody>
 
                 <tfoot>
                   <tr
                     style={{
                       background: THEME.tableHeader,
-                      borderTop:
-                        `1px solid ${THEME.border}`
+                      borderTop: `1px solid ${THEME.border}`
                     }}
                   >
                     <td
@@ -2940,11 +3322,12 @@ function Reporting({
                         fontWeight: 800,
                         textTransform: "uppercase",
                         letterSpacing: "0.08em",
-                        borderLeft:
-                          `3px solid ${THEME.sky}`
+                        borderLeft: `3px solid ${THEME.sky}`
                       }}
                     >
-                      Total {title} P6
+                      {hasRiskFilters
+                        ? `Filtered ${title} P6`
+                        : `Total ${title} P6`}
                     </td>
 
                     <td
@@ -2956,7 +3339,7 @@ function Reporting({
                         textAlign: "center"
                       }}
                     >
-                      {N(data.tradeCount, 0)}
+                      {N(filteredTotals.tradeCount, 0)}
                     </td>
 
                     <td
@@ -2969,7 +3352,7 @@ function Reporting({
                         whiteSpace: "nowrap"
                       }}
                     >
-                      {N(data.totalVolume, 2)} GWhc
+                      {N(filteredTotals.volume, 2)} GWhc
                     </td>
 
                     <td
@@ -2978,10 +3361,11 @@ function Reporting({
                         padding: "13px 8px",
                         color: THEME.sky,
                         fontWeight: 700,
-                        textAlign: "center"
+                        textAlign: "center",
+                        whiteSpace: "nowrap"
                       }}
                     >
-                      100,0%
+                      {N(filteredPortfolioPct, 1)}%
                     </td>
 
                     <td
@@ -2989,14 +3373,14 @@ function Reporting({
                         ...S,
                         padding: "13px 8px",
                         color: riskColor(
-                          data.totalRiskPerformance
+                          filteredTotals.riskPerformance
                         ),
                         fontWeight: 700,
                         textAlign: "right",
                         whiteSpace: "nowrap"
                       }}
                     >
-                      {fM(data.totalRiskPerformance)}
+                      {fM(filteredTotals.riskPerformance)}
                     </td>
 
                     <td
@@ -3004,7 +3388,7 @@ function Reporting({
                         ...S,
                         padding: "13px 8px",
                         color:
-                          data.totalDefaultRisk > 0
+                          filteredTotals.defaultRisk > 0
                             ? THEME.red
                             : THEME.textMuted,
                         fontWeight: 700,
@@ -3012,7 +3396,7 @@ function Reporting({
                         whiteSpace: "nowrap"
                       }}
                     >
-                      {fM(data.totalDefaultRisk)}
+                      {fM(filteredTotals.defaultRisk)}
                     </td>
 
                     <td
@@ -3020,7 +3404,7 @@ function Reporting({
                         ...S,
                         padding: "13px 8px",
                         color:
-                          data.totalRegulatoryRisk > 0
+                          filteredTotals.regulatoryRisk > 0
                             ? THEME.amber
                             : THEME.textMuted,
                         fontWeight: 700,
@@ -3028,7 +3412,7 @@ function Reporting({
                         whiteSpace: "nowrap"
                       }}
                     >
-                      {fM(data.totalRegulatoryRisk)}
+                      {fM(filteredTotals.regulatoryRisk)}
                     </td>
 
                     <td
@@ -3036,14 +3420,14 @@ function Reporting({
                         ...S,
                         padding: "13px 8px",
                         color: riskColor(
-                          data.totalRisk
+                          filteredTotals.totalRisk
                         ),
                         fontWeight: 800,
                         textAlign: "right",
                         whiteSpace: "nowrap"
                       }}
                     >
-                      {fM(data.totalRisk)}
+                      {fM(filteredTotals.totalRisk)}
                     </td>
 
                     <td
@@ -3051,8 +3435,7 @@ function Reporting({
                         position: "sticky",
                         right: 0,
                         zIndex: 3,
-                        background:
-                          THEME.tableHeader,
+                        background: THEME.tableHeader,
                         boxShadow:
                           "-10px 0 18px rgba(7, 11, 22, 0.28)"
                       }}
