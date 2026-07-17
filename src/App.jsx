@@ -1161,21 +1161,9 @@ function Reporting({
     [trades]
   );
 
-  // Regulatory Risk scope:
-  // P5 and P6 are both included because the regulatory exposure
-  // continues beyond the commercial period of the trade.
-  const riskReportingTrades = useMemo(
-    () =>
-      trades.filter(trade => {
-        const period =
-          String(trade.period ?? "")
-            .trim()
-            .toUpperCase();
-
-        return period === "P5" || period === "P6";
-      }),
-    [trades]
-  );
+  // Regulatory Risk scope: P6 only.
+  // P5 trades remain stored in Supabase but are excluded from this reporting.
+  const riskReportingTrades = trades2026;
 
   // Monthly position data for charts
   const monthlyData = useMemo(() => MONTHS_LIST.map(month => {
@@ -2174,9 +2162,8 @@ function Reporting({
     regulatoryType === "CLASSIQUE" ? "Classique" : "Précarité";
 
   // ==========================================================================
-  // RISK MATRIX — P5 + P6
-  // Temporary addition: the previous regulatory calculations remain in place
-  // until RegulatoryBlock is replaced in the next step.
+  // RISK MATRIX — P6 ONLY
+  // The previous regulatory calculations remain in place.
   // ==========================================================================
 
   const RISK_STATUS_COMBINATIONS = [
@@ -2667,27 +2654,7 @@ function Reporting({
         ? "green"
         : "gray";
 
-    const periodCounts = (data.contracts || []).reduce(
-      (counts, contract) => {
-        const period = String(
-          contract.period || ""
-        )
-          .trim()
-          .toUpperCase();
-
-        if (period === "P5" || period === "P6") {
-          counts[period] += 1;
-        }
-
-        return counts;
-      },
-      {
-        P5: 0,
-        P6: 0
-      }
-    );
-
-    const scopeLabel = "P5 + P6";
+    const scopeLabel = "P6";
 
     const riskCompositionBase =
       Math.abs(data.totalRiskPerformance) +
@@ -3510,11 +3477,7 @@ function Reporting({
               </div>
 
               <Badge color="sky">
-                {data.tradeCount} contracts
-                {" · "}
-                P5 {periodCounts.P5}
-                {" · "}
-                P6 {periodCounts.P6}
+                {data.tradeCount} contracts · {scopeLabel}
               </Badge>
             </div>
 
