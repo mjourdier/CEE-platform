@@ -2793,8 +2793,8 @@ function Reporting({
             key: "riskPerformance",
             name:
               selectedRiskBucket.riskPerformance < 0
-                ? "Performance gain / mitigation"
-                : "Risk Performance",
+                ? "Risk Performance — Risk Offset"
+                : "Risk Performance — Exposure",
             value: Math.abs(
               Number(
                 selectedRiskBucket.riskPerformance || 0
@@ -2907,7 +2907,10 @@ function Reporting({
 
           {[
             {
-              label: "Risk Performance",
+              label:
+                row.riskPerformance < 0
+                  ? "Risk Performance — Risk Offset"
+                  : "Risk Performance — Exposure",
               value: row.riskPerformance,
               color:
                 row.riskPerformance < 0
@@ -4481,7 +4484,10 @@ validation and payment status.
                     tickLine={false}
                   />
 
-                  <Tooltip content={<StatusRiskTooltip />} />
+                  <Tooltip
+                    cursor={{ fill: "transparent" }}
+                    content={<StatusRiskTooltip />}
+                  />
 
                   <Legend
                     iconSize={9}
@@ -4499,7 +4505,7 @@ validation and payment status.
 
                   <Bar
                     dataKey="riskPerformanceNegative"
-                    name="Performance gain / mitigation"
+                    name="Risk Performance — Risk Offset"
                     stackId="risk"
                     fill={riskComponentColors.performanceNegative}
                     radius={[2, 0, 0, 2]}
@@ -4507,7 +4513,7 @@ validation and payment status.
 
                   <Bar
                     dataKey="riskPerformancePositive"
-                    name="Risk Performance"
+                    name="Risk Performance — Exposure"
                     stackId="risk"
                     fill={riskComponentColors.performancePositive}
                   />
