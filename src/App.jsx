@@ -1161,6 +1161,22 @@ function Reporting({
     [trades]
   );
 
+  // Regulatory Risk scope:
+  // P5 and P6 are both included because the regulatory exposure
+  // continues beyond the commercial period of the trade.
+  const riskReportingTrades = useMemo(
+    () =>
+      trades.filter(trade => {
+        const period =
+          String(trade.period ?? "")
+            .trim()
+            .toUpperCase();
+
+        return period === "P5" || period === "P6";
+      }),
+    [trades]
+  );
+
   // Monthly position data for charts
   const monthlyData = useMemo(() => MONTHS_LIST.map(month => {
     const oblCl = oblMonth(obligations, month, "CLASSIQUE");
@@ -2158,7 +2174,7 @@ function Reporting({
     regulatoryType === "CLASSIQUE" ? "Classique" : "Précarité";
 
   // ==========================================================================
-  // NEW RISK MATRIX — P6 ONLY
+  // RISK MATRIX — P5 + P6
   // Temporary addition: the previous regulatory calculations remain in place
   // until RegulatoryBlock is replaced in the next step.
   // ==========================================================================
@@ -2215,17 +2231,101 @@ function Reporting({
   ];
 
   const buildRiskMatrix = ceeType => {
-    const rows = trades2026.filter(
+    const rows = riskReportingTrades.filter(
       trade => trade.ceeType === ceeType
     );
 
-    // Un contrat entièrement crédité ou non crédité produit une ligne.
-    // Un contrat partiellement crédité produit deux fractions :
-    // - une fraction Credited ;
-    // - une fraction Not credited.
-    const contracts = rows.flatMap(trade =>
-      splitTradeByCreditingStatus(trade)
-    );
+    const CREDIT_EPSILON = 0.01;
+
+    // Un contrat source apparaît une seule fois dans la matrice.
+    // Un contrat partiellement crédité reste classé Credited = No
+    // tant que son volume restant dépasse 0,01 GWhc.
+    const contracts = rows.map(trade => {
+      const {
+        totalVolume,
+        creditedVolume,
+        uncreditedVolume
+      } = getCreditingVolumes(trade);
+
+      const validated =
+        trade.validated === true;
+
+      const riskPerformance =
+        Number(trade.riskPerformanceMt || 0);
+
+      const defaultRisk =
+        Number(trade.defaultRisk || 0);
+
+      const regulatoryRisk =
+        Number(trade.regulatoryRisk || 0);
+
+      const regulatoryRiskPendingValidation =
+        validated
+          ? 0
+          : regulatoryRisk;
+
+      const regulatoryRiskValidated =
+        validated
+          ? regulatoryRisk
+          : 0;
+
+      return {
+        id: trade.id,
+        sourceTradeId: trade.id,
+
+        vendor:
+          trade.vendor || "Unknown",
+
+        rating:
+          trade.cpRanking || "N/A",
+
+        month:
+          trade.month,
+
+        period:
+          trade.period,
+
+        volume:
+          totalVolume,
+
+        totalContractVolume:
+          totalVolume,
+
+        creditedVolume,
+        uncreditedVolume,
+
+        creditedPct:
+          totalVolume > 0
+            ? creditedVolume / totalVolume * 100
+            : 0,
+
+        price:
+          Number(trade.price || 0),
+
+        priced:
+          trade.priced === true,
+
+        credited:
+          uncreditedVolume <= CREDIT_EPSILON,
+
+        validated,
+
+        paid:
+          trade.payment === true,
+
+        riskPerformance,
+        defaultRisk,
+
+        regulatoryRiskPendingValidation,
+        regulatoryRiskValidated,
+        regulatoryRisk,
+
+        totalRisk:
+          riskPerformance +
+          defaultRisk +
+          regulatoryRisk
+      };
+    });
 
     const aggregateContracts = contractRows => {
       const totals = contractRows.reduce(
@@ -2241,6 +2341,18 @@ function Reporting({
           defaultRisk:
             result.defaultRisk +
             Number(contract.defaultRisk || 0),
+          
+          regulatoryRiskPendingValidation:
+            result.regulatoryRiskPendingValidation +
+            Number(
+              contract.regulatoryRiskPendingValidation || 0
+            ),
+
+          regulatoryRiskValidated:
+            result.regulatoryRiskValidated +
+            Number(
+              contract.regulatoryRiskValidated || 0
+            ),
 
           regulatoryRisk:
             result.regulatoryRisk +
@@ -2254,13 +2366,15 @@ function Reporting({
           volume: 0,
           riskPerformance: 0,
           defaultRisk: 0,
+          regulatoryRiskPendingValidation: 0,
+          regulatoryRiskValidated: 0,
           regulatoryRisk: 0,
           totalRisk: 0
         }
       );
 
-      // Un contrat partiellement crédité génère deux fractions,
-      // mais doit rester compté comme un seul contrat.
+      // Defensive unique count by source trade ID.
+      // Each source contract should appear only once in the matrix.
       const uniqueTradeIds = new Set(
         contractRows.map(contract =>
           contract.sourceTradeId || contract.id
@@ -2316,7 +2430,11 @@ function Reporting({
                   volume: 0,
                   riskPerformance: 0,
                   defaultRisk: 0,
+
+                  regulatoryRiskPendingValidation: 0,
+                  regulatoryRiskValidated: 0,
                   regulatoryRisk: 0,
+
                   totalRisk: 0
                 };
               }
@@ -2339,6 +2457,16 @@ function Reporting({
 
               counterparty.defaultRisk +=
                 Number(contract.defaultRisk || 0);
+
+              counterparty.regulatoryRiskPendingValidation +=
+                Number(
+                  contract.regulatoryRiskPendingValidation || 0
+                );
+
+              counterparty.regulatoryRiskValidated +=
+                Number(
+                  contract.regulatoryRiskValidated || 0
+                );
 
               counterparty.regulatoryRisk +=
                 Number(
@@ -2373,6 +2501,12 @@ function Reporting({
 
               defaultRisk:
                 counterparty.defaultRisk,
+
+              regulatoryRiskPendingValidation:
+                counterparty.regulatoryRiskPendingValidation,
+
+              regulatoryRiskValidated:
+                counterparty.regulatoryRiskValidated,
 
               regulatoryRisk:
                 counterparty.regulatoryRisk,
@@ -2433,6 +2567,12 @@ function Reporting({
           defaultRisk:
             bucketTotals.defaultRisk,
 
+          regulatoryRiskPendingValidation:
+            bucketTotals.regulatoryRiskPendingValidation,
+
+          regulatoryRiskValidated:
+            bucketTotals.regulatoryRiskValidated,
+
           regulatoryRisk:
             bucketTotals.regulatoryRisk,
 
@@ -2461,6 +2601,12 @@ function Reporting({
       totalDefaultRisk:
         portfolioTotals.defaultRisk,
 
+      totalRegulatoryRiskPendingValidation:
+        portfolioTotals.regulatoryRiskPendingValidation,
+
+      totalRegulatoryRiskValidated:
+        portfolioTotals.regulatoryRiskValidated,
+
       totalRegulatoryRisk:
         portfolioTotals.regulatoryRisk,
 
@@ -2474,12 +2620,12 @@ function Reporting({
 
   const riskMatrixClassique = useMemo(
     () => buildRiskMatrix("CLASSIQUE"),
-    [trades2026]
+    [riskReportingTrades]
   );
 
   const riskMatrixPrecarite = useMemo(
     () => buildRiskMatrix("PRECARITE"),
-    [trades2026]
+    [riskReportingTrades]
   );
 
   const activeRiskMatrixData =
@@ -2521,10 +2667,37 @@ function Reporting({
         ? "green"
         : "gray";
 
+    const periodCounts = (data.contracts || []).reduce(
+      (counts, contract) => {
+        const period = String(
+          contract.period || ""
+        )
+          .trim()
+          .toUpperCase();
+
+        if (period === "P5" || period === "P6") {
+          counts[period] += 1;
+        }
+
+        return counts;
+      },
+      {
+        P5: 0,
+        P6: 0
+      }
+    );
+
+    const scopeLabel = "P5 + P6";
+
     const riskCompositionBase =
       Math.abs(data.totalRiskPerformance) +
       Math.abs(data.totalDefaultRisk) +
-      Math.abs(data.totalRegulatoryRisk);
+      Math.abs(
+        data.totalRegulatoryRiskPendingValidation
+      ) +
+      Math.abs(
+        data.totalRegulatoryRiskValidated
+      );
 
     const riskShare = value =>
       riskCompositionBase > 0
@@ -2546,8 +2719,14 @@ function Reporting({
           value: bucket.defaultRisk
         },
         {
-          label: "Regulatory risk",
-          value: bucket.regulatoryRisk
+          label: "Regulatory risk — pending validation",
+          value:
+            bucket.regulatoryRiskPendingValidation
+        },
+        {
+          label: "Regulatory risk — validated",
+          value:
+            bucket.regulatoryRiskValidated
         }
       ].sort(
         (a, b) =>
@@ -2586,22 +2765,427 @@ function Reporting({
       padding: "20px 22px"
     };
 
-    const detailChartData =
-      selectedRiskBucket?.counterparties?.map(
-        counterparty => ({
-          vendor: counterparty.vendor,
-          riskPerformance:
-            counterparty.riskPerformance,
-          defaultRisk:
-            counterparty.defaultRisk,
-          regulatoryRisk:
-            counterparty.regulatoryRisk,
-          totalRisk:
-            counterparty.totalRisk,
-          volume:
-            counterparty.volume
-        })
-      ) || [];
+    const riskComponentColors = {
+      performancePositive: THEME.red,
+      performanceNegative: THEME.green,
+      defaultRisk: THEME.orange,
+      regulatoryPending: THEME.amber,
+      regulatoryValidated: THEME.sky
+    };
+
+    // Stable colors by contract-status category. These colors are shared by
+    // the portfolio-volume donut and its legend, for both Classique and
+    // Précarité views.
+    const statusCategoryColorMap = {
+      "not-credited-not-validated-unpaid": THEME.red,
+      "not-credited-not-validated-paid": THEME.orange,
+      "not-credited-validated-unpaid": THEME.purple,
+      "not-credited-validated-paid": THEME.amber,
+      "credited-not-validated-unpaid": THEME.teal,
+      "credited-not-validated-paid": THEME.gold,
+      "credited-validated-unpaid": THEME.sky,
+      "credited-validated-paid": THEME.green
+    };
+
+    const detailRiskDistributionData = selectedRiskBucket
+      ? [
+          {
+            key: "riskPerformance",
+            name:
+              selectedRiskBucket.riskPerformance < 0
+                ? "Performance gain / mitigation"
+                : "Risk Performance",
+            value: Math.abs(
+              Number(
+                selectedRiskBucket.riskPerformance || 0
+              )
+            ),
+            signedValue: Number(
+              selectedRiskBucket.riskPerformance || 0
+            ),
+            color:
+              selectedRiskBucket.riskPerformance < 0
+                ? riskComponentColors.performanceNegative
+                : riskComponentColors.performancePositive
+          },
+          {
+            key: "defaultRisk",
+            name: "Default Risk",
+            value: Math.abs(
+              Number(selectedRiskBucket.defaultRisk || 0)
+            ),
+            signedValue: Number(
+              selectedRiskBucket.defaultRisk || 0
+            ),
+            color: riskComponentColors.defaultRisk
+          },
+          {
+            key: "regulatoryPending",
+            name: "Regulatory — Pending Validation",
+            value: Math.abs(
+              Number(
+                selectedRiskBucket
+                  .regulatoryRiskPendingValidation || 0
+              )
+            ),
+            signedValue: Number(
+              selectedRiskBucket
+                .regulatoryRiskPendingValidation || 0
+            ),
+            color: riskComponentColors.regulatoryPending
+          },
+          {
+            key: "regulatoryValidated",
+            name: "Regulatory — Validated",
+            value: Math.abs(
+              Number(
+                selectedRiskBucket
+                  .regulatoryRiskValidated || 0
+              )
+            ),
+            signedValue: Number(
+              selectedRiskBucket
+                .regulatoryRiskValidated || 0
+            ),
+            color: riskComponentColors.regulatoryValidated
+          }
+        ].filter(component => component.value > 0.01)
+      : [];
+
+    const detailRiskMagnitude =
+      detailRiskDistributionData.reduce(
+        (sum, component) => sum + component.value,
+        0
+      );
+
+    const StatusRiskTooltip = ({ active, payload, label }) => {
+      if (!active || !payload?.length) return null;
+
+      const row = payload[0]?.payload;
+      if (!row) return null;
+
+      return (
+        <div
+          style={{
+            background: THEME.panelAlt,
+            border: `1px solid ${THEME.border}`,
+            borderRadius: "3px",
+            padding: "11px 13px",
+            minWidth: "245px",
+            boxShadow: THEME.shadow
+          }}
+        >
+          <p
+            style={{
+              ...S,
+              fontSize: "10px",
+              color: THEME.textPrimary,
+              fontWeight: 700,
+              margin: 0,
+              marginBottom: "5px"
+            }}
+          >
+            {label}
+          </p>
+
+          <p
+            style={{
+              ...S,
+              fontSize: "9px",
+              color: THEME.textMuted,
+              margin: 0,
+              marginBottom: "9px"
+            }}
+          >
+            {row.tradeCount} contract
+            {row.tradeCount > 1 ? "s" : ""}
+            {" · "}
+            {N(row.volume, 2)} GWhc
+            {" · "}
+            {N(row.portfolioPct, 1)}% of portfolio
+          </p>
+
+          {[
+            {
+              label: "Risk Performance",
+              value: row.riskPerformance,
+              color:
+                row.riskPerformance < 0
+                  ? riskComponentColors.performanceNegative
+                  : riskComponentColors.performancePositive
+            },
+            {
+              label: "Default Risk",
+              value: row.defaultRisk,
+              color: riskComponentColors.defaultRisk
+            },
+            {
+              label: "Regulatory — Pending Validation",
+              value: row.regulatoryPending,
+              color: riskComponentColors.regulatoryPending
+            },
+            {
+              label: "Regulatory — Validated",
+              value: row.regulatoryValidated,
+              color: riskComponentColors.regulatoryValidated
+            }
+          ].map(component => (
+            <div
+              key={component.label}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "14px",
+                marginBottom: "4px"
+              }}
+            >
+              <span
+                style={{
+                  ...S,
+                  fontSize: "9px",
+                  color: component.color
+                }}
+              >
+                {component.label}
+              </span>
+
+              <span
+                style={{
+                  ...S,
+                  fontSize: "10px",
+                  color: component.color,
+                  fontWeight: 700,
+                  whiteSpace: "nowrap"
+                }}
+              >
+                {fM(component.value)}
+              </span>
+            </div>
+          ))}
+
+          <div
+            style={{
+              borderTop: `1px solid ${THEME.borderSoft}`,
+              marginTop: "8px",
+              paddingTop: "8px",
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "14px"
+            }}
+          >
+            <span
+              style={{
+                ...S,
+                fontSize: "9px",
+                color: THEME.textSecondary,
+                fontWeight: 600
+              }}
+            >
+              Total Risk
+            </span>
+
+            <span
+              style={{
+                ...S,
+                fontSize: "10px",
+                color: riskColor(row.totalRisk),
+                fontWeight: 800,
+                whiteSpace: "nowrap"
+              }}
+            >
+              {fM(row.totalRisk)}
+            </span>
+          </div>
+        </div>
+      );
+    };
+
+    const DetailRiskTooltip = ({ active, payload }) => {
+      if (!active || !payload?.length) return null;
+
+      const component = payload[0]?.payload;
+      if (!component) return null;
+
+      const share =
+        detailRiskMagnitude > 0
+          ? component.value / detailRiskMagnitude * 100
+          : 0;
+
+      return (
+        <div
+          style={{
+            background: THEME.panel,
+            border: `1px solid ${THEME.border}`,
+            borderRadius: "3px",
+            padding: "10px 12px",
+            boxShadow: THEME.shadow
+          }}
+        >
+          <p
+            style={{
+              ...S,
+              fontSize: "10px",
+              color: component.color,
+              fontWeight: 700,
+              margin: 0,
+              marginBottom: "5px"
+            }}
+          >
+            {component.name}
+          </p>
+
+          <p
+            style={{
+              ...S,
+              fontSize: "11px",
+              color: component.color,
+              fontWeight: 800,
+              margin: 0
+            }}
+          >
+            {fM(component.signedValue)}
+          </p>
+
+          <p
+            style={{
+              ...S,
+              fontSize: "9px",
+              color: THEME.textMuted,
+              margin: 0,
+              marginTop: "3px"
+            }}
+          >
+            {N(share, 1)}% of absolute risk magnitude
+          </p>
+        </div>
+      );
+    };
+
+    const VolumeShareTooltip = ({ active, payload }) => {
+      if (!active || !payload?.length) return null;
+
+      const row = payload[0]?.payload;
+      if (!row) return null;
+
+      return (
+        <div
+          style={{
+            background: THEME.panelAlt,
+            border: `1px solid ${THEME.border}`,
+            borderRadius: "3px",
+            padding: "10px 12px",
+            minWidth: "230px",
+            boxShadow: THEME.shadow
+          }}
+        >
+          <p
+            style={{
+              ...S,
+              fontSize: "10px",
+              color: row.color,
+              fontWeight: 700,
+              margin: 0,
+              marginBottom: "6px"
+            }}
+          >
+            {row.label}
+          </p>
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "16px",
+              marginBottom: "4px"
+            }}
+          >
+            <span
+              style={{
+                ...S,
+                fontSize: "9px",
+                color: THEME.textMuted
+              }}
+            >
+              Volume
+            </span>
+
+            <span
+              style={{
+                ...S,
+                fontSize: "10px",
+                color: THEME.textPrimary,
+                fontWeight: 700,
+                whiteSpace: "nowrap"
+              }}
+            >
+              {N(row.volume, 2)} GWhc
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "16px",
+              marginBottom: "4px"
+            }}
+          >
+            <span
+              style={{
+                ...S,
+                fontSize: "9px",
+                color: THEME.textMuted
+              }}
+            >
+              Current selection
+            </span>
+
+            <span
+              style={{
+                ...S,
+                fontSize: "10px",
+                color: row.color,
+                fontWeight: 700,
+                whiteSpace: "nowrap"
+              }}
+            >
+              {N(row.selectionPct, 1)}%
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: "16px"
+            }}
+          >
+            <span
+              style={{
+                ...S,
+                fontSize: "9px",
+                color: THEME.textMuted
+              }}
+            >
+              Full portfolio
+            </span>
+
+            <span
+              style={{
+                ...S,
+                fontSize: "10px",
+                color: THEME.textSecondary,
+                fontWeight: 700,
+                whiteSpace: "nowrap"
+              }}
+            >
+              {N(row.portfolioPct, 1)}%
+            </span>
+          </div>
+        </div>
+      );
+    };
 
     const visibleBuckets = data.buckets.filter(
       bucket => bucket.tradeCount > 0
@@ -2622,9 +3206,21 @@ function Reporting({
           )
         },
         {
-          key: "REGULATORY",
+          key: "REGULATORY_PENDING",
           value: Math.abs(
-            Number(bucket.regulatoryRisk || 0)
+            Number(
+              bucket.regulatoryRiskPendingValidation ||
+              0
+            )
+          )
+        },
+        {
+          key: "REGULATORY_VALIDATED",
+          value: Math.abs(
+            Number(
+              bucket.regulatoryRiskValidated ||
+              0
+            )
           )
         }
       ].sort(
@@ -2680,6 +3276,77 @@ function Reporting({
         return true;
       });
 
+    const statusRiskChartData =
+      filteredBuckets.map(bucket => {
+        const riskPerformance =
+          Number(bucket.riskPerformance || 0);
+
+        return {
+          status:
+            `${bucket.label} · ` +
+            `${N(bucket.portfolioPct, 1)}% vol.`,
+
+          tradeCount:
+            Number(bucket.tradeCount || 0),
+
+          volume:
+            Number(bucket.volume || 0),
+
+          portfolioPct:
+            Number(bucket.portfolioPct || 0),
+
+          riskPerformance,
+
+          riskPerformancePositive:
+            Math.max(riskPerformance, 0),
+
+          riskPerformanceNegative:
+            Math.min(riskPerformance, 0),
+
+          defaultRisk:
+            Number(bucket.defaultRisk || 0),
+
+          regulatoryPending:
+            Number(
+              bucket.regulatoryRiskPendingValidation ||
+              0
+            ),
+
+          regulatoryValidated:
+            Number(
+              bucket.regulatoryRiskValidated ||
+              0
+            ),
+
+          totalRisk:
+            Number(bucket.totalRisk || 0)
+        };
+      });
+
+    const selectedCategoryVolume =
+      filteredBuckets.reduce(
+        (sum, bucket) =>
+          sum + Number(bucket.volume || 0),
+        0
+      );
+
+    const portfolioVolumeChartData =
+      filteredBuckets.map(bucket => ({
+        key: bucket.key,
+        label: bucket.label,
+        volume: Number(bucket.volume || 0),
+        tradeCount: Number(bucket.tradeCount || 0),
+        portfolioPct: Number(bucket.portfolioPct || 0),
+        selectionPct:
+          selectedCategoryVolume > 0
+            ? Number(bucket.volume || 0) /
+              selectedCategoryVolume * 100
+            : 0,
+        color:
+          statusCategoryColorMap[bucket.key] ||
+          THEME.textMuted
+      }));
+
     const filteredContracts =
       filteredBuckets.flatMap(
         bucket => bucket.contracts || []
@@ -2714,6 +3381,20 @@ function Reporting({
             totals.defaultRisk +
             Number(bucket.defaultRisk || 0),
 
+          regulatoryRiskPendingValidation:
+            totals.regulatoryRiskPendingValidation +
+            Number(
+              bucket.regulatoryRiskPendingValidation ||
+              0
+            ),
+
+          regulatoryRiskValidated:
+            totals.regulatoryRiskValidated +
+            Number(
+              bucket.regulatoryRiskValidated ||
+              0
+            ),
+
           regulatoryRisk:
             totals.regulatoryRisk +
             Number(
@@ -2729,6 +3410,8 @@ function Reporting({
           volume: 0,
           riskPerformance: 0,
           defaultRisk: 0,
+          regulatoryRiskPendingValidation: 0,
+          regulatoryRiskValidated: 0,
           regulatoryRisk: 0,
           totalRisk: 0
         }
@@ -2805,7 +3488,7 @@ function Reporting({
             >
               <div>
                 <SectionTitle>
-                  {title} — P6 Risk Summary
+                  {title} — {scopeLabel} Risk Summary
                 </SectionTitle>
 
                 <p
@@ -2824,7 +3507,11 @@ function Reporting({
               </div>
 
               <Badge color="sky">
-                {data.tradeCount} contracts · P6
+                {data.tradeCount} contracts
+                {" · "}
+                P5 {periodCounts.P5}
+                {" · "}
+                P6 {periodCounts.P6}
               </Badge>
             </div>
 
@@ -2832,7 +3519,7 @@ function Reporting({
               style={{
                 display: "grid",
                 gridTemplateColumns:
-                  "repeat(4, minmax(190px, 1fr))",
+                  "repeat(auto-fit, minmax(175px, 1fr))",
                 gap: "10px"
               }}
             >
@@ -2853,8 +3540,15 @@ function Reporting({
                   )}% · Default ${N(
                     riskShare(data.totalDefaultRisk),
                     1
-                  )}% · Regulatory ${N(
-                    riskShare(data.totalRegulatoryRisk),
+                  )}% · Reg. pending ${N(
+                    riskShare(
+                      data.totalRegulatoryRiskPendingValidation
+                    ),
+                    1
+                  )}% · Reg. validated ${N(
+                    riskShare(
+                      data.totalRegulatoryRiskValidated
+                    ),
                     1
                   )}%`
                 }
@@ -2889,16 +3583,29 @@ function Reporting({
               />
 
               <KPI
-                label="Regulatory Risk"
+                label="Reg. Risk — Pending Validation"
                 value={fM(
-                  data.totalRegulatoryRisk
+                  data.totalRegulatoryRiskPendingValidation
                 )}
                 color={
-                  data.totalRegulatoryRisk > 0
+                  data.totalRegulatoryRiskPendingValidation > 0
                     ? "amber"
                     : "gray"
                 }
-                sub="Paid and credited exposure"
+                sub="Credited CEE awaiting EMMY validation"
+              />
+
+              <KPI
+                label="Reg. Risk — Validated"
+                value={fM(
+                  data.totalRegulatoryRiskValidated
+                )}
+                color={
+                  data.totalRegulatoryRiskValidated > 0
+                    ? "sky"
+                    : "gray"
+                }
+                sub="Validated CEE with residual invalidation exposure"
               />
             </div>
           </div>
@@ -3078,8 +3785,11 @@ validation and payment status.
                 <option value="DEFAULT">
                   Default risk
                 </option>
-                <option value="REGULATORY">
-                  Regulatory risk
+                <option value="REGULATORY_PENDING">
+                  Regulatory — pending validation
+                </option>
+                <option value="REGULATORY_VALIDATED">
+                  Regulatory — validated
                 </option>
                 <option value="NONE">
                   No material risk
@@ -3127,38 +3837,45 @@ validation and payment status.
               <table
                 style={{
                   width: "100%",
+                  minWidth: "1080px",
                   borderCollapse: "collapse",
                   tableLayout: "fixed"
                 }}
               >
                 <colgroup>
-                  <col style={{ width: "20%" }} />
+                  <col style={{ width: "24%" }} />
                   <col style={{ width: "7%" }} />
-                  <col style={{ width: "10%" }} />
-                  <col style={{ width: "8%" }} />
                   <col style={{ width: "10%" }} />
                   <col style={{ width: "10%" }} />
                   <col style={{ width: "10%" }} />
                   <col style={{ width: "11%" }} />
-                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "11%" }} />
+                  <col style={{ width: "9%" }} />
+                  <col style={{ width: "8%" }} />
                 </colgroup>
 
                 <thead>
                   <tr>
-                    {[
-                      "Contract status",
-                      "Contracts",
-                      "Volume",
-                      "% portfolio",
-                      "Risk performance",
-                      "Default risk",
-                      "Regulatory risk",
-                      "Total risk"
-                    ].map(header => (
-                      <TH key={header}>
-                        {header}
-                      </TH>
-                    ))}
+                    <TH>Contract status</TH>
+                    <TH>Contracts</TH>
+                    <TH>Volume</TH>
+                    <TH>Risk performance</TH>
+                    <TH>Default risk</TH>
+                    <TH>
+                      <span style={{ lineHeight: 1.2 }}>
+                        Reg. risk
+                        <br />
+                        pending validation
+                      </span>
+                    </TH>
+                    <TH>
+                      <span style={{ lineHeight: 1.2 }}>
+                        Reg. risk
+                        <br />
+                        validated
+                      </span>
+                    </TH>
+                    <TH>Total risk</TH>
 
                     <th
                       style={{
@@ -3171,13 +3888,13 @@ validation and payment status.
                         fontWeight: 600,
                         textTransform: "uppercase",
                         letterSpacing: "0.09em",
-                        padding: "9px 12px",
+                        padding: "9px 8px",
                         textAlign: "center",
                         whiteSpace: "nowrap",
                         background: THEME.tableHeader,
                         borderBottom: `1px solid ${THEME.border}`,
                         boxShadow:
-                          "-10px 0 18px rgba(7, 11, 22, 0.28)"
+                          "-8px 0 14px rgba(7, 11, 22, 0.22)"
                       }}
                     >
                       Details
@@ -3204,303 +3921,310 @@ validation and payment status.
                   ) : (
                     filteredBuckets.map(
                       (bucket, index) => {
-                      const hasContracts =
-                        bucket.tradeCount > 0;
+                        const hasContracts =
+                          bucket.tradeCount > 0;
 
-                      const rowBackground =
-                        index % 2 === 0
-                          ? THEME.panel
-                          : THEME.panelAlt;
+                        const rowBackground =
+                          index % 2 === 0
+                            ? THEME.panel
+                            : THEME.panelAlt;
 
-                      const accentColor =
-                        hasContracts
-                          ? riskColor(bucket.totalRisk)
-                          : THEME.borderSoft;
+                        const accentColor =
+                          hasContracts
+                            ? riskColor(bucket.totalRisk)
+                            : THEME.borderSoft;
 
-                      return (
-                        <tr
-                          key={bucket.key}
-                          style={{
-                            background: rowBackground,
-                            borderBottom:
-                              `1px solid ${THEME.borderSoft}`,
-                            opacity:
-                              hasContracts ? 1 : 0.48
-                          }}
-                        >
-                          <td
+                        return (
+                          <tr
+                            key={bucket.key}
                             style={{
-                              ...S,
-                              padding: "12px 12px",
-                              borderLeft:
-                                `3px solid ${accentColor}`,
-                              verticalAlign: "middle"
-                            }}
-                          >
-                            <div
-                              style={{
-                                color:
-                                  hasContracts
-                                    ? THEME.textPrimary
-                                    : THEME.textMuted,
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                lineHeight: 1.3
-                              }}
-                            >
-                              {bucket.label}
-                            </div>
-
-                            <div
-                              style={{
-                                display: "flex",
-                                gap: "5px",
-                                flexWrap: "wrap",
-                                marginTop: "7px"
-                              }}
-                            >
-                              <Badge
-                                color={
-                                  bucket.credited
-                                    ? "green"
-                                    : "gray"
-                                }
-                              >
-                                C: {bucket.credited ? "Yes" : "No"}
-                              </Badge>
-
-                              <Badge
-                                color={
-                                  bucket.validated
-                                    ? "green"
-                                    : "gray"
-                                }
-                              >
-                                V: {bucket.validated ? "Yes" : "No"}
-                              </Badge>
-
-                              <Badge
-                                color={
-                                  bucket.paid
-                                    ? "green"
-                                    : "gray"
-                                }
-                              >
-                                P: {bucket.paid ? "Yes" : "No"}
-                              </Badge>
-                            </div>
-
-                            <div
-                              style={{
-                                marginTop: "7px",
-                                color:
-                                  hasContracts
-                                    ? accentColor
-                                    : THEME.textMuted,
-                                fontSize: "9px",
-                                fontWeight: 500,
-                                letterSpacing: "0.02em"
-                              }}
-                            >
-                              {dominantRiskLabel(bucket)}
-                            </div>
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "12px 8px",
-                              color: THEME.textSecondary,
-                              fontWeight: 700,
-                              textAlign: "center",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {N(bucket.tradeCount, 0)}
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "12px 8px",
-                              color: THEME.textSecondary,
-                              textAlign: "right",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {N(bucket.volume, 2)}
-                            <span
-                              style={{
-                                display: "block",
-                                fontSize: "8px",
-                                color: THEME.textMuted,
-                                marginTop: "2px"
-                              }}
-                            >
-                              GWhc
-                            </span>
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "12px 8px",
-                              color: THEME.sky,
-                              fontWeight: 700,
-                              textAlign: "center",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {N(bucket.portfolioPct, 1)}%
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "12px 8px",
-                              color: riskColor(
-                                bucket.riskPerformance
-                              ),
-                              fontWeight: 650,
-                              textAlign: "right",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {fM(bucket.riskPerformance)}
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "12px 8px",
-                              color:
-                                bucket.defaultRisk > 0
-                                  ? THEME.red
-                                  : THEME.textMuted,
-                              fontWeight: 650,
-                              textAlign: "right",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {fM(bucket.defaultRisk)}
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "12px 8px",
-                              color:
-                                bucket.regulatoryRisk > 0
-                                  ? THEME.amber
-                                  : THEME.textMuted,
-                              fontWeight: 650,
-                              textAlign: "right",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            {fM(bucket.regulatoryRisk)}
-                          </td>
-
-                          <td
-                            style={{
-                              ...S,
-                              padding: "12px 8px",
-                              textAlign: "right",
-                              whiteSpace: "nowrap"
-                            }}
-                          >
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                justifyContent: "flex-end",
-                                minWidth: "76px",
-                                padding: "5px 7px",
-                                borderRadius: "2px",
-                                color: riskColor(
-                                  bucket.totalRisk
-                                ),
-                                background:
-                                  bucket.totalRisk > 0
-                                    ? "rgba(248, 113, 113, 0.09)"
-                                    : bucket.totalRisk < 0
-                                      ? "rgba(52, 211, 153, 0.09)"
-                                      : "rgba(113, 135, 166, 0.08)",
-                                border:
-                                  `1px solid ${
-                                    bucket.totalRisk > 0
-                                      ? "rgba(248, 113, 113, 0.22)"
-                                      : bucket.totalRisk < 0
-                                        ? "rgba(52, 211, 153, 0.22)"
-                                        : THEME.borderSoft
-                                  }`,
-                                fontWeight: 800
-                              }}
-                            >
-                              {fM(bucket.totalRisk)}
-                            </span>
-                          </td>
-
-                          <td
-                            style={{
-                              position: "sticky",
-                              right: 0,
-                              zIndex: 2,
-                              padding: "12px 10px",
-                              textAlign: "center",
                               background: rowBackground,
-                              boxShadow:
-                                "-10px 0 18px rgba(7, 11, 22, 0.24)"
+                              borderBottom:
+                                `1px solid ${THEME.borderSoft}`,
+                              opacity:
+                                hasContracts ? 1 : 0.48
                             }}
                           >
-                            {hasContracts ? (
-                              <button
-                                onClick={() =>
-                                  setSelectedRiskBucket(bucket)
-                                }
+                            <td
+                              style={{
+                                ...S,
+                                padding: "12px 12px",
+                                borderLeft:
+                                  `3px solid ${accentColor}`,
+                                verticalAlign: "middle"
+                              }}
+                            >
+                              <div
                                 style={{
-                                  ...S,
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  gap: "6px",
-                                  width: "100%",
-                                  maxWidth: "125px",
-                                  background:
-                                    "rgba(56, 189, 248, 0.08)",
-                                  color: THEME.sky,
-                                  border:
-                                    "1px solid rgba(56, 189, 248, 0.28)",
-                                  borderRadius: "2px",
-                                  fontSize: "8px",
+                                  color:
+                                    hasContracts
+                                      ? THEME.textPrimary
+                                      : THEME.textMuted,
+                                  fontSize: "11px",
                                   fontWeight: 700,
-                                  letterSpacing: "0.07em",
-                                  textTransform: "uppercase",
-                                  padding: "7px 8px",
-                                  cursor: "pointer",
-                                  whiteSpace: "nowrap"
+                                  lineHeight: 1.3
                                 }}
                               >
-                                <EyeIcon />
-                                View contracts
-                              </button>
-                            ) : (
+                                {bucket.label}
+                              </div>
+
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: "5px",
+                                  flexWrap: "wrap",
+                                  marginTop: "7px"
+                                }}
+                              >
+                                <Badge
+                                  color={
+                                    bucket.credited
+                                      ? "green"
+                                      : "gray"
+                                  }
+                                >
+                                  C: {bucket.credited ? "Yes" : "No"}
+                                </Badge>
+
+                                <Badge
+                                  color={
+                                    bucket.validated
+                                      ? "green"
+                                      : "gray"
+                                  }
+                                >
+                                  V: {bucket.validated ? "Yes" : "No"}
+                                </Badge>
+
+                                <Badge
+                                  color={
+                                    bucket.paid
+                                      ? "green"
+                                      : "gray"
+                                  }
+                                >
+                                  P: {bucket.paid ? "Yes" : "No"}
+                                </Badge>
+                              </div>
+
+                              <div
+                                style={{
+                                  marginTop: "7px",
+                                  color:
+                                    hasContracts
+                                      ? accentColor
+                                      : THEME.textMuted,
+                                  fontSize: "9px",
+                                  fontWeight: 500,
+                                  letterSpacing: "0.02em"
+                                }}
+                              >
+                                {dominantRiskLabel(bucket)}
+                              </div>
+                            </td>
+
+                            <td
+                              style={{
+                                ...S,
+                                padding: "12px 6px",
+                                color: THEME.textSecondary,
+                                fontWeight: 700,
+                                textAlign: "center",
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {N(bucket.tradeCount, 0)}
+                            </td>
+
+                            <td
+                              style={{
+                                ...S,
+                                padding: "12px 7px",
+                                color: THEME.textSecondary,
+                                textAlign: "right",
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {N(bucket.volume, 2)}
                               <span
                                 style={{
-                                  ...S,
+                                  display: "block",
+                                  fontSize: "8px",
                                   color: THEME.textMuted,
-                                  fontSize: "11px"
+                                  marginTop: "2px"
                                 }}
                               >
-                                —
+                                GWhc
                               </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    }
-                  )
-                )}
+                            </td>
+
+                            <td
+                              style={{
+                                ...S,
+                                padding: "12px 7px",
+                                color: riskColor(
+                                  bucket.riskPerformance
+                                ),
+                                fontWeight: 650,
+                                textAlign: "right",
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {fM(bucket.riskPerformance)}
+                            </td>
+
+                            <td
+                              style={{
+                                ...S,
+                                padding: "12px 7px",
+                                color:
+                                  bucket.defaultRisk > 0
+                                    ? THEME.red
+                                    : THEME.textMuted,
+                                fontWeight: 650,
+                                textAlign: "right",
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {fM(bucket.defaultRisk)}
+                            </td>
+
+                            <td
+                              style={{
+                                ...S,
+                                padding: "12px 7px",
+                                color:
+                                  bucket.regulatoryRiskPendingValidation > 0
+                                    ? THEME.amber
+                                    : THEME.textMuted,
+                                fontWeight: 650,
+                                textAlign: "right",
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {fM(
+                                bucket.regulatoryRiskPendingValidation
+                              )}
+                            </td>
+
+                            <td
+                              style={{
+                                ...S,
+                                padding: "12px 7px",
+                                color:
+                                  bucket.regulatoryRiskValidated > 0
+                                    ? THEME.sky
+                                    : THEME.textMuted,
+                                fontWeight: 650,
+                                textAlign: "right",
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {fM(
+                                bucket.regulatoryRiskValidated
+                              )}
+                            </td>
+
+                            <td
+                              style={{
+                                ...S,
+                                padding: "12px 7px",
+                                textAlign: "right",
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "flex-end",
+                                  minWidth: "70px",
+                                  padding: "5px 6px",
+                                  borderRadius: "2px",
+                                  color: riskColor(
+                                    bucket.totalRisk
+                                  ),
+                                  background:
+                                    bucket.totalRisk > 0
+                                      ? "rgba(248, 113, 113, 0.09)"
+                                      : bucket.totalRisk < 0
+                                        ? "rgba(52, 211, 153, 0.09)"
+                                        : "rgba(113, 135, 166, 0.08)",
+                                  border:
+                                    `1px solid ${
+                                      bucket.totalRisk > 0
+                                        ? "rgba(248, 113, 113, 0.22)"
+                                        : bucket.totalRisk < 0
+                                          ? "rgba(52, 211, 153, 0.22)"
+                                          : THEME.borderSoft
+                                    }`,
+                                  fontWeight: 800
+                                }}
+                              >
+                                {fM(bucket.totalRisk)}
+                              </span>
+                            </td>
+
+                            <td
+                              style={{
+                                position: "sticky",
+                                right: 0,
+                                zIndex: 2,
+                                padding: "12px 7px",
+                                textAlign: "center",
+                                background: rowBackground,
+                                boxShadow:
+                                  "-8px 0 14px rgba(7, 11, 22, 0.20)"
+                              }}
+                            >
+                              {hasContracts ? (
+                                <button
+                                  onClick={() =>
+                                    setSelectedRiskBucket(bucket)
+                                  }
+                                  style={{
+                                    ...S,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "5px",
+                                    width: "100%",
+                                    maxWidth: "112px",
+                                    background:
+                                      "rgba(56, 189, 248, 0.08)",
+                                    color: THEME.sky,
+                                    border:
+                                      "1px solid rgba(56, 189, 248, 0.28)",
+                                    borderRadius: "2px",
+                                    fontSize: "8px",
+                                    fontWeight: 700,
+                                    letterSpacing: "0.06em",
+                                    textTransform: "uppercase",
+                                    padding: "7px 6px",
+                                    cursor: "pointer",
+                                    whiteSpace: "nowrap"
+                                  }}
+                                >
+                                  <EyeIcon />
+                                  View
+                                </button>
+                              ) : (
+                                <span
+                                  style={{
+                                    ...S,
+                                    color: THEME.textMuted,
+                                    fontSize: "11px"
+                                  }}
+                                >
+                                  —
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      }
+                    )
+                  )}
                 </tbody>
 
                 <tfoot>
@@ -3513,23 +4237,24 @@ validation and payment status.
                     <td
                       style={{
                         ...S,
-                        padding: "13px 14px",
+                        padding: "13px 12px",
                         color: THEME.sky,
                         fontWeight: 800,
                         textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        borderLeft: `3px solid ${THEME.sky}`
+                        letterSpacing: "0.07em",
+                        borderLeft: `3px solid ${THEME.sky}`,
+                        whiteSpace: "nowrap"
                       }}
                     >
                       {hasRiskFilters
-                        ? `Filtered ${title} P6`
-                        : `Total ${title} P6`}
+                        ? `Filtered ${title} ${scopeLabel}`
+                        : `Total ${title} ${scopeLabel}`}
                     </td>
 
                     <td
                       style={{
                         ...S,
-                        padding: "13px 8px",
+                        padding: "13px 6px",
                         color: THEME.textPrimary,
                         fontWeight: 700,
                         textAlign: "center"
@@ -3541,7 +4266,7 @@ validation and payment status.
                     <td
                       style={{
                         ...S,
-                        padding: "13px 8px",
+                        padding: "13px 7px",
                         color: THEME.textPrimary,
                         fontWeight: 700,
                         textAlign: "right",
@@ -3554,20 +4279,7 @@ validation and payment status.
                     <td
                       style={{
                         ...S,
-                        padding: "13px 8px",
-                        color: THEME.sky,
-                        fontWeight: 700,
-                        textAlign: "center",
-                        whiteSpace: "nowrap"
-                      }}
-                    >
-                      {N(filteredPortfolioPct, 1)}%
-                    </td>
-
-                    <td
-                      style={{
-                        ...S,
-                        padding: "13px 8px",
+                        padding: "13px 7px",
                         color: riskColor(
                           filteredTotals.riskPerformance
                         ),
@@ -3582,7 +4294,7 @@ validation and payment status.
                     <td
                       style={{
                         ...S,
-                        padding: "13px 8px",
+                        padding: "13px 7px",
                         color:
                           filteredTotals.defaultRisk > 0
                             ? THEME.red
@@ -3598,9 +4310,9 @@ validation and payment status.
                     <td
                       style={{
                         ...S,
-                        padding: "13px 8px",
+                        padding: "13px 7px",
                         color:
-                          filteredTotals.regulatoryRisk > 0
+                          filteredTotals.regulatoryRiskPendingValidation > 0
                             ? THEME.amber
                             : THEME.textMuted,
                         fontWeight: 700,
@@ -3608,13 +4320,33 @@ validation and payment status.
                         whiteSpace: "nowrap"
                       }}
                     >
-                      {fM(filteredTotals.regulatoryRisk)}
+                      {fM(
+                        filteredTotals.regulatoryRiskPendingValidation
+                      )}
                     </td>
 
                     <td
                       style={{
                         ...S,
-                        padding: "13px 8px",
+                        padding: "13px 7px",
+                        color:
+                          filteredTotals.regulatoryRiskValidated > 0
+                            ? THEME.sky
+                            : THEME.textMuted,
+                        fontWeight: 700,
+                        textAlign: "right",
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      {fM(
+                        filteredTotals.regulatoryRiskValidated
+                      )}
+                    </td>
+
+                    <td
+                      style={{
+                        ...S,
+                        padding: "13px 7px",
                         color: riskColor(
                           filteredTotals.totalRisk
                         ),
@@ -3633,7 +4365,7 @@ validation and payment status.
                         zIndex: 3,
                         background: THEME.tableHeader,
                         boxShadow:
-                          "-10px 0 18px rgba(7, 11, 22, 0.28)"
+                          "-8px 0 14px rgba(7, 11, 22, 0.22)"
                       }}
                     />
                   </tr>
@@ -3641,10 +4373,395 @@ validation and payment status.
               </table>
             </div>
           </div>
+
+          {/* ======================================================
+              3. RISK DISTRIBUTION BY STATUS CATEGORY
+          ====================================================== */}
+          <div style={cardStyle}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: "16px",
+                flexWrap: "wrap",
+                marginBottom: "14px"
+              }}
+            >
+              <div>
+                <SectionTitle>
+                  Risk Profile by Contract Status
+                </SectionTitle>
+
+                <p
+                  style={{
+                    ...S,
+                    fontSize: "11px",
+                    color: THEME.textMuted,
+                    lineHeight: 1.55,
+                    marginTop: "-6px",
+                    marginBottom: 0
+                  }}
+                >
+                  Distribution of the four risk components across active
+                  contract-status categories. Negative performance extends
+                  to the left as a green mitigating contribution.
+                </p>
+              </div>
+
+              <Badge color="gray">
+                {statusRiskChartData.length} active status
+                {statusRiskChartData.length > 1 ? "es" : ""}
+              </Badge>
+            </div>
+
+            {statusRiskChartData.length === 0 ? (
+              <div
+                style={{
+                  ...S,
+                  height: "240px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: THEME.textMuted
+                }}
+              >
+                No active contract status matches the filters.
+              </div>
+            ) : (
+              <ResponsiveContainer
+                width="100%"
+                height={Math.max(
+                  280,
+                  statusRiskChartData.length * 58
+                )}
+              >
+                <BarChart
+                  data={statusRiskChartData}
+                  layout="vertical"
+                  stackOffset="sign"
+                  barSize={22}
+                  margin={{
+                    top: 14,
+                    right: 28,
+                    left: 28,
+                    bottom: 12
+                  }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 6"
+                    stroke={THEME.chartGrid}
+                    horizontal={false}
+                  />
+
+                  <XAxis
+                    type="number"
+                    tick={{
+                      ...S,
+                      fontSize: 9,
+                      fill: THEME.chartAxis
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={value =>
+                      `${N(value / 1000000, 1)} M`
+                    }
+                  />
+
+                  <YAxis
+                    type="category"
+                    dataKey="status"
+                    width={245}
+                    tick={{
+                      ...S,
+                      fontSize: 9,
+                      fill: THEME.textSecondary
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+
+                  <Tooltip content={<StatusRiskTooltip />} />
+
+                  <Legend
+                    iconSize={9}
+                    wrapperStyle={{
+                      ...S,
+                      fontSize: "10px",
+                      color: THEME.textSecondary
+                    }}
+                  />
+
+                  <ReferenceLine
+                    x={0}
+                    stroke={THEME.chartGrid}
+                  />
+
+                  <Bar
+                    dataKey="riskPerformanceNegative"
+                    name="Performance gain / mitigation"
+                    stackId="risk"
+                    fill={riskComponentColors.performanceNegative}
+                    radius={[2, 0, 0, 2]}
+                  />
+
+                  <Bar
+                    dataKey="riskPerformancePositive"
+                    name="Risk Performance"
+                    stackId="risk"
+                    fill={riskComponentColors.performancePositive}
+                  />
+
+                  <Bar
+                    dataKey="defaultRisk"
+                    name="Default Risk"
+                    stackId="risk"
+                    fill={riskComponentColors.defaultRisk}
+                  />
+
+                  <Bar
+                    dataKey="regulatoryPending"
+                    name="Regulatory — Pending Validation"
+                    stackId="risk"
+                    fill={riskComponentColors.regulatoryPending}
+                  />
+
+                  <Bar
+                    dataKey="regulatoryValidated"
+                    name="Regulatory — Validated"
+                    stackId="risk"
+                    fill={riskComponentColors.regulatoryValidated}
+                    radius={[0, 2, 2, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+
+            <div
+              style={{
+                borderTop: `1px solid ${THEME.borderSoft}`,
+                marginTop: "18px",
+                paddingTop: "18px"
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: "14px",
+                  flexWrap: "wrap",
+                  marginBottom: "10px"
+                }}
+              >
+                <div>
+                  <SectionTitle>
+                    Portfolio Volume Distribution by Status
+                  </SectionTitle>
+
+                  <p
+                    style={{
+                      ...S,
+                      fontSize: "10px",
+                      color: THEME.textMuted,
+                      lineHeight: 1.5,
+                      marginTop: "-6px",
+                      marginBottom: 0
+                    }}
+                  >
+                    Volume share by active contract-status category. The
+                    donut follows the current filters, while the legend also
+                    reports each category's share of the full portfolio.
+                  </p>
+                </div>
+
+                <Badge color="gray">
+                  {N(selectedCategoryVolume, 2)} GWhc displayed
+                </Badge>
+              </div>
+
+              {portfolioVolumeChartData.length === 0 ? (
+                <div
+                  style={{
+                    ...S,
+                    height: "210px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: THEME.textMuted
+                  }}
+                >
+                  No volume matches the selected filters.
+                </div>
+              ) : (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "minmax(250px, 0.8fr) minmax(360px, 1.2fr)",
+                    gap: "18px",
+                    alignItems: "center"
+                  }}
+                >
+                  <div
+                    style={{
+                      position: "relative",
+                      minHeight: "240px"
+                    }}
+                  >
+                    <ResponsiveContainer
+                      width="100%"
+                      height={240}
+                    >
+                      <PieChart>
+                        <Pie
+                          data={portfolioVolumeChartData}
+                          dataKey="volume"
+                          nameKey="label"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={58}
+                          outerRadius={88}
+                          paddingAngle={2}
+                          stroke={THEME.panel}
+                          strokeWidth={2}
+                        >
+                          {portfolioVolumeChartData.map(
+                            category => (
+                              <Cell
+                                key={category.key}
+                                fill={category.color}
+                              />
+                            )
+                          )}
+                        </Pie>
+
+                        <Tooltip
+                          content={<VolumeShareTooltip />}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        pointerEvents: "none"
+                      }}
+                    >
+                      <span
+                        style={{
+                          ...S,
+                          fontSize: "9px",
+                          color: THEME.textMuted,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em"
+                        }}
+                      >
+                        Displayed volume
+                      </span>
+
+                      <span
+                        style={{
+                          ...CG,
+                          fontSize: "17px",
+                          color: THEME.textPrimary,
+                          fontWeight: 800,
+                          marginTop: "3px"
+                        }}
+                      >
+                        {N(selectedCategoryVolume, 0)} GWhc
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "7px"
+                    }}
+                  >
+                    {portfolioVolumeChartData.map(
+                      category => (
+                        <div
+                          key={category.key}
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "10px minmax(190px, 1fr) auto auto",
+                            alignItems: "center",
+                            gap: "8px",
+                            padding: "8px 9px",
+                            background: THEME.panelAlt,
+                            border:
+                              `1px solid ${THEME.borderSoft}`,
+                            borderRadius: "2px"
+                          }}
+                        >
+                          <span
+                            style={{
+                              width: "8px",
+                              height: "8px",
+                              borderRadius: "1px",
+                              background: category.color
+                            }}
+                          />
+
+                          <span
+                            style={{
+                              ...S,
+                              fontSize: "9px",
+                              color: THEME.textSecondary,
+                              fontWeight: 600,
+                              lineHeight: 1.3
+                            }}
+                          >
+                            {category.label}
+                          </span>
+
+                          <span
+                            style={{
+                              ...S,
+                              fontSize: "9px",
+                              color: category.color,
+                              fontWeight: 800,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {N(category.selectionPct, 1)}%
+                          </span>
+
+                          <span
+                            style={{
+                              ...S,
+                              minWidth: "105px",
+                              fontSize: "9px",
+                              color: THEME.textMuted,
+                              textAlign: "right",
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {N(category.volume, 2)} GWhc
+                            {" · "}
+                            {N(category.portfolioPct, 1)}% portfolio
+                          </span>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* ======================================================
-            3. SELECTED STATUS DETAIL MODAL
+            4. SELECTED CATEGORY DETAIL MODAL
         ====================================================== */}
         {selectedRiskBucket && (
           <Modal
@@ -3700,7 +4817,7 @@ validation and payment status.
               style={{
                 display: "grid",
                 gridTemplateColumns:
-                  "repeat(5, minmax(135px, 1fr))",
+                  "repeat(6, minmax(110px, 1fr))",
                 gap: "8px",
                 marginBottom: "18px"
               }}
@@ -3742,13 +4859,25 @@ validation and payment status.
               />
 
               <KPI
-                label="Regulatory Risk"
+                label="Reg. Risk — Pending"
                 value={fM(
-                  selectedRiskBucket.regulatoryRisk
+                  selectedRiskBucket.regulatoryRiskPendingValidation
                 )}
                 color={
-                  selectedRiskBucket.regulatoryRisk > 0
+                  selectedRiskBucket.regulatoryRiskPendingValidation > 0
                     ? "amber"
+                    : "gray"
+                }
+              />
+
+              <KPI
+                label="Reg. Risk — Validated"
+                value={fM(
+                  selectedRiskBucket.regulatoryRiskValidated
+                )}
+                color={
+                  selectedRiskBucket.regulatoryRiskValidated > 0
+                    ? "sky"
                     : "gray"
                 }
               />
@@ -3770,23 +4899,33 @@ validation and payment status.
 
             <div
               style={{
-                background:
-                  THEME.panelAlt,
-                border:
-                  `1px solid ${THEME.borderSoft}`,
-                borderRadius:
-                  "3px",
-                padding:
-                  "16px",
-                marginBottom:
-                  "18px"
+                background: THEME.panelAlt,
+                border: `1px solid ${THEME.borderSoft}`,
+                borderRadius: "3px",
+                padding: "16px",
+                marginBottom: "18px"
               }}
             >
               <SectionTitle>
-                Risk by Counterparty
+                Risk Distribution within this Category
               </SectionTitle>
 
-              {detailChartData.length === 0 ? (
+              <p
+                style={{
+                  ...S,
+                  fontSize: "10px",
+                  color: THEME.textMuted,
+                  lineHeight: 1.5,
+                  marginTop: "-6px",
+                  marginBottom: "14px"
+                }}
+              >
+                Relative composition of the selected status category.
+                Segment sizes use absolute magnitudes; signed amounts remain
+                visible in the legend and tooltip.
+              </p>
+
+              {detailRiskDistributionData.length === 0 ? (
                 <div
                   style={{
                     ...S,
@@ -3797,123 +4936,177 @@ validation and payment status.
                     color: THEME.textMuted
                   }}
                 >
-                  No contract in this status.
+                  No material risk in this category.
                 </div>
               ) : (
-                <ResponsiveContainer
-                  width="100%"
-                  height={Math.max(
-                    240,
-                    detailChartData.length * 48
-                  )}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns:
+                      "minmax(270px, 0.9fr) minmax(300px, 1.1fr)",
+                    gap: "18px",
+                    alignItems: "center"
+                  }}
                 >
-                  <BarChart
-                    data={detailChartData}
-                    layout="vertical"
-                    barSize={18}
-                    margin={{
-                      top: 8,
-                      right: 18,
-                      left: 14,
-                      bottom: 8
+                  <div
+                    style={{
+                      position: "relative",
+                      minHeight: "270px"
                     }}
                   >
-                    <CartesianGrid
-                      strokeDasharray="3 6"
-                      stroke={THEME.chartGrid}
-                      horizontal={false}
-                    />
+                    <ResponsiveContainer
+                      width="100%"
+                      height={270}
+                    >
+                      <PieChart>
+                        <Pie
+                          data={detailRiskDistributionData}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={65}
+                          outerRadius={100}
+                          paddingAngle={3}
+                          stroke={THEME.panelAlt}
+                          strokeWidth={2}
+                        >
+                          {detailRiskDistributionData.map(
+                            component => (
+                              <Cell
+                                key={component.key}
+                                fill={component.color}
+                              />
+                            )
+                          )}
+                        </Pie>
 
-                    <XAxis
-                      type="number"
-                      tick={{
-                        ...S,
-                        fontSize: 9,
-                        fill: THEME.chartAxis
+                        <Tooltip
+                          content={<DetailRiskTooltip />}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        pointerEvents: "none"
                       }}
-                      axisLine={false}
-                      tickLine={false}
-                      tickFormatter={value =>
-                        `${N(
-                          value / 1000000,
-                          1
-                        )}M`
+                    >
+                      <span
+                        style={{
+                          ...S,
+                          fontSize: "9px",
+                          color: THEME.textMuted,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.1em"
+                        }}
+                      >
+                        Total Risk
+                      </span>
+
+                      <span
+                        style={{
+                          ...CG,
+                          fontSize: "20px",
+                          color: riskColor(
+                            selectedRiskBucket.totalRisk
+                          ),
+                          fontWeight: 800,
+                          marginTop: "3px"
+                        }}
+                      >
+                        {fM(selectedRiskBucket.totalRisk)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px"
+                    }}
+                  >
+                    {detailRiskDistributionData.map(
+                      component => {
+                        const share =
+                          detailRiskMagnitude > 0
+                            ? component.value /
+                              detailRiskMagnitude * 100
+                            : 0;
+
+                        return (
+                          <div
+                            key={component.key}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns:
+                                "10px minmax(150px, 1fr) auto auto",
+                              alignItems: "center",
+                              gap: "9px",
+                              padding: "9px 10px",
+                              background: THEME.panel,
+                              border:
+                                `1px solid ${THEME.borderSoft}`,
+                              borderRadius: "2px"
+                            }}
+                          >
+                            <span
+                              style={{
+                                width: "8px",
+                                height: "8px",
+                                borderRadius: "1px",
+                                background: component.color
+                              }}
+                            />
+
+                            <span
+                              style={{
+                                ...S,
+                                fontSize: "10px",
+                                color: THEME.textSecondary,
+                                fontWeight: 600
+                              }}
+                            >
+                              {component.name}
+                            </span>
+
+                            <span
+                              style={{
+                                ...S,
+                                fontSize: "10px",
+                                color: component.color,
+                                fontWeight: 800,
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {fM(component.signedValue)}
+                            </span>
+
+                            <span
+                              style={{
+                                ...S,
+                                minWidth: "46px",
+                                fontSize: "9px",
+                                color: THEME.textMuted,
+                                textAlign: "right",
+                                whiteSpace: "nowrap"
+                              }}
+                            >
+                              {N(share, 1)}%
+                            </span>
+                          </div>
+                        );
                       }
-                    />
-
-                    <YAxis
-                      type="category"
-                      dataKey="vendor"
-                      tick={{
-                        ...S,
-                        fontSize: 9,
-                        fill: THEME.textSecondary
-                      }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={175}
-                    />
-
-                    <Tooltip
-                      formatter={(value, name) => [
-                        fM(Number(value)),
-                        name
-                      ]}
-                      contentStyle={{
-                        background:
-                          THEME.panelAlt,
-                        border:
-                          `1px solid ${THEME.border}`,
-                        borderRadius:
-                          "3px",
-                        color:
-                          THEME.textPrimary,
-                        fontFamily:
-                          "Inter, sans-serif",
-                        fontSize:
-                          "10px"
-                      }}
-                    />
-
-                    <Legend
-                      iconSize={9}
-                      wrapperStyle={{
-                        ...S,
-                        fontSize:
-                          "10px",
-                        color:
-                          THEME.textSecondary
-                      }}
-                    />
-
-                    <ReferenceLine
-                      x={0}
-                      stroke={THEME.chartGrid}
-                    />
-
-                    <Bar
-                      dataKey="riskPerformance"
-                      name="Risk Performance"
-                      stackId="risk"
-                      fill={THEME.red}
-                    />
-
-                    <Bar
-                      dataKey="defaultRisk"
-                      name="Default Risk"
-                      stackId="risk"
-                      fill="var(--theme-orange)"
-                    />
-
-                    <Bar
-                      dataKey="regulatoryRisk"
-                      name="Regulatory Risk"
-                      stackId="risk"
-                      fill={THEME.sky}
-                      radius={[0, 2, 2, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
 
@@ -3934,7 +5127,7 @@ validation and payment status.
                 <table
                   style={{
                     width: "100%",
-                    minWidth: "1260px",
+                    minWidth: "1500px",
                     borderCollapse: "collapse"
                   }}
                 >
@@ -3949,7 +5142,8 @@ validation and payment status.
                         "Price",
                         "Risk performance",
                         "Default risk",
-                        "Regulatory risk",
+                        "Reg. risk — pending validation",
+                        "Reg. risk — validated",
                         "Total risk"
                       ].map(header => (
                         <TH key={header}>
@@ -4047,12 +5241,16 @@ validation and payment status.
                                 color={
                                   contract.credited
                                     ? "green"
-                                    : "amber"
+                                    : contract.creditedVolume > 0.01
+                                      ? "amber"
+                                      : "gray"
                                 }
                               >
                                 {contract.credited
-                                  ? "Credited portion"
-                                  : "Uncredited portion"}
+                                  ? "Fully credited"
+                                  : contract.creditedVolume > 0.01
+                                    ? "Partially credited"
+                                    : "Not credited"}
                               </Badge>
 
                               <span
@@ -4061,14 +5259,9 @@ validation and payment status.
                                   color: THEME.textMuted
                                 }}
                               >
-                                {contract.totalContractVolume > 0
-                                  ? `${N(
-                                      contract.volume /
-                                        contract.totalContractVolume *
-                                        100,
-                                      1
-                                    )}% of contract`
-                                  : "Zero-volume contract"}
+                                {N(contract.creditedPct, 1)}% credited
+                                {" · "}
+                                {N(contract.uncreditedVolume, 2)} GWhc remaining
                               </span>
                             </div>
                           </td>
@@ -4126,7 +5319,7 @@ validation and payment status.
                               ...S,
                               padding: "10px 14px",
                               color:
-                                contract.regulatoryRisk > 0
+                                contract.regulatoryRiskPendingValidation > 0
                                   ? THEME.amber
                                   : THEME.textMuted,
                               fontWeight: 600,
@@ -4134,7 +5327,24 @@ validation and payment status.
                             }}
                           >
                             {fM(
-                              contract.regulatoryRisk
+                              contract.regulatoryRiskPendingValidation
+                            )}
+                          </td>
+
+                          <td
+                            style={{
+                              ...S,
+                              padding: "10px 14px",
+                              color:
+                                contract.regulatoryRiskValidated > 0
+                                  ? THEME.sky
+                                  : THEME.textMuted,
+                              fontWeight: 600,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            {fM(
+                              contract.regulatoryRiskValidated
                             )}
                           </td>
 
