@@ -6176,28 +6176,38 @@ validation and payment status.
 function PositionView({ trades, obligations, curve, prices }) {
   const [view, setView] = useState("position");
 
+  // Keep the whole CEE Position section on the same P6 scope as Reporting.
+  const positionTrades2026 = useMemo(
+    () => trades.filter(t =>
+      String(t.period ?? "").trim().toUpperCase() === "P6"
+    ),
+    [trades]
+  );
+
+  // Same market-price source and fallback as the Reporting section.
+  // Values remain in €/MWhc here and are converted to €/GWhc in calculations.
   const latestSpot = useMemo(() => {
     if (!prices.length) {
       return {
-        classique: (curve.SPOT?.classique ?? 8.78) * 1000,
-        precarite: (curve.SPOT?.precarite ?? 16.88) * 1000
+        classique: curve.SPOT?.classique ?? 8.96,
+        precarite: curve.SPOT?.precarite ?? 16.44
       };
     }
 
-    const p = [...prices].sort((a, b) => {
-      const byDate = b.date.localeCompare(a.date);
-      if (byDate !== 0) return byDate;
-      return String(b.enteredAt || "").localeCompare(String(a.enteredAt || ""));
-    })[0];
+    const p = [...prices].sort(
+      (a, b) => b.date.localeCompare(a.date)
+    )[0];
 
     return {
-      classique: Number(p.classique || 0) * 1000,
-      precarite: Number(p.precarite || 0) * 1000
+      classique: Number(p.classique || 0),
+      precarite: Number(p.precarite || 0)
     };
   }, [prices, curve]);
 
   const rows = useMemo(() => {
-    const businessTrades = trades.filter(t => t.priced === true || t.priced === false);
+    const businessTrades = positionTrades2026.filter(
+      t => t.priced === true || t.priced === false
+    );
 
     const buyVol = (ceeType, month = null, pricedOnly = false) =>
       businessTrades
@@ -6237,14 +6247,32 @@ function PositionView({ trades, obligations, curve, prices }) {
       const aCl = buyAvg("CLASSIQUE", month, false);
       const aPr = buyAvg("PRECARITE", month, false);
 
-      const aClP = pnlBuyAvg(trades, "CLASSIQUE", month);
-      const aPrP = pnlBuyAvg(trades, "PRECARITE", month);
+      const aClP = pnlBuyAvg(
+        positionTrades2026,
+        "CLASSIQUE",
+        month
+      );
 
-      const sCl = avgSellMonth(obligations, month, "CLASSIQUE");
-      const sPr = avgSellMonth(obligations, month, "PRECARITE");
+      const aPrP = pnlBuyAvg(
+        positionTrades2026,
+        "PRECARITE",
+        month
+      );
 
-      const sClP = avgSellMonth(obligations, month, "CLASSIQUE", true);
-      const sPrP = avgSellMonth(obligations, month, "PRECARITE", true);
+      // Priced sell averages, identical to Reporting.
+      const sClP = avgSellMonth(
+        obligations,
+        month,
+        "CLASSIQUE",
+        true
+      );
+
+      const sPrP = avgSellMonth(
+        obligations,
+        month,
+        "PRECARITE",
+        true
+      );
 
       const netCl = bCl - oblClT;
       const netPr = bPr - oblPrT;
@@ -6260,34 +6288,36 @@ function PositionView({ trades, obligations, curve, prices }) {
       const matchCl = Math.min(bClP, oblClP);
       const matchPr = Math.min(bPrP, oblPrP);
 
+      // Same realized PnL formula as Reporting.
       const pnlCl =
-        matchCl > 0.001 && aClP > 0 && sClP > 0
+        oblClP > 0.001 && aClP > 0 && sClP > 0
           ? (sClP - aClP) * matchCl
           : 0;
 
       const pnlPr =
-        matchPr > 0.001 && aPrP > 0 && sPrP > 0
+        oblPrP > 0.001 && aPrP > 0 && sPrP > 0
           ? (sPrP - aPrP) * matchPr
           : 0;
 
-      const openCl =
-        oblClP > 0.001 && bClP > oblClP
-          ? bClP - oblClP
-          : 0;
+      // Signed priced net positions: positive = long, negative = short.
+      const openCl = bClP - oblClP;
+      const openPr = bPrP - oblPrP;
 
-      const openPr =
-        oblPrP > 0.001 && bPrP > oblPrP
-          ? bPrP - oblPrP
-          : 0;
-
+      // Same Excel-aligned MtM formula as Reporting:
+      // long positions are valued against the average purchase price;
+      // short positions are valued against the average sold price.
       const mtmCl =
-        openCl > 0 && aClP > 0
-          ? openCl * (latestSpot.classique - aClP)
+        Math.abs(openCl) > 0.001 && latestSpot.classique > 0
+          ? openCl < 0
+            ? openCl * (latestSpot.classique * 1000 - sClP)
+            : openCl * (latestSpot.classique * 1000 - aClP)
           : 0;
 
       const mtmPr =
-        openPr > 0 && aPrP > 0
-          ? openPr * (latestSpot.precarite - aPrP)
+        Math.abs(openPr) > 0.001 && latestSpot.precarite > 0
+          ? openPr < 0
+            ? openPr * (latestSpot.precarite * 1000 - sPrP)
+            : openPr * (latestSpot.precarite * 1000 - aPrP)
           : 0;
 
       const oblClU = Math.max(oblClT - oblClP, 0);
@@ -6319,8 +6349,6 @@ function PositionView({ trades, obligations, curve, prices }) {
         aClP,
         aPrP,
 
-        sCl,
-        sPr,
         sClP,
         sPrP,
 
@@ -6345,11 +6373,11 @@ function PositionView({ trades, obligations, curve, prices }) {
         forwardPr,
 
         unpricedSpotValue:
-          oblClU * latestSpot.classique +
-          oblPrU * latestSpot.precarite
+          oblClU * latestSpot.classique * 1000 +
+          oblPrU * latestSpot.precarite * 1000
       };
     });
-  }, [trades, obligations, latestSpot]);
+  }, [positionTrades2026, obligations, latestSpot]);
 
   const tot = useMemo(() => ({
     oblCl: rows.reduce((s, r) => s + r.oblClT, 0),
@@ -6527,7 +6555,7 @@ function PositionView({ trades, obligations, curve, prices }) {
           label="Estimated Total PnL"
           value={fM(totalEstimated)}
           color={totalEstimated >= 0 ? "emerald" : "rose"}
-          sub="Realized PnL + open priced position MtM"
+          sub="P6 realized PnL + priced net position MtM (long and short)"
         />
       )}
 
@@ -6571,9 +6599,9 @@ function PositionView({ trades, obligations, curve, prices }) {
                   <TH>Avg Sale Précarité</TH>
                   <TH>Matched Précarité</TH>
                   <TH>PnL Précarité</TH>
-                  <TH>Open Classique</TH>
+                  <TH>Priced Net Classique</TH>
                   <TH>MtM Classique</TH>
-                  <TH>Open Précarité</TH>
+                  <TH>Priced Net Précarité</TH>
                   <TH>MtM Précarité</TH>
                   <TH>Net PnL + MtM</TH>
                 </>
@@ -6644,10 +6672,14 @@ function PositionView({ trades, obligations, curve, prices }) {
                       <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{r.matchPr > 0 ? N(r.matchPr, 2) : "—"}</td>
                       <td style={{ padding: "9px 14px" }}>{Math.abs(r.pnlPr) > 0.01 ? pk(r.pnlPr) : zeroDash}</td>
 
-                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{r.openCl > 0 ? N(r.openCl, 2) : "—"}</td>
+                      <td style={{ padding: "9px 14px" }}>
+                        {Math.abs(r.openCl) > 0.001 ? pc(r.openCl) : zeroDash}
+                      </td>
                       <td style={{ padding: "9px 14px" }}>{Math.abs(r.mtmCl) > 0.01 ? pk(r.mtmCl) : zeroDash}</td>
 
-                      <td style={{ ...S, fontSize: "12px", color: "var(--theme-text-secondary)", padding: "9px 14px" }}>{r.openPr > 0 ? N(r.openPr, 2) : "—"}</td>
+                      <td style={{ padding: "9px 14px" }}>
+                        {Math.abs(r.openPr) > 0.001 ? pc(r.openPr) : zeroDash}
+                      </td>
                       <td style={{ padding: "9px 14px" }}>{Math.abs(r.mtmPr) > 0.01 ? pk(r.mtmPr) : zeroDash}</td>
 
                       <td style={{ padding: "9px 14px" }}>{pk(r.pnlCl + r.pnlPr + r.mtmCl + r.mtmPr)}</td>
@@ -6725,9 +6757,13 @@ function PositionView({ trades, obligations, curve, prices }) {
                   <td style={{ padding: "10px 14px" }}>{pk(tot.pnlCl)}</td>
                   <td colSpan={3} />
                   <td style={{ padding: "10px 14px" }}>{pk(tot.pnlPr)}</td>
-                  <td />
+                  <td style={{ padding: "10px 14px" }}>
+                    {pc(tot.bClP - tot.oblClP)}
+                  </td>
                   <td style={{ padding: "10px 14px" }}>{pk(tot.mtmCl)}</td>
-                  <td />
+                  <td style={{ padding: "10px 14px" }}>
+                    {pc(tot.bPrP - tot.oblPrP)}
+                  </td>
                   <td style={{ padding: "10px 14px" }}>{pk(tot.mtmPr)}</td>
                   <td style={{ padding: "10px 14px" }}>{pk(totalEstimated)}</td>
                 </>
