@@ -9721,6 +9721,7 @@ function Dashboard({
 
 function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve, canEdit = true }) {
   const [view, setView] = useState("spot");
+  const [spotSeries, setSpotSeries] = useState("classique");
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [editingTenor, setEditingTenor] = useState(null);
   const [draftCurve, setDraftCurve] = useState({ classique: "", precarite: "" });
@@ -9751,11 +9752,123 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
       .sort((a, b) => a.date.localeCompare(b.date))
       .map(p => ({
         date: p.date?.slice(5) || p.date,
+        fullDate: p.date,
         classique: Number(p.classique),
         precarite: Number(p.precarite)
       })),
     [prices]
   );
+
+  const spotSeriesConfig =
+    spotSeries === "classique"
+      ? {
+          key: "classique",
+          label: "Classique",
+          color: THEME.blue,
+          softBackground: THEME.infoBg,
+          softBorder: THEME.infoBorder,
+          gradientId: "spot-history-classique"
+        }
+      : {
+          key: "precarite",
+          label: "Précarité",
+          color: THEME.amber,
+          softBackground: THEME.warningBg,
+          softBorder: THEME.warningBorder,
+          gradientId: "spot-history-precarite"
+        };
+
+  const activePriceHistory = useMemo(
+    () =>
+      priceHistory
+        .map(row => ({
+          ...row,
+          value: Number(row[spotSeries])
+        }))
+        .filter(row => Number.isFinite(row.value)),
+    [priceHistory, spotSeries]
+  );
+
+  const spotHistoryStats = useMemo(() => {
+    const values = activePriceHistory.map(row => row.value);
+
+    if (!values.length) {
+      return {
+        first: null,
+        latest: null,
+        min: null,
+        max: null,
+        change: null,
+        domain: ["auto", "auto"]
+      };
+    }
+
+    const first = values[0];
+    const latest = values[values.length - 1];
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = max - min;
+
+    const padding =
+      span > 0
+        ? Math.max(span * 0.16, 0.04)
+        : Math.max(Math.abs(max) * 0.015, 0.08);
+
+    return {
+      first,
+      latest,
+      min,
+      max,
+      change: latest - first,
+      domain: [
+        Math.floor((min - padding) * 100) / 100,
+        Math.ceil((max + padding) * 100) / 100
+      ]
+    };
+  }, [activePriceHistory]);
+
+  const SpotSeriesButton = ({ id, children }) => {
+    const active = spotSeries === id;
+    const classique = id === "classique";
+
+    return (
+      <button
+        onClick={() => setSpotSeries(id)}
+        style={{
+          ...S,
+          minWidth: "104px",
+          padding: "7px 13px",
+          borderRadius: "2px",
+          border: `1px solid ${
+            active
+              ? classique
+                ? THEME.infoBorder
+                : THEME.warningBorder
+              : THEME.border
+          }`,
+          background: active
+            ? classique
+              ? THEME.infoBg
+              : THEME.warningBg
+            : "transparent",
+          color: active
+            ? classique
+              ? THEME.sky
+              : THEME.amber
+            : THEME.textMuted,
+          fontSize: "9px",
+          fontWeight: active ? 700 : 600,
+          letterSpacing: "0.09em",
+          textTransform: "uppercase",
+          cursor: "pointer",
+          transition:
+            "background 0.2s ease, border-color 0.2s ease, color 0.2s ease"
+        }}
+      >
+        {children}
+      </button>
+    );
+  };
 
   const curveData = useMemo(
     () => TENORS.map(tenor => ({
@@ -10006,52 +10119,309 @@ function MarketCurvesTab({ prices, curve, currentUser, onAddPrice, onUpdateCurve
             />
           </div>
 
-          <div style={{
-            background: "var(--theme-panel)",
-            border: "1px solid var(--theme-border-soft)",
-            borderRadius: "2px",
-            padding: "18px"
-          }}>
-            <SectionTitle>Spot Market Price History — Classique vs Précarité</SectionTitle>
+          <div
+            style={{
+              background: "var(--theme-panel)",
+              border: "1px solid var(--theme-border-soft)",
+              borderRadius: "3px",
+              padding: "20px 22px"
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: "14px",
+                flexWrap: "wrap",
+                marginBottom: "16px"
+              }}
+            >
+              <div>
+                <SectionTitle>
+                  Spot Market Price History — {spotSeriesConfig.label}
+                </SectionTitle>
 
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={priceHistory}>
-                <CartesianGrid strokeDasharray="2 4" stroke="var(--theme-border-soft)" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }}
-                  axisLine={false}
-                  tickLine={false}
+                <p
+                  style={{
+                    ...S,
+                    fontSize: "10px",
+                    color: THEME.textMuted,
+                    lineHeight: 1.5,
+                    marginTop: "-7px",
+                    marginBottom: 0
+                  }}
+                >
+                  One market series at a time, with an automatically adjusted
+                  vertical scale to make daily movements easier to read.
+                </p>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "7px",
+                  padding: "4px",
+                  background: THEME.panelAlt,
+                  border: `1px solid ${THEME.borderSoft}`,
+                  borderRadius: "3px"
+                }}
+              >
+                <SpotSeriesButton id="classique">
+                  Classique
+                </SpotSeriesButton>
+
+                <SpotSeriesButton id="precarite">
+                  Précarité
+                </SpotSeriesButton>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: "8px",
+                marginBottom: "18px"
+              }}
+            >
+              {[
+                {
+                  label: "Latest",
+                  value:
+                    spotHistoryStats.latest == null
+                      ? "—"
+                      : `${N(spotHistoryStats.latest, 2)} €/MWhc`
+                },
+                {
+                  label: "Period change",
+                  value:
+                    spotHistoryStats.change == null
+                      ? "—"
+                      : `${spotHistoryStats.change >= 0 ? "+" : ""}${N(
+                          spotHistoryStats.change,
+                          2
+                        )} €/MWhc`,
+                  valueColor:
+                    spotHistoryStats.change > 0
+                      ? THEME.green
+                      : spotHistoryStats.change < 0
+                        ? THEME.red
+                        : THEME.textPrimary
+                },
+                {
+                  label: "Observed range",
+                  value:
+                    spotHistoryStats.min == null
+                      ? "—"
+                      : `${N(spotHistoryStats.min, 2)} – ${N(
+                          spotHistoryStats.max,
+                          2
+                        )} €/MWhc`
+                }
+              ].map(metric => (
+                <div
+                  key={metric.label}
+                  style={{
+                    padding: "10px 12px",
+                    background: THEME.panelAlt,
+                    border: `1px solid ${THEME.borderSoft}`,
+                    borderRadius: "2px"
+                  }}
+                >
+                  <p
+                    style={{
+                      ...S,
+                      fontSize: "8px",
+                      color: THEME.textLabel,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.11em",
+                      margin: 0,
+                      marginBottom: "5px"
+                    }}
+                  >
+                    {metric.label}
+                  </p>
+
+                  <p
+                    style={{
+                      ...CG,
+                      fontSize: "14px",
+                      color:
+                        metric.valueColor ||
+                        spotSeriesConfig.color,
+                      fontWeight: 700,
+                      margin: 0
+                    }}
+                  >
+                    {metric.value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            {activePriceHistory.length === 0 ? (
+              <div
+                style={{
+                  ...S,
+                  height: "320px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: THEME.textMuted
+                }}
+              >
+                No market price history available.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={340}>
+                <AreaChart
+                  data={activePriceHistory}
+                  margin={{
+                    top: 10,
+                    right: 18,
+                    left: 4,
+                    bottom: 4
+                  }}
+                >
+                  <defs>
+                    <linearGradient
+                      id={spotSeriesConfig.gradientId}
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor={spotSeriesConfig.color}
+                        stopOpacity={0.28}
+                      />
+                      <stop
+                        offset="92%"
+                        stopColor={spotSeriesConfig.color}
+                        stopOpacity={0.01}
+                      />
+                    </linearGradient>
+                  </defs>
+
+                  <CartesianGrid
+                    strokeDasharray="3 6"
+                    stroke={THEME.chartGrid}
+                    vertical={false}
+                    opacity={0.85}
+                  />
+
+                  <XAxis
+                    dataKey="date"
+                    tick={{
+                      ...S,
+                      fontSize: 9,
+                      fill: THEME.chartAxis
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={24}
+                    dy={7}
+                  />
+
+                  <YAxis
+                    tick={{
+                      ...S,
+                      fontSize: 9,
+                      fill: THEME.chartAxis
+                    }}
+                    axisLine={false}
+                    tickLine={false}
+                    width={54}
+                    domain={spotHistoryStats.domain}
+                    tickFormatter={value => N(value, 2)}
+                    allowDataOverflow
+                  />
+
+                  <Tooltip
+                    cursor={{
+                      stroke: spotSeriesConfig.color,
+                      strokeOpacity: 0.4,
+                      strokeDasharray: "3 4"
+                    }}
+                    content={<ChartTip />}
+                  />
+
+                  <ReferenceLine
+                    y={spotHistoryStats.latest}
+                    stroke={spotSeriesConfig.color}
+                    strokeOpacity={0.28}
+                    strokeDasharray="4 5"
+                  />
+
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    name={`${spotSeriesConfig.label} (€/MWhc)`}
+                    stroke={spotSeriesConfig.color}
+                    strokeWidth={2.6}
+                    fill={`url(#${spotSeriesConfig.gradientId})`}
+                    dot={false}
+                    activeDot={{
+                      r: 4,
+                      fill: spotSeriesConfig.color,
+                      stroke: THEME.panel,
+                      strokeWidth: 2
+                    }}
+                    connectNulls
+                    isAnimationActive
+                    animationDuration={350}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "12px",
+                flexWrap: "wrap",
+                borderTop: `1px solid ${THEME.borderSoft}`,
+                marginTop: "8px",
+                paddingTop: "11px"
+              }}
+            >
+              <span
+                style={{
+                  ...S,
+                  fontSize: "9px",
+                  color: THEME.textMuted
+                }}
+              >
+                {activePriceHistory.length} observations displayed
+              </span>
+
+              <span
+                style={{
+                  ...S,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  fontSize: "9px",
+                  color: THEME.textSecondary
+                }}
+              >
+                <span
+                  style={{
+                    width: "18px",
+                    height: "2px",
+                    background: spotSeriesConfig.color,
+                    borderRadius: "2px"
+                  }}
                 />
-                <YAxis
-                  tick={{ ...S, fontSize: 9, fill: THEME.chartAxis }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={44}
-                  domain={["auto", "auto"]}
-                />
-                <Tooltip content={<ChartTip />} />
-                <Legend iconSize={8} wrapperStyle={{ ...S, fontSize: 10, color: "var(--theme-text-secondary)" }} />
-                <Line
-                  type="monotone"
-                  dataKey="classique"
-                  name="Classique (€/MWhc)"
-                  stroke="var(--theme-blue)"
-                  strokeWidth={2}
-                  dot={{ fill: "var(--theme-blue)", r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="precarite"
-                  name="Précarité (€/MWhc)"
-                  stroke="var(--theme-amber)"
-                  strokeWidth={2}
-                  dot={{ fill: "var(--theme-amber)", r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+                {spotSeriesConfig.label} · €/MWhc
+              </span>
+            </div>
           </div>
 
           {canEdit && (
